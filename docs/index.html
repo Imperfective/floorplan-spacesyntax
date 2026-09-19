@@ -149,6 +149,13 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .warnbox b{color:var(--bad)}
 .empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.6}
 
+.scaleout{background:var(--acc-soft);border:1px solid var(--acc);border-radius:4px;
+  padding:10px 12px;margin-bottom:4px}
+.scaleout .big{font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600;line-height:1.2}
+.scaleout .big small{font-size:11px;font-weight:400;color:var(--text-2);margin-left:5px}
+.scaleout .sub{font-size:10.5px;color:var(--text-2);margin-top:5px;line-height:1.6;
+  font-family:"IBM Plex Mono",monospace}
+
 /* 방 목록 */
 .rooms{display:grid;gap:4px}
 .rm{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;padding:6px 7px;
@@ -205,9 +212,8 @@ td.n,th.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-nu
   <div class="file" id="fileName">도면 이미지를 올려 시작하세요</div>
   <div class="grp">
     <div class="scalebox">
-      <label for="pyeong">전용</label>
-      <input type="number" id="pyeong" min="1" max="300" step="0.5" value="24">
-      <label>평</label>
+      <label for="pyeongSel">평형</label>
+      <select id="pyeongSel"></select>
       <span class="m2" id="m2txt"></span>
     </div>
     <button class="tbtn" id="btnOpen">이미지 열기</button>
@@ -283,14 +289,33 @@ td.n,th.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-nu
           <button class="btn" id="btnSample2">예시 도면</button></div>
         <div class="sechead"><span>이미지 정보</span><i></i></div>
         <dl class="kv" id="imgInfo"><dt>불러온 이미지 없음</dt><dd>—</dd></dl>
-        <div class="sechead"><span>축척</span><i></i></div>
-        <div class="fld">
-          <label for="pyeong2">전용 면적 <b id="pyeongEcho">24평</b></label>
-          <input type="range" id="pyeong2" min="5" max="80" step="0.5" value="24">
-          <p class="desc">검출된 실내 면적 전체를 이 값으로 잡고 픽셀↔미터 환산을 계산합니다.
-            면적·거리 지표가 모두 이 축척을 따릅니다.</p>
+        <div class="sechead"><span>평수 · 축척</span><i></i></div>
+        <div class="hintbox">도면이 <b>몇 평인지</b>를 여기서 정합니다.
+          검출된 실내 전체를 이 면적으로 보고, 방마다의 평수와 문 폭(m)을 모두 여기서 환산합니다.</div>
+        <div class="row" style="margin-bottom:9px">
+          <button class="btn on" id="mdSupply" style="flex:1">공급 평형</button>
+          <button class="btn" id="mdM2" style="flex:1">전용 ㎡</button>
+          <button class="btn" id="mdPy" style="flex:1">전용 평</button>
         </div>
-        <dl class="kv" id="scaleInfo"></dl>
+        <div id="scSupply">
+          <div class="fld"><label for="supplySel">평형 고르기</label>
+            <select id="supplySel"></select></div>
+          <div class="fld"><label for="ratio">전용률 <b id="ratioEcho">75%</b></label>
+            <input type="range" id="ratio" min="55" max="95" step="1" value="75">
+            <p class="desc">공급면적 대비 전용면적의 비율. 아파트는 보통 70~80%입니다.
+              도면에 적힌 전용면적과 맞지 않으면 이 값을 조정하세요.</p></div>
+        </div>
+        <div id="scM2" style="display:none">
+          <div class="fld"><label for="netM2">전용면적 (㎡)</label>
+            <input type="number" id="netM2" min="5" max="1000" step="0.1" value="84.3"></div>
+        </div>
+        <div id="scPy" style="display:none">
+          <div class="fld"><label for="netPy">전용면적 (평)</label>
+            <input type="number" id="netPy" min="2" max="300" step="0.1" value="25.5"></div>
+        </div>
+        <div class="scaleout" id="scaleOut"></div>
+        <div class="sechead"><span>방별 면적</span><i></i></div>
+        <div class="tw"><table id="areaTable"></table></div>
       </div>
 
       <!-- ② 벽 검출 -->
@@ -441,7 +466,8 @@ const ST = {
             dilateR: 6, minCorePct: 0.4, minDoorPx: 5 },
   view: { z: 1, x: 0, y: 0 },
   show: { mask: false, seg: true, graph: true, img: true, alpha: 0.45 },
-  pyeong: 24, picking: false, selected: null,
+  scale: { mode: "supply", supply: 34, ratio: 0.75, netM2: 34 * 3.3057851 * 0.75 },
+  picking: false, selected: null,
   criteria: [], critSet: "주거 일반", analysis: null, vga: null,
 };
 
@@ -802,14 +828,19 @@ function runVGA(targetCells = 420) {
 /* ══════════════════════════════════════════════════════════
    5. 전체 분석
    ══════════════════════════════════════════════════════════ */
-function pxToM2(px) {
-  const interior = ST.regions.filter(r => !r.isOutside).reduce((a, r) => a + r.area, 0) || 1;
-  return px / interior * ST.pyeong * PYEONG_M2;
+/* 한국 평형 — 공급 평형과 전용면적을 함께 다룬다.
+   "34평형"은 보통 공급면적이고, 도면에 적히는 전용면적은 그 70~80%다. */
+const SUPPLY_LIST = [8, 10, 13, 15, 17, 19, 21, 24, 25, 27, 29, 32, 34, 36, 39, 43, 45, 49, 53, 59, 65];
+const interiorPx = () => ST.regions.filter(r => !r.isOutside).reduce((a, r) => a + r.area, 0) || 1;
+const netM2 = () => ST.scale.netM2;
+const netPyeong = () => ST.scale.netM2 / PYEONG_M2;
+const supplyPyeong = () => ST.scale.netM2 / PYEONG_M2 / ST.scale.ratio;
+function recomputeScale() {
+  const sc = ST.scale;
+  if (sc.mode === "supply") sc.netM2 = sc.supply * PYEONG_M2 * sc.ratio;
 }
-const pxToM = (p) => {
-  const interior = ST.regions.filter(r => !r.isOutside).reduce((a, r) => a + r.area, 0) || 1;
-  return p * Math.sqrt(ST.pyeong * PYEONG_M2 / interior);
-};
+function pxToM2(px) { return px / interiorPx() * netM2(); }
+const pxToM = (p) => p * Math.sqrt(netM2() / interiorPx());
 
 function analyzeAll() {
   if (!ST.regions.length) { ST.analysis = null; return; }
@@ -1197,17 +1228,48 @@ function setStep(id) {
   $("#panel").classList.remove("hide");
 }
 function syncScale() {
-  const m2 = ST.pyeong * PYEONG_M2;
-  $("#pyeong").value = ST.pyeong; $("#pyeong2").value = ST.pyeong;
-  $("#pyeongEcho").textContent = ST.pyeong + "평";
-  $("#m2txt").textContent = m2.toFixed(1) + "㎡";
-  const interior = ST.regions.filter(r => !r.isOutside).reduce((a, r) => a + r.area, 0);
-  $("#scaleInfo").innerHTML = interior
-    ? `<dt>실내 픽셀</dt><dd>${interior.toLocaleString()}px</dd>
-       <dt>픽셀당 면적</dt><dd>${(m2 / interior * 10000).toFixed(2)}c㎡</dd>
-       <dt>1m 길이</dt><dd>${(1 / Math.sqrt(m2 / interior)).toFixed(1)}px</dd>`
-    : `<dt>도면을 먼저 불러오세요</dt><dd>—</dd>`;
+  recomputeScale();
+  const sc = ST.scale;
+  // 상단 바 셀렉트
+  const top = $("#pyeongSel");
+  if (!top.options.length) SUPPLY_LIST.forEach(v => top.add(new Option(v + "평형", v)));
+  top.value = String(sc.mode === "supply" ? sc.supply : Math.round(supplyPyeong()));
+  top.disabled = sc.mode !== "supply";
+  $("#m2txt").innerHTML = `전용 <b style="color:#fff">${netM2().toFixed(1)}㎡</b> · ${netPyeong().toFixed(1)}평`;
+
+  // 단계 ① 입력부
+  const sel = $("#supplySel");
+  sel.innerHTML = SUPPLY_LIST.map(v =>
+    `<option value="${v}" ${v === sc.supply ? "selected" : ""}>${v}평형 — 전용 약 ${(v * PYEONG_M2 * sc.ratio).toFixed(0)}㎡ (${(v * sc.ratio).toFixed(1)}평)</option>`).join("");
+  $("#ratio").value = Math.round(sc.ratio * 100);
+  $("#ratioEcho").textContent = Math.round(sc.ratio * 100) + "%";
+  $("#netM2").value = netM2().toFixed(1);
+  $("#netPy").value = netPyeong().toFixed(1);
+
+  const ipx = interiorPx(), has = ST.regions.length > 0;
+  $("#scaleOut").innerHTML = `
+    <div class="big">${netPyeong().toFixed(1)}평<small>전용 ${netM2().toFixed(1)}㎡</small></div>
+    <div class="sub">공급 기준 약 ${supplyPyeong().toFixed(0)}평형 (전용률 ${Math.round(sc.ratio * 100)}%)<br>
+      ${has ? `실내 ${ipx.toLocaleString()}px · 1m = ${(1 / Math.sqrt(netM2() / ipx)).toFixed(1)}px
+        · 픽셀당 ${(netM2() / ipx * 10000).toFixed(2)}c㎡` : "도면을 불러오면 픽셀 환산을 계산합니다"}</div>`;
+
+  // 방별 면적 표
+  const t = $("#areaTable");
+  const rooms = ST.regions.filter(r => !r.isOutside);
+  if (!rooms.length) { t.innerHTML = `<tr><td class="empty">도면을 불러오세요</td></tr>`; return; }
+  const tot = rooms.reduce((a, r) => a + r.area, 0);
+  t.innerHTML = `<thead><tr><th>실</th><th class="n">㎡</th><th class="n">평</th><th class="n">비율</th></tr></thead><tbody>`
+    + rooms.map(r => {
+        const rm = ST.rooms.get(r.id); if (!rm) return "";
+        const m2 = pxToM2(r.area);
+        return `<tr><td>${esc(rm.name)}</td><td class="n">${m2.toFixed(1)}</td>
+          <td class="n">${(m2 / PYEONG_M2).toFixed(1)}</td>
+          <td class="n" style="color:var(--muted)">${(r.area / tot * 100).toFixed(0)}%</td></tr>`;
+      }).join("")
+    + `<tr style="font-weight:600"><td>합계</td><td class="n">${netM2().toFixed(1)}</td>
+       <td class="n">${netPyeong().toFixed(1)}</td><td class="n">100%</td></tr></tbody>`;
 }
+
 function syncDetectUI() {
   const maxR = Math.max(12, Math.round(Math.min(ST.ww, ST.wh) / 6));
   const sl = $("#dilR"); sl.max = maxR;
@@ -1337,7 +1399,9 @@ function renderResults() {
 
   const sc = scoreAll();
   const payload = {
-    scale: { pyeong: ST.pyeong, m2: +(ST.pyeong * PYEONG_M2).toFixed(2) },
+    scale: { mode: ST.scale.mode, net_m2: +netM2().toFixed(2), net_pyeong: +netPyeong().toFixed(2),
+             supply_pyeong: +supplyPyeong().toFixed(1), exclusive_ratio: ST.scale.ratio,
+             interior_px: interiorPx(), px_per_meter: +(1 / Math.sqrt(netM2() / interiorPx())).toFixed(2) },
     detection: { ...ST.params, work: [ST.ww, ST.wh] },
     score: { total: sc.total == null ? null : +sc.total.toFixed(2), grade: gradeOf(sc.total).g,
       breakdown: sc.rows.map(r => ({ target: r.cr.scope === "room" ? r.cr.room : "@", measure: r.cr.measure,
@@ -1530,10 +1594,26 @@ function wire() {
     syncDetectUI(); renderAll();
   };
 
-  // 축척
-  const setPy = v => { ST.pyeong = clamp(parseFloat(v) || 24, 1, 300); syncScale(); renderAll(); };
-  $("#pyeong").oninput = e => setPy(e.target.value);
-  $("#pyeong2").oninput = e => setPy(e.target.value);
+  // 평수 · 축척
+  const afterScale = () => { syncScale(); renderAll(); };
+  const setMode = m => {
+    ST.scale.mode = m;
+    $("#mdSupply").classList.toggle("on", m === "supply");
+    $("#mdM2").classList.toggle("on", m === "m2");
+    $("#mdPy").classList.toggle("on", m === "pyeong");
+    $("#scSupply").style.display = m === "supply" ? "" : "none";
+    $("#scM2").style.display = m === "m2" ? "" : "none";
+    $("#scPy").style.display = m === "pyeong" ? "" : "none";
+    afterScale();
+  };
+  $("#mdSupply").onclick = () => setMode("supply");
+  $("#mdM2").onclick = () => setMode("m2");
+  $("#mdPy").onclick = () => setMode("pyeong");
+  $("#supplySel").onchange = e => { ST.scale.supply = +e.target.value; afterScale(); };
+  $("#pyeongSel").onchange = e => { ST.scale.supply = +e.target.value; ST.scale.mode = "supply"; setMode("supply"); };
+  $("#ratio").oninput = e => { ST.scale.ratio = clamp(+e.target.value / 100, .4, 1); afterScale(); };
+  $("#netM2").oninput = e => { ST.scale.netM2 = clamp(parseFloat(e.target.value) || 84, 3, 5000); afterScale(); };
+  $("#netPy").oninput = e => { ST.scale.netM2 = clamp((parseFloat(e.target.value) || 25) * PYEONG_M2, 3, 5000); afterScale(); };
 
   // 방
   $("#roomList").addEventListener("click", e => {
