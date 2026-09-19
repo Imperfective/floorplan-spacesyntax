@@ -1,0 +1,286 @@
+# 건축 평면 최적화 · 공간구문 분석 도구모음
+
+AI가 생성한 건물 도면을 **좌표로 데이터화**하고, **"좋은 도면"을 수치 함수로 정의**한 뒤,
+서로 다른 방법으로 평가·최적화해 비교하는 실험 도구모음입니다.
+
+세 갈래로 이루어져 있습니다.
+
+| # | 갈래 | 무엇을 하는가 |
+|---|---|---|
+| **A** | [공간구문 채점기 (웹)](#a-공간구문-채점기-웹) | Space Syntax 조건을 입력 → 데이터화 → 도면을 넣으면 좌표 추출 + 100점 만점 채점. 브라우저에서 전부 계산 |
+| **B** | [Space Syntax CLI](#b-space-syntax-cli) | 같은 분석을 명령줄에서. JSON·CSV 내보내기와 규칙 비교 |
+| **C** | [OR-Tools vs D-Wave 벤치마크](#c-or-tools-vs-d-wave-벤치마크) | 동일한 목적 함수를 고전 조합 최적화와 양자 어닐링 계열에 각각 주고 비교 |
+
+---
+
+## 빠른 시작
+
+```bash
+# 파이썬 환경 (3.10+ 권장)
+uv venv --python 3.12 .venv          # 또는 python3 -m venv .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+
+# A. 웹 앱 — 설치 없이 바로
+open docs/index.html
+
+# B. Space Syntax 분석
+.venv/bin/python syntax_cli.py --plan-file examples/example_plan.txt --rules standard
+
+# C. 4단계 파이프라인
+.venv/bin/python main.py --spec apartment_8x8 --env balanced --time-limit 60
+```
+
+---
+
+## A. 공간구문 채점기 (웹)
+
+`docs/index.html` — **의존성 없는 단일 HTML 파일**. 열기만 하면 동작하고, 데이터는 브라우저 밖으로 나가지 않습니다.
+
+### 흐름
+
+```
+① Space Syntax 규칙 입력   무엇을 '연결'로 볼 것인가
+        ↓
+② 조건을 문법으로 입력     → 데이터화(JSON) → 채점에 반영
+        ↓
+③ 도면 입력               칠해서 그리기 / 파일 업로드 / 텍스트 붙여넣기 / 샘플
+        ↓
+④ 좌표·지표 추출 + 채점    100점 만점 + 조건별 기여도
+```
+
+### ① 규칙 — 무엇을 '연결'로 볼 것인가
+
+공간구문론의 지표는 전부 **그래프 위에서** 계산되므로, 결과는 "어떤 그래프를 만들었는가"에
+전적으로 달려 있습니다. 그 판단을 규칙으로 드러내 바꿔 볼 수 있게 했습니다.
+
+| 규칙 | 뜻 |
+|---|---|
+| `doorMinCells` | 두 실이 몇 칸 이상 벽을 맞대야 문을 놓을 수 있다고 보는가 |
+| `doorWidthCells` | 문 폭(칸). 시선이 얼마나 뚫리는가 (VGA에 영향) |
+| `doorPosition` | 문을 접면의 어디에 두는가 (`center`/`first`/`last`) |
+| `includeCarrier` | 외부 공간을 노드로 포함하는가 |
+| `carrierMode` | 외부와 잇는 실: `entrance`(현관 하나) / `perimeter`(외벽 접한 모든 실) |
+| `normalize` | `ra`(상대 비대칭성) / `rra`(실 수 보정 — 다른 평면과 비교 가능) |
+| `vgaEnabled` | 가시성 분석 수행 여부 |
+
+**규칙 하나가 구조를 통째로 바꿉니다.** 같은 도면, 다른 규칙:
+
+| 규칙 | 간선 | 최대깊이 | 명료성 | 시각 통합도 |
+|---|---:|---:|---:|---:|
+| 표준 | 13 | 4 | 0.750 | 6.41 |
+| 엄격한 문 (2칸 이상) | 12 | 4 | 0.802 | 6.03 |
+| 개방형 (문폭 3칸) | 13 | 4 | 0.750 | **45.64** |
+| 다중 출입 (외벽 전체) | **18** | **2** | 0.812 | 6.41 |
+
+### ② 조건 입력 → 데이터화 → 채점 반영
+
+조건은 한 줄에 하나씩, 다음 문법으로 씁니다.
+
+```
+대상.지표  연산자  목표값  [.. 최악값]  [w=가중치]
+```
+
+* **대상** — 실 키(`hall`, `living`…) 또는 전역을 뜻하는 `@`
+* **연산자** — `<=` 작을수록 좋음 · `>=` 클수록 좋음 · `==` 목표값 ±허용치
+* **최악값** 생략 시 지표별 기본 폭으로 자동 설정
+* `#`으로 시작하면 주석
+
+```
+hall.step_depth          <= 1        w=2      # 현관은 외부에서 바로 닿아야
+living.integration_rank  <= 1 .. 5   w=2      # 거실이 가장 통합적인 공간
+master.integration       <= 0.7 .. 3 w=1.5    # 안방은 격리되어야
+master.step_depth        == 3 ± 1    w=2      # 현관에서 세 단계쯤
+@mean_depth_system       <= 1.4      w=1
+@intelligibility         >= 0.9      w=1
+@disconnected_rooms      <= 0        w=2.5    # 고립된 실 금지
+```
+
+**“데이터화 →”** 버튼을 누르면 위 텍스트가 조건 객체 배열(JSON)로 변환되고,
+그 즉시 채점에 반영됩니다. 카드에서 값을 고치면 문법 텍스트가 역으로 다시 쓰입니다.
+
+채점식은 단순하고 투명합니다.
+
+```
+조건점수 = clamp( (측정값 − 최악값) / (목표값 − 최악값), 0, 1 ) × 100
+최종점수 = Σ(가중치 × 조건점수) ÷ Σ(가중치)
+```
+
+등급: A+ ≥ 95 · A ≥ 90 · B+ ≥ 85 · B ≥ 80 · C+ ≥ 70 · C ≥ 60 · D ≥ 45 · F
+
+내장 조건 세트: **주거 일반** · **프라이버시 우선** · **무장애 접근** · **가시성 중심(상업·전시)**
+
+### ③ 도면 입력
+
+| 방법 | 설명 |
+|---|---|
+| 칠하기 | 실 팔레트에서 실을 고르고 격자에 드래그. 지우개·현관 지정 도구 제공 |
+| 샘플 | 중앙 복도형 · 측면 복도형 · 현관 고립형(나쁜 예) |
+| 파일 업로드 | `.txt`(격자 텍스트) / `.json`(사각형 목록 또는 `plans.json`) |
+| 텍스트 붙여넣기 | 위와 같은 형식을 창에 직접 붙여넣기 |
+
+격자 텍스트 형식 — 실 키를 공백으로 구분, `.`은 빈 칸:
+
+```
+master master master master bed2 bed2 bed2 store
+master master master master bed2 bed2 bed2 store
+hall   hall   bath   bath   bath kitchen kitchen store
+...
+```
+
+### ④ 추출되는 세 벌의 좌표
+
+| 좌표계 | 내용 |
+|---|---|
+| **실측 metric** | 중심점 · 바운딩박스 · 면적 · 연결 성분 수 · 벽 길이 |
+| **위상 syntactic** | 정당화 그래프(j-graph)의 `(jx, 깊이)` · 현관으로부터의 단계 깊이 |
+| **시각 visual** | VGA 셀별 시각 통합도·연결도 · 아이소비스트 면적/둘레/드리프트 |
+
+### 쓸 수 있는 지표
+
+**실 단위** — 연결도 · 총깊이 · 평균깊이 · RA · RRA · **통합도(1/RRA)** · 통합도 순위 ·
+제어값 · 선택도(매개 중심성) · 현관 깊이 · 시각 통합도 · 아이소비스트 면적
+
+**전역** — 시스템 평균깊이 · 현관 최대깊이 · **명료성 r²** · 차이계수 H* · 간선 수 ·
+고립된 실 수 · 조각난 실 수 · 면적 오차 · 시각 통합도 · 시각 명료성 · 시각 군집계수
+
+---
+
+## B. Space Syntax CLI
+
+웹 앱과 **같은 알고리즘**을 명령줄에서. JavaScript 포팅본과 Python 원본이 같은 값을 내는 것을
+교차 검증했습니다(그래프 지표 전부 일치, VGA는 시선 샘플 간격 차이로 0.3% 이내).
+
+```bash
+# 규칙 템플릿 만들기 → 값을 고쳐서 쓴다
+.venv/bin/python syntax_cli.py --dump-rules examples/rules.json
+
+# 도면 분석
+.venv/bin/python syntax_cli.py --plan-file examples/example_plan.txt --rules examples/rules.json
+.venv/bin/python syntax_cli.py --plans out/plans.json --rules standard
+
+# 규칙 프리셋별 비교
+.venv/bin/python syntax_cli.py --plan-file examples/example_plan.txt --compare-rules
+```
+
+옵션: `--spec {small_6x6, apartment_8x8}` · `--rules {standard, strict_door, open_plan, multi_entry, no_carrier}` 또는 JSON 경로
+· `--generate N` · `--no-vga` · `--out DIR` · `--html PATH`
+
+### 산출물
+
+```
+out/syntax/syntax.json        그래프 구조 · 문 좌표 · 전체 지표
+out/syntax/syntax_rooms.csv   실별 실측/위상/시각 좌표 + 지표
+out/syntax/syntax_edges.csv   문 좌표와 공유 벽 길이
+out/syntax/syntax_cells.csv   셀별 VGA · 아이소비스트
+docs/syntax-report.html       시각화 리포트 (평면도 · j-graph · 히트맵)
+```
+
+---
+
+## C. OR-Tools vs D-Wave 벤치마크
+
+건물 평면 배치를 조합 최적화 문제로 두고, **완전히 동일한 목적 함수**를
+OR-Tools CP-SAT(고전 분기한정)와 D-Wave Ocean(양자 어닐링 계열)에 각각 주어 비교합니다.
+
+```bash
+# 4단계 파이프라인 (생성 → 데이터화 → 환경변수 → 비교)
+.venv/bin/python main.py --spec apartment_8x8 --env balanced --time-limit 60
+
+# 전체 연구 (주 비교 + 환경변수 10종 스윕 + 진단 실험 5종, 약 30분)
+.venv/bin/python run_study.py
+.venv/bin/python build_paper.py        # → docs/benchmark-report.html
+```
+
+### 12개 환경 변수
+
+```
+E(도면) = Σᵢ signᵢ · wᵢ · termᵢ(도면)        sign = −1(보상) 또는 +1(벌점)
+```
+
+| 성격 | 항 | 정식화 |
+|---|---|---|
+| 하드 | 셀 배타성 위반 · 면적 오차 | 페널티(QUBO) / 네이티브 제약(CP-SAT) |
+| 2차 | 인접 선호 · 방 응집도 · 동선 코어 접면 · 소음 인접 | 셀 쌍 위에서 계산 |
+| 1차 | 채광 · 남향 · 프라이버시 · 공용 접근성 · 설비 코어 집중 · 외피 노출 | 셀 하나씩 계산 |
+
+프리셋 10종: `balanced` `family` `daylight` `solar` `privacy` `acoustic` `passive` `plumbing` `buildable` `barrier_free`
+
+### 공정성 담보
+
+목적 함수는 **`floorplan_bench/terms.py` 한 곳에서만** 생성됩니다.
+`quality_coeffs()`가 CP-SAT와 QUBO 양쪽에 같은 계수를 공급하고,
+`raw_values()`가 도면을 직접 순회하는 **제3의 독립 평가기**로서 이를 교차 검증합니다.
+세 경로의 값이 프리셋 10종 × 무작위 도면 전부에서 10⁻⁶ 이내로 일치함을 확인했습니다.
+
+### 주요 결과
+
+| 방법 | 조건 | 에너지 | 조각난 실 |
+|---|---|---:|---:|
+| AI 생성 최고안 | 기준선 | −10.134 | 0 |
+| OR-Tools CP-SAT | D-Wave와 동일 조건 | **−13.016** | 3 |
+| OR-Tools CP-SAT | + 연결성 제약 | −12.572 | **0** |
+| D-Wave SA | QUBO 페널티 인코딩 | −7.890 | 7 |
+| 교환 어닐링 | 같은 어닐링 · 인코딩만 교체 | **−12.915** | 2 |
+
+**갈린 것은 하드웨어도 알고리즘도 아니라 문제를 옮겨 적는 방식이었습니다.**
+어닐링을 그대로 두고 인코딩만 제약 보존 방식으로 바꾸자 격차의 대부분이 사라졌습니다.
+
+원인 — 페널티 인코딩에서는 실현 가능한 해들이 ΔE ≈ **+32**의 장벽으로 격리됩니다.
+단일 비트 뒤집기 표본 **1,600회 중 에너지를 개선한 것이 0회(0.0%)**였고,
+어닐링 예산을 100배 늘려도(E2), 최적해에서 출발시켜도(E3),
+벌점을 80배 범위로 조절해도(E5) 벗어나지 못했습니다.
+
+> **유의** — 이 실행에 양자 하드웨어는 쓰이지 않았습니다. Leap 토큰이 없으면
+> `SimulatedAnnealingSampler`(CPU에서 도는 고전 어닐링)로 동작합니다.
+> QUBO 정식화와 Ocean 도구 체인은 실제 QPU와 동일하며 `--dwave qpu` / `hybrid`로 전환됩니다.
+> 따라서 위 격차는 *양자 대 고전*이 아니라 **어닐링 대 분기한정 탐색**으로 읽어야 합니다.
+>
+> `docs/benchmark-report.html`은 환경 변수 5개였던 이전 판의 기록입니다.
+> 12개로 확장한 뒤의 전체 재실행은 `run_study.py`로 다시 돌려야 합니다.
+
+---
+
+## 구조
+
+```
+floorplan_bench/
+  spec.py            건물 프로그램(실·면적·속성) + 격자 정의
+  env.py             환경 변수 12개 · 프리셋 10종
+  terms.py           목적 함수의 단일 출처 — CP-SAT·QUBO·독립 평가기 공용
+  plan.py            도면 표현 · 좌표 변환 · 면적 보정
+  qubo.py            terms → dimod BQM
+  generate.py        AI 도면 생성 (Claude 구조화 출력 / BSP 절차적)
+  solve_ortools.py   CP-SAT (네이티브 제약 + 연결성 유량 정식화 + 워밍업 힌트)
+  solve_dwave.py     Ocean (sa / tabu / qpu / hybrid)
+  diagnose.py        진단 실험 E1~E5 + 제약 보존 교환 어닐러
+  spacesyntax.py     공간구문 분석 엔진 (그래프 · VGA · 아이소비스트)
+  syntax_render.py   j-graph · 히트맵 SVG
+  report.py          평면도 SVG · 지표 분해
+
+main.py              4단계 파이프라인 CLI
+run_study.py         전체 연구 (주 비교 + 스윕 + 진단)
+build_paper.py       연구 결과 → 논문 형식 HTML
+syntax_cli.py        Space Syntax CLI
+syntax_report.py     Space Syntax 결과 → HTML
+
+docs/index.html              공간구문 채점기 (웹 앱, 단일 파일)
+docs/syntax-report.html      Space Syntax 분석 리포트
+docs/benchmark-report.html   OR-Tools vs D-Wave 비교 리포트
+examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예제
+```
+
+## 선택적 자격 증명
+
+| 환경 변수 | 없으면 | 있으면 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | BSP 절차적 생성기로 대체 | Claude가 구조화 출력으로 도면 생성 (`--backend claude`) |
+| `DWAVE_API_TOKEN` | 로컬 시뮬레이티드 어닐링 | 실제 D-Wave QPU / Leap 하이브리드 (`--dwave qpu`) |
+
+두 값이 없어도 모든 기능이 동작합니다.
+
+## 참고 문헌
+
+* Hillier, B. & Hanson, J. (1984). *The Social Logic of Space*. Cambridge University Press.
+* Turner, A. et al. (2001). From isovists to visibility graphs. *Environment and Planning B*, 28(1).
+* Benedikt, M. L. (1979). To take hold of space: isovists and isovist fields. *Environment and Planning B*, 6(1).
+* Brandes, U. (2001). A faster algorithm for betweenness centrality. *Journal of Mathematical Sociology*, 25(2).

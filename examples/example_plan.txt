@@ -1,0 +1,8 @@
+master master master master bed2 bed2 bed2 store
+master master master master bed2 bed2 bed2 store
+master master master master bed2 bed2 bed2 store
+hall   hall   bath   bath   bath bath kitchen store
+hall   hall   bath   bath   bath kitchen kitchen store
+hall   hall   living living living living kitchen store
+hall   hall   living living living living kitchen kitchen
+hall   living living living living living living kitchen

@@ -1,0 +1,10 @@
+{
+  "door_min_cells": 1,
+  "door_width_cells": 1,
+  "door_position": "center",
+  "include_carrier": true,
+  "carrier_mode": "entrance",
+  "normalize": "rra",
+  "vga_enabled": true,
+  "vga_step": 0.04
+}

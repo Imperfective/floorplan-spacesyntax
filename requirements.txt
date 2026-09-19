@@ -1,0 +1,8 @@
+# 최적화 엔진
+ortools>=9.15          # CP-SAT (고전 조합 최적화)
+dimod>=0.12            # QUBO/BQM 모델
+dwave-samplers>=1.8     # 시뮬레이티드 어닐링 · 타부 서치 (로컬)
+dwave-system>=1.36      # D-Wave QPU / Leap 하이브리드 (DWAVE_API_TOKEN 필요)
+
+# AI 도면 생성 (선택)
+anthropic>=1.4          # Claude 구조화 출력 백엔드
