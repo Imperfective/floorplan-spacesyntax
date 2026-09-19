@@ -289,7 +289,7 @@ examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예
 ```bash
 # ① 서버 최초 1회 — Caddy 설치, 웹 루트 생성, 방화벽, 인증서 자동 발급
 scp -r deploy/ 사용자@서버:/tmp/
-ssh 사용자@서버 'SITE_DOMAIN=example.com sudo -E bash /tmp/deploy/setup-vps.sh'
+ssh 사용자@서버 'SITE_DOMAIN=sapcesyntax.com sudo -E bash /tmp/deploy/setup-vps.sh'
 
 # ② 배포 (고칠 때마다)
 DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh
@@ -297,8 +297,8 @@ DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh
 
 | 파일 | 하는 일 |
 |---|---|
-| `deploy/setup-vps.sh` | Debian/Ubuntu에 Caddy 설치 · 웹 루트 · ufw · Caddyfile 배치 |
-| `deploy/Caddyfile` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` 단축 경로 |
+| `deploy/setup-vps.sh` | Caddy 설치(없을 때만) · 웹 루트 · 방화벽 · 사이트 블록 설치. **기존 Caddy 설정을 덮어쓰지 않습니다** — 백업 후 `conf.d/`에 이 사이트만 추가 |
+| `deploy/site.caddy.tpl` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` 단축 경로 |
 | `deploy/deploy.sh` | `docs/`를 rsync로 올리고 Caddy 재적용 |
 | `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
 | `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (SSH 시크릿 4개 필요) |
