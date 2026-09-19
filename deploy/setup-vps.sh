@@ -26,6 +26,7 @@ if ! command -v caddy >/dev/null; then
   apt-get update -qq && apt-get install -y -qq caddy
 else
   echo "▸ Caddy 이미 설치됨: $(caddy version | head -1)"
+  echo "   실행 설정: $(systemctl cat caddy 2>/dev/null | grep -m1 ExecStart= | sed 's/.*--config //;s/ .*//' || echo '(확인 불가)')"
 fi
 command -v rsync >/dev/null || apt-get install -y -qq rsync
 

@@ -286,13 +286,18 @@ examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예
 
 정적 파일 한 벌이라 어떤 서버에도 올라갑니다. `deploy/`에 필요한 것이 들어 있습니다.
 
-```bash
-# ① 서버 최초 1회 — Caddy 설치, 웹 루트 생성, 방화벽, 인증서 자동 발급
-scp -r deploy/ 사용자@서버:/tmp/
-ssh 사용자@서버 'SITE_DOMAIN=sapcesyntax.com sudo -E bash /tmp/deploy/setup-vps.sh'
+**서버 콘솔에서 한 줄** — 설치와 업데이트가 같은 명령입니다.
 
-# ② 배포 (고칠 때마다)
-DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh
+```bash
+curl -fsSL https://github.com/Imperfective/floorplan-spacesyntax/raw/main/deploy/install.sh \
+  | SITE_DOMAIN=sapcesyntax.com bash
+```
+
+SSH 키를 등록해 두었다면 로컬에서 배포해도 됩니다.
+
+```bash
+ssh 사용자@서버 'SITE_DOMAIN=sapcesyntax.com bash -s' < deploy/install.sh   # 최초
+DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh                                # 파일만 갱신
 ```
 
 | 파일 | 하는 일 |
@@ -301,6 +306,7 @@ DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh
 | `deploy/site.caddy.tpl` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` 단축 경로 |
 | `deploy/deploy.sh` | `docs/`를 rsync로 올리고 Caddy 재적용 |
 | `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
+| `deploy/install.sh` | 서버에서 한 줄로 클론·설정·배포·검증까지. 재실행하면 업데이트 |
 | `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (SSH 시크릿 4개 필요) |
 
 #### Cloudflare DNS 설정
