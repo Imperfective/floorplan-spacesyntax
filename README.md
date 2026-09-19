@@ -107,10 +107,23 @@ master.step_depth        == 3 ± 1    w=2      # 현관에서 세 단계쯤
 **전역** — 시스템 평균깊이 · 현관 최대깊이 · 명료성 r² · 차이계수 H* · 문 개수 ·
 방 개수 · 고립된 실 수 · 평균 시각 통합도 · 시각 명료성
 
-### 축척
+### 평수 — 도면이 몇 평인지 정하기
 
-전용 면적을 **평**으로 입력하면 검출된 실내 픽셀 전체를 그 면적으로 잡아
-픽셀↔미터를 환산합니다. 방 면적(㎡·평), 문 폭(m)이 모두 이 축척을 따릅니다.
+도면 이미지에는 치수가 없으므로, **평수를 사용자가 정해 주면** 그것을 기준으로
+검출된 실내 전체를 환산합니다. 세 가지 방식 중 고를 수 있습니다.
+
+| 방식 | 입력 | 쓰임 |
+|---|---|---|
+| **공급 평형** | 8~65평형 목록에서 선택 + 전용률(기본 75%) | 분양 평형만 아는 경우 |
+| **전용 ㎡** | 전용면적을 ㎡로 직접 | 도면에 전용면적이 적혀 있는 경우 |
+| **전용 평** | 전용면적을 평으로 직접 | 평 단위로 알고 있는 경우 |
+
+한국 아파트의 "34평형"은 보통 **공급면적**이고 도면에 적히는 **전용면적**은 그 70~80%입니다.
+전용률 75%를 쓰면 34평형 → 전용 84.3㎡(25.5평), 24평형 → 전용 59.5㎡(18.0평)로
+실제 국민주택 규격과 맞아떨어집니다. 어느 방식으로 넣든 나머지 값이 역산되어 함께 표시됩니다.
+
+정해진 면적은 **방마다의 ㎡·평·점유 비율**, **문 폭(m)**, 픽셀↔미터 환산에 모두 적용됩니다.
+예컨대 같은 도면을 34평형으로 보면 거실 20.7㎡(6.3평), 24평형으로 보면 14.6㎡가 됩니다.
 
 ### 그 밖에
 
@@ -259,3 +272,47 @@ examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예
 * Turner, A. et al. (2001). From isovists to visibility graphs. *Environment and Planning B*, 28(1).
 * Benedikt, M. L. (1979). To take hold of space: isovists and isovist fields. *Environment and Planning B*, 6(1).
 * Brandes, U. (2001). A faster algorithm for betweenness centrality. *Journal of Mathematical Sociology*, 25(2).
+
+
+---
+
+## 배포
+
+### GitHub Pages (현재)
+
+`docs/` 폴더를 그대로 서빙합니다 → **https://imperfective.github.io/floorplan-spacesyntax/**
+
+### 자체 도메인 + VPS (netcup 등)
+
+정적 파일 한 벌이라 어떤 서버에도 올라갑니다. `deploy/`에 필요한 것이 들어 있습니다.
+
+```bash
+# ① 서버 최초 1회 — Caddy 설치, 웹 루트 생성, 방화벽, 인증서 자동 발급
+scp -r deploy/ 사용자@서버:/tmp/
+ssh 사용자@서버 'SITE_DOMAIN=example.com sudo -E bash /tmp/deploy/setup-vps.sh'
+
+# ② 배포 (고칠 때마다)
+DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh
+```
+
+| 파일 | 하는 일 |
+|---|---|
+| `deploy/setup-vps.sh` | Debian/Ubuntu에 Caddy 설치 · 웹 루트 · ufw · Caddyfile 배치 |
+| `deploy/Caddyfile` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` 단축 경로 |
+| `deploy/deploy.sh` | `docs/`를 rsync로 올리고 Caddy 재적용 |
+| `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
+| `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (SSH 시크릿 4개 필요) |
+
+#### Cloudflare DNS 설정
+
+```
+A      @      <VPS IPv4>     프록시 끔(회색 구름)   ← 인증서 발급 때까지
+AAAA   @      <VPS IPv6>     프록시 끔
+CNAME  www    example.com    프록시 끔
+```
+
+**순서가 중요합니다.** Caddy가 Let's Encrypt 인증서를 받으려면 80/443이 서버까지
+그대로 닿아야 하므로, 처음에는 **DNS only(회색 구름)** 로 두세요.
+`https://도메인`이 열리는 것을 확인한 뒤 프록시(주황 구름)를 켜고,
+SSL/TLS 모드를 반드시 **Full (strict)** 로 바꿉니다.
+(Flexible로 두면 브라우저↔Cloudflare 구간만 암호화되고 뒷구간이 평문이 됩니다.)

@@ -1,0 +1,38 @@
+# main 에 푸시하면 netcup VPS로 자동 배포한다.
+# 저장소 Settings → Secrets and variables → Actions 에 아래를 등록:
+#   SSH_HOST        서버 주소 (예: 203.0.113.10)
+#   SSH_USER        접속 계정 (예: deploy 또는 root)
+#   SSH_PRIVATE_KEY 배포용 개인키 전문
+#   SSH_PORT        (선택) 기본 22
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: rsync 배포
+        run: |
+          rsync -az --delete --chmod=D755,F644 \
+            -e "ssh -p ${{ secrets.SSH_PORT || 22 }} -i ~/.ssh/id_ed25519" \
+            docs/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/floorplan/"
+
+      - name: Caddy 재적용
+        run: |
+          ssh -p "${{ secrets.SSH_PORT || 22 }}" -i ~/.ssh/id_ed25519 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "chown -R caddy:caddy /var/www/floorplan 2>/dev/null || true; systemctl reload caddy"
