@@ -1,0 +1,2049 @@
+<meta charset="utf-8">
+<title>공간구문 채점기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@600;700&display=swap">
+<style>
+:root{
+  --ground:#eef1f2; --surface:#fbfcfc; --raise:#ffffff; --sunken:#e7ecee;
+  --ink:#14212a; --ink-2:#3c4f5a; --muted:#5d6f79;
+  --rule:#d6dee1; --rule-soft:#e5eaec;
+  --acc:#0d8f7c; --acc-soft:#ddf0eb; --warm:#b06a12; --violet:#8e3d9e;
+  --good:#12705f; --warn:#9a6a10; --bad:#a8451a;
+  --mat:#ffffff; --mat-edge:#c9d3d7;
+  --shadow:0 1px 2px rgba(20,33,42,.06),0 8px 22px -14px rgba(20,33,42,.22);
+  --focus:#0d8f7c;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#111a20; --surface:#18242c; --raise:#1e2c35; --sunken:#0d151a;
+  --ink:#e2eaed; --ink-2:#b6c6ce; --muted:#93a5ae;
+  --rule:#2a3a44; --rule-soft:#22313a;
+  --acc:#17a68d; --acc-soft:#14332f; --warm:#c67f22; --violet:#a555b5;
+  --good:#3fb89c; --warn:#d0a03c; --bad:#e08a5c;
+  --mat:#eceff0; --mat-edge:#394a54;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.75);
+}}
+:root[data-theme="dark"]{
+  --ground:#111a20; --surface:#18242c; --raise:#1e2c35; --sunken:#0d151a;
+  --ink:#e2eaed; --ink-2:#b6c6ce; --muted:#93a5ae;
+  --rule:#2a3a44; --rule-soft:#22313a;
+  --acc:#17a68d; --acc-soft:#14332f; --warm:#c67f22; --violet:#a555b5;
+  --good:#3fb89c; --warn:#d0a03c; --bad:#e08a5c;
+  --mat:#eceff0; --mat-edge:#394a54;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.75);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-size:14px;line-height:1.62;
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;
+  word-break:keep-all;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.serif{font-family:"Noto Serif KR",Georgia,serif;text-wrap:balance}
+.mono,code{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ── 헤더 ───────────────────────────────── */
+.top{position:sticky;top:0;z-index:20;background:var(--surface);
+  border-bottom:1px solid var(--rule);padding:14px 20px;
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.brand{flex:1;min-width:210px}
+.brand h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.scorebox{display:flex;align-items:center;gap:14px}
+.ring{position:relative;width:74px;height:74px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .val{position:absolute;inset:0;display:grid;place-items:center;line-height:1}
+.ring .val b{font-size:22px;font-weight:600;font-family:"IBM Plex Mono",monospace}
+.ring .val span{font-size:9px;color:var(--muted);margin-top:2px}
+.gradebox{min-width:104px}
+.gradebox .grade{font-size:27px;font-weight:700;line-height:1;font-family:"Noto Serif KR",serif}
+.gradebox .gsub{font-size:11px;color:var(--muted);margin-top:3px}
+.g-A{color:var(--good)} .g-B{color:var(--acc)} .g-C{color:var(--warn)} .g-D{color:var(--bad)}
+
+/* ── 레이아웃 ───────────────────────────── */
+.work{display:grid;grid-template-columns:1fr;gap:16px;padding:16px 20px 60px;
+  max-width:1560px;margin:0 auto;align-items:start}
+@media(min-width:1080px){.work{grid-template-columns:330px minmax(0,1fr)}}
+@media(min-width:1500px){.work{grid-template-columns:346px minmax(0,1fr) 378px}}
+.col{display:grid;gap:16px;align-items:start;min-width:0}
+@media(min-width:1500px){.col.side{position:sticky;top:96px;max-height:calc(100vh - 112px);
+  overflow-y:auto;padding-right:4px}}
+
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;box-shadow:var(--shadow)}
+.card > header{padding:11px 14px;border-bottom:1px solid var(--rule-soft);
+  display:flex;align-items:center;gap:9px}
+.card > header .step{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+  color:var(--acc);border:1px solid var(--acc);border-radius:2px;padding:0 5px;flex:none}
+.card > header h2{margin:0;font-size:13.5px;font-weight:600;flex:1}
+.card > header .hint{font-size:11px;color:var(--muted)}
+.card .body{padding:13px 14px}
+.card .body.tight{padding:9px 10px}
+
+/* ── 폼 ─────────────────────────────────── */
+.field{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;margin-bottom:9px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:12px;color:var(--ink-2)}
+.field .desc{grid-column:1/-1;font-size:10.5px;color:var(--muted);line-height:1.45;margin-top:-4px}
+input[type=number],input[type=text],select,textarea{background:var(--raise);border:1px solid var(--rule);
+  border-radius:3px;padding:4px 7px;font-size:12px;width:100%}
+input[type=number]{width:74px;text-align:right;font-family:"IBM Plex Mono",monospace}
+select{padding:4px 6px}
+textarea{width:100%;min-height:96px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;resize:vertical}
+input[type=color]{width:30px;height:24px;padding:0;border:1px solid var(--rule);border-radius:3px;background:none}
+label.chk{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);cursor:pointer}
+input[type=checkbox]{accent-color:var(--acc);width:15px;height:15px}
+input[type=range]{accent-color:var(--acc);width:100%}
+
+.btn{background:var(--raise);border:1px solid var(--rule);border-radius:3px;padding:5px 11px;
+  font-size:12px;cursor:pointer;transition:background .12s,border-color .12s;white-space:nowrap}
+.btn:hover{border-color:var(--acc);background:var(--acc-soft)}
+.btn.prim{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:500}
+.btn.prim:hover{filter:brightness(1.08);background:var(--acc)}
+.btn.sm{padding:3px 8px;font-size:11px}
+.btn.danger:hover{border-color:var(--bad);background:transparent;color:var(--bad)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ── 실 팔레트 ──────────────────────────── */
+.rooms{display:grid;gap:5px}
+.roomrow{display:grid;grid-template-columns:auto 22px 1fr 78px auto;gap:6px;align-items:center;
+  padding:4px 6px;border:1px solid transparent;border-radius:3px;cursor:pointer;transition:background .1s}
+.roomrow:hover{background:var(--sunken)}
+.roomrow.on{border-color:var(--acc);background:var(--acc-soft)}
+.roomrow .swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.18);flex:none}
+.roomrow input[type=text]{border-color:transparent;background:transparent;padding:2px 4px;font-size:12px}
+.roomrow input[type=text]:focus{border-color:var(--rule);background:var(--raise)}
+.roomrow .cnt{font-family:"IBM Plex Mono",monospace;font-size:11px;text-align:right;color:var(--muted);line-height:1.35}
+.roomrow .cnt small{display:block;font-size:9.5px;opacity:.85}
+.roomrow .cnt.over{color:var(--bad)} .roomrow .cnt.ok{color:var(--good)}
+.roomrow .key{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--muted)}
+
+/* ── 조건 ───────────────────────────────── */
+.crit{border:1px solid var(--rule);border-radius:3px;margin-bottom:7px;background:var(--raise)}
+.crit.off{opacity:.5}
+.crit > .ch{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;
+  padding:7px 9px;cursor:pointer}
+.crit > .ch .nm{font-size:12px;font-weight:500;min-width:0}
+.crit > .ch .sc{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600}
+.crit > .cb{padding:0 9px 9px;display:none;border-top:1px solid var(--rule-soft);margin-top:2px;padding-top:8px}
+.crit.open > .cb{display:block}
+.crit .meter{height:4px;background:var(--sunken);border-radius:2px;overflow:hidden;margin-top:5px}
+.crit .meter i{display:block;height:100%;border-radius:2px}
+.critgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 9px}
+.critgrid .full{grid-column:1/-1}
+.crit .why{font-size:10.5px;color:var(--muted);margin:7px 0 0;line-height:1.5}
+
+/* ── 편집기 ─────────────────────────────── */
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:9px 12px;
+  border-bottom:1px solid var(--rule-soft);background:var(--sunken)}
+.tool{border:1px solid var(--rule);background:var(--raise);border-radius:3px;padding:4px 10px;
+  font-size:11.5px;cursor:pointer}
+.tool.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.sep{width:1px;height:20px;background:var(--rule);margin:0 2px}
+.editwrap{padding:14px;background:var(--mat);display:flex;justify-content:center}
+#editor{width:100%;max-width:560px;height:auto;touch-action:none;cursor:crosshair;user-select:none}
+#editor rect.cell{transition:none}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:9px 13px;font-size:11px;color:var(--ink-2);
+  border-top:1px solid var(--rule-soft)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;
+  border:1px solid rgba(0,0,0,.18);vertical-align:-1px}
+
+/* ── 렌더 ───────────────────────────────── */
+.renderwrap{background:var(--mat);border:1px solid var(--rule);border-radius:4px;padding:16px;
+  display:flex;justify-content:center;overflow:auto}
+.renderwrap svg,.renderwrap img{display:block;max-width:100%;height:auto}
+.rtools{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:11px}
+.rtools label.chk{margin-right:4px}
+.pngbox{margin-top:14px}
+.pngbox img{border:1px solid var(--rule);border-radius:3px;background:#fff}
+
+/* ── 결과 ───────────────────────────────── */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule);padding:0 12px;overflow-x:auto;
+  background:var(--surface)}
+.tab{border:none;background:none;padding:10px 13px;font-size:12.5px;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.pane{display:none;padding:14px} .pane.on{display:block}
+
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px;min-width:480px}
+th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);padding:0 9px 7px 0;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:6px 9px 6px 0;border-bottom:1px solid var(--rule-soft);vertical-align:baseline}
+td.n,th.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  padding-right:11px;white-space:nowrap}
+td.hi{font-weight:600;color:var(--warm)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;
+  border:1px solid rgba(0,0,0,.15);vertical-align:-1px}
+.dim{color:var(--muted)}
+.plots{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.plot{border:1px solid var(--rule);border-radius:3px;overflow:hidden;background:var(--surface)}
+.plot h3{margin:0;padding:9px 12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--rule-soft)}
+.plot .canvas{background:var(--mat);padding:11px}
+.plot svg{display:block;width:100%;height:auto}
+.plot .note{padding:8px 12px;font-size:10.5px;color:var(--muted);border-top:1px solid var(--rule-soft);line-height:1.45}
+.ramp{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);
+  font-family:"IBM Plex Mono",monospace;padding:8px 12px;border-top:1px solid var(--rule-soft)}
+.rbar{display:inline-flex;height:8px;border-radius:2px;overflow:hidden;flex:1;min-width:50px}
+.rbar i{flex:1}
+.jlevel{stroke:#d8dfe2;stroke-width:1;stroke-dasharray:3 4}
+.jdepth{font-size:9px;fill:#8697a0;font-family:"IBM Plex Mono",monospace}
+.jedge{stroke:#5d6f79;stroke-width:1.5}
+.jnode{stroke:#1e2a33;stroke-width:1.5}
+.jcarrier{stroke:#e63946;stroke-width:2;fill:none}
+.jlabel{font-size:9.5px;fill:#1e2a33;font-weight:600}
+
+.summary{display:grid;gap:9px}
+.srow{display:grid;grid-template-columns:1fr 58px 84px;gap:10px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--rule-soft)}
+.srow:last-child{border-bottom:none}
+.srow .lab{font-size:12px;min-width:0}
+.srow .lab small{display:block;color:var(--muted);font-size:10.5px;line-height:1.4}
+.srow .v{font-family:"IBM Plex Mono",monospace;font-size:12px;text-align:right}
+.srow .bar{height:7px;background:var(--sunken);border-radius:3px;overflow:hidden}
+.srow .bar i{display:block;height:100%;border-radius:3px}
+.pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:2px;border:1px solid var(--rule);
+  color:var(--muted);margin-left:6px}
+.pill.good{color:var(--good);border-color:var(--good)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.bad{color:var(--bad);border-color:var(--bad)}
+.note{font-size:11.5px;color:var(--muted);line-height:1.55;margin:10px 0 0}
+.empty{padding:26px 14px;text-align:center;color:var(--muted);font-size:12.5px}
+.copywrap{position:relative}
+.copywrap .btn{position:absolute;top:6px;right:6px}
+.warnbox{background:color-mix(in srgb,var(--bad) 9%,transparent);border:1px solid var(--bad);
+  border-radius:3px;padding:9px 11px;font-size:11.5px;color:var(--ink-2);margin-bottom:11px}
+.warnbox b{color:var(--bad)}
+.okbox{background:var(--acc-soft);border:1px solid var(--acc);border-radius:3px;padding:9px 11px;
+  font-size:11.5px;color:var(--ink-2);margin-bottom:11px}
+</style>
+
+<header class="top">
+  <div class="brand">
+    <h1>공간구문 채점기</h1>
+    <p>규칙을 정하고 → 도면을 넣으면 → 좌표를 뽑고 → 조건대로 채점한다</p>
+  </div>
+  <div class="scorebox">
+    <div class="ring">
+      <svg viewBox="0 0 74 74" width="74" height="74" aria-hidden="true">
+        <circle cx="37" cy="37" r="31" fill="none" stroke="var(--sunken)" stroke-width="7"></circle>
+        <circle id="ringArc" cx="37" cy="37" r="31" fill="none" stroke="var(--acc)" stroke-width="7"
+                stroke-linecap="round" stroke-dasharray="195" stroke-dashoffset="195"></circle>
+      </svg>
+      <div class="val"><b id="scoreNum">—</b><span>/ 100</span></div>
+    </div>
+    <div class="gradebox">
+      <div class="grade g-C" id="gradeTxt">—</div>
+      <div class="gsub" id="gradeSub">도면을 입력하세요</div>
+    </div>
+  </div>
+</header>
+
+<div class="work">
+
+  <!-- ══════════ 좌측: 규칙 + 실 ══════════ -->
+  <div class="col side">
+    <section class="card">
+      <header><span class="step">1</span><h2>Space Syntax 규칙</h2></header>
+      <div class="body">
+        <div class="btnrow" style="margin-bottom:11px">
+          <button class="btn sm" data-rulepreset="standard">표준</button>
+          <button class="btn sm" data-rulepreset="strict_door">엄격한 문</button>
+          <button class="btn sm" data-rulepreset="open_plan">개방형</button>
+          <button class="btn sm" data-rulepreset="multi_entry">다중 출입</button>
+        </div>
+        <div class="field">
+          <label for="gw">격자 크기</label>
+          <span><input type="number" id="gw" min="3" max="16" step="1" style="width:52px"> ×
+                <input type="number" id="gh" min="3" max="16" step="1" style="width:52px"></span>
+          <p class="desc">셀 하나를 한 모듈로 본다. 최대 16×16.</p>
+        </div>
+        <div class="field">
+          <label for="pyeong">전체 평수</label>
+          <span><input type="number" id="pyeong" min="1" max="300" step="0.5" style="width:58px"> 평</span>
+          <p class="desc" id="scaleDesc"></p>
+        </div>
+        <div class="btnrow" style="margin:-3px 0 10px">
+          <select id="pyeongPreset" style="width:auto;font-size:11px;flex:1">
+            <option value="">평형 고르기…</option>
+          </select>
+          <button class="btn sm" id="fitGrid" title="칸 하나가 1㎡에 가깝도록 격자를 다시 잡는다">칸≈1㎡</button>
+        </div>
+        <div class="field">
+          <label for="doorMin">문 최소 접면</label>
+          <input type="number" id="doorMin" min="1" max="8" step="1">
+          <p class="desc">두 실이 몇 칸 이상 벽을 맞대야 문을 놓을 수 있다고 볼 것인가. 이 값이 그래프의 간선을 결정한다.</p>
+        </div>
+        <div class="field">
+          <label for="doorWidth">문 폭(칸)</label>
+          <input type="number" id="doorWidth" min="1" max="8" step="1">
+          <p class="desc">시선이 얼마나 뚫리는가. 가시성 분석(VGA)에만 영향을 준다.</p>
+        </div>
+        <div class="field">
+          <label for="doorPos">문 위치</label>
+          <select id="doorPos" style="width:104px">
+            <option value="center">접면 중앙</option>
+            <option value="first">시작 쪽</option>
+            <option value="last">끝 쪽</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="carrierMode">외부 연결</label>
+          <select id="carrierMode" style="width:132px">
+            <option value="entrance">현관이 속한 실만</option>
+            <option value="perimeter">외벽에 닿은 모든 실</option>
+          </select>
+          <p class="desc">외부(carrier) 노드를 어느 실과 이을 것인가. 깊이 구조를 통째로 바꾼다.</p>
+        </div>
+        <div class="field">
+          <label for="normalize">정규화</label>
+          <select id="normalize" style="width:132px">
+            <option value="rra">RRA (실 수 보정)</option>
+            <option value="ra">RA (상대 비대칭성)</option>
+          </select>
+        </div>
+        <div style="display:grid;gap:7px;margin-top:11px">
+          <label class="chk"><input type="checkbox" id="includeCarrier"> 외부 노드를 그래프에 포함</label>
+          <label class="chk"><input type="checkbox" id="vgaEnabled"> 가시성 분석(VGA) 수행</label>
+        </div>
+        <details style="margin-top:12px">
+          <summary style="font-size:11.5px;color:var(--muted);cursor:pointer">규칙을 JSON으로 주고받기</summary>
+          <div class="copywrap" style="margin-top:8px">
+            <textarea id="rulesJson" spellcheck="false" style="min-height:120px"></textarea>
+            <button class="btn sm" id="copyRules">복사</button>
+          </div>
+          <div class="btnrow" style="margin-top:6px">
+            <button class="btn sm" id="applyRules">JSON 적용</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><span class="step">2</span><h2>실 프로그램</h2>
+        <span class="hint" id="areaTotal"></span></header>
+      <div class="body tight">
+        <div class="rooms" id="roomList"></div>
+        <div class="btnrow" style="margin-top:9px;padding:0 6px 4px">
+          <button class="btn sm" id="addRoom">＋ 실 추가</button>
+          <button class="btn sm" id="autoTarget">현재 면적을 목표로</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════ 중앙: 편집기 + 결과 ══════════ -->
+  <div class="col">
+    <section class="card">
+      <header><span class="step">3</span><h2>도면 입력</h2>
+        <span class="hint">칠해서 그리거나 파일을 올리세요</span></header>
+      <div class="toolbar">
+        <button class="tool on" id="toolPaint">칠하기</button>
+        <button class="tool" id="toolErase">지우개</button>
+        <button class="tool" id="toolEntrance">현관 지정</button>
+        <span class="sep"></span>
+        <button class="btn sm" id="btnFill">남은 칸 채우기</button>
+        <button class="btn sm" id="btnClear">비우기</button>
+        <span class="sep"></span>
+        <select id="sampleSel" style="width:auto;font-size:11.5px">
+          <option value="">샘플 도면…</option>
+        </select>
+        <button class="btn sm" id="btnUpload">파일 업로드</button>
+        <input type="file" id="fileInput" accept=".txt,.json,.csv" hidden>
+        <button class="btn sm" id="btnPaste">텍스트 붙여넣기</button>
+      </div>
+      <div id="pasteBox" style="display:none;padding:12px;border-bottom:1px solid var(--rule-soft)">
+        <textarea id="pasteArea" spellcheck="false" placeholder="실 키를 공백으로 구분한 격자, 또는 [{&quot;room&quot;:&quot;hall&quot;,&quot;x&quot;:0,&quot;y&quot;:3,&quot;w&quot;:2,&quot;h&quot;:5}] 형식의 JSON"></textarea>
+        <div class="btnrow" style="margin-top:7px">
+          <button class="btn prim sm" id="applyPaste">불러오기</button>
+          <button class="btn sm" id="cancelPaste">닫기</button>
+          <span class="dim" style="font-size:11px;align-self:center" id="pasteMsg"></span>
+        </div>
+      </div>
+      <div class="editwrap"><svg id="editor" role="img" aria-label="도면 편집 격자"></svg></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-pane="paneScore">점수</button>
+        <button class="tab" data-pane="paneCoord">좌표</button>
+        <button class="tab" data-pane="paneMeasure">지표</button>
+        <button class="tab" data-pane="paneGraph">그래프·히트맵</button>
+        <button class="tab" data-pane="paneRender">도면 이미지</button>
+        <button class="tab" data-pane="paneData">데이터 내보내기</button>
+      </div>
+      <div class="pane on" id="paneScore"></div>
+      <div class="pane" id="paneCoord"></div>
+      <div class="pane" id="paneMeasure"></div>
+      <div class="pane" id="paneGraph"></div>
+      <div class="pane" id="paneRender"></div>
+      <div class="pane" id="paneData"></div>
+    </section>
+  </div>
+
+  <!-- ══════════ 우측: 평가 조건 ══════════ -->
+  <div class="col side">
+    <section class="card">
+      <header><span class="step">4</span><h2>Space Syntax 조건 입력</h2>
+        <span class="hint" id="critCount"></span></header>
+      <div class="body">
+        <div class="field" style="margin-bottom:9px">
+          <label for="critPreset">조건 세트 불러오기</label>
+          <select id="critPreset" style="width:150px"></select>
+        </div>
+        <p class="desc" style="margin:0 0 8px">한 줄에 조건 하나.
+          <code>대상.지표 연산자 목표값 [.. 최악값] [w=가중치]</code><br>
+          대상은 실 키 또는 전역을 뜻하는 <code>@</code>. <code>#</code>으로 시작하면 주석.</p>
+        <div class="copywrap">
+          <textarea id="dsl" spellcheck="false" style="min-height:158px"></textarea>
+        </div>
+        <div class="btnrow" style="margin-top:7px">
+          <button class="btn prim sm" id="parseDsl">데이터화 →</button>
+          <button class="btn sm" id="dslHelp">문법 도움말</button>
+          <span id="dslMsg" style="font-size:11px;align-self:center"></span>
+        </div>
+        <div id="dslHelpBox" style="display:none;margin-top:9px;font-size:11px;color:var(--muted);
+             background:var(--sunken);border:1px solid var(--rule);border-radius:3px;padding:9px 11px;line-height:1.7">
+          <b style="color:var(--ink)">연산자</b><br>
+          <code>&lt;=</code> 작을수록 좋음 · <code>&gt;=</code> 클수록 좋음 · <code>==</code> 목표값 ±허용치<br>
+          <b style="color:var(--ink)">예시</b><br>
+          <code>hall.step_depth &lt;= 1 w=2</code> — 현관 깊이 1이면 만점<br>
+          <code>living.integration_rank &lt;= 1 .. 5 w=2</code> — 순위 1위 만점, 5위 0점<br>
+          <code>master.step_depth == 3 ± 1 w=2</code> — 깊이 3 목표, ±1 허용<br>
+          <code>@intelligibility &gt;= 0.9 w=1</code> — 명료성이 높을수록<br>
+          <code>@disconnected_rooms &lt;= 0 w=2.5</code> — 고립된 실 없어야<br>
+          <span id="dslMeasures" style="display:block;margin-top:7px"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:14px 0 7px">
+          <span style="font-size:11px;font-weight:600;color:var(--ink-2)">데이터화된 조건</span>
+          <span style="flex:1;height:1px;background:var(--rule)"></span>
+          <button class="btn sm" id="addCrit">＋ 추가</button>
+        </div>
+        <div id="critList"></div>
+        <details style="margin-top:11px">
+          <summary style="font-size:11.5px;color:var(--muted);cursor:pointer">조건 데이터(JSON)</summary>
+          <div class="copywrap" style="margin-top:7px">
+            <textarea id="critJson" spellcheck="false" readonly style="min-height:110px"></textarea>
+            <button class="btn sm" id="copyCrit">복사</button>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════
+   공간구문 채점기 — Hillier & Hanson(1984) 공간구문론 / Turner(2001) VGA
+   브라우저에서 전부 계산한다. 서버로 나가는 데이터는 없다.
+   ══════════════════════════════════════════════════════════════════ */
+
+const CARRIER = "__carrier__";
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = (v, d = 3) => (v == null || !isFinite(v)) ? "—" : v.toFixed(d);
+
+/* ── 기본 데이터 ─────────────────────────────────────────────── */
+const DEFAULT_ROOMS = [
+  { key: "hall",    name: "현관·복도", color: "#b8b8b8", target: 9 },
+  { key: "living",  name: "거실",      color: "#8ecae6", target: 14 },
+  { key: "kitchen", name: "주방·식당", color: "#ffb703", target: 8 },
+  { key: "master",  name: "안방",      color: "#a8dadc", target: 12 },
+  { key: "bed2",    name: "작은방",    color: "#bde0fe", target: 9 },
+  { key: "bath",    name: "욕실",      color: "#cdb4db", target: 6 },
+  { key: "store",   name: "다용도실",  color: "#c7c7a6", target: 6 },
+];
+
+const DEFAULT_RULES = {
+  doorMinCells: 1, doorWidthCells: 1, doorPosition: "center",
+  includeCarrier: true, carrierMode: "entrance", normalize: "rra",
+  vgaEnabled: true,
+};
+const RULE_PRESETS = {
+  standard:    { doorMinCells: 1, doorWidthCells: 1, carrierMode: "entrance" },
+  strict_door: { doorMinCells: 2, doorWidthCells: 1, carrierMode: "entrance" },
+  open_plan:   { doorMinCells: 1, doorWidthCells: 3, carrierMode: "entrance" },
+  multi_entry: { doorMinCells: 1, doorWidthCells: 1, carrierMode: "perimeter" },
+};
+
+const SAMPLES = {
+  "중앙 복도형": `master master master master bed2 bed2 bed2 store
+master master master master bed2 bed2 bed2 store
+master master master master bed2 bed2 bed2 store
+hall hall bath bath bath kitchen kitchen store
+hall hall bath bath bath kitchen kitchen store
+hall hall living living living living kitchen store
+hall hall living living living living kitchen kitchen
+hall living living living living living living kitchen`,
+  "측면 복도형": `hall master master master master bed2 bed2 bed2
+hall master master master master bed2 bed2 bed2
+hall master master master master bed2 bed2 bed2
+hall bath bath bath store store store kitchen
+hall bath bath bath store kitchen kitchen kitchen
+hall store store living living living kitchen kitchen
+hall living living living living living kitchen kitchen
+hall hall living living living living living living`,
+  "현관 고립형 (나쁜 예)": `master master master master bed2 bed2 hall hall
+master master master master bed2 bed2 hall hall
+master master master master bed2 bed2 hall hall
+kitchen kitchen kitchen kitchen bed2 bed2 hall hall
+kitchen kitchen kitchen kitchen bed2 living hall living
+bath bath store store living living living living
+bath bath store store living living living living
+bath bath store store living living living living`,
+};
+
+/* ── 지표 사전 ───────────────────────────────────────────────── */
+const MEASURES = {
+  // 전역
+  mean_depth_system:      { label: "시스템 평균깊이",   scope: "global", hint: "모든 실 쌍의 평균 이동 횟수. 낮을수록 얕은 평면." },
+  max_depth_from_carrier: { label: "현관 최대깊이",     scope: "global", hint: "외부에서 가장 깊은 실까지 문을 몇 번 지나는가." },
+  intelligibility:        { label: "명료성 r²",         scope: "global", hint: "연결도와 통합도의 상관. 국소가 전체를 잘 예측하는가." },
+  difference_factor:      { label: "차이계수 H*",       scope: "global", hint: "공간 위계의 고름. 1에 가까울수록 평평." },
+  mean_integration:       { label: "평균 통합도",       scope: "global", hint: "전체 실의 통합도 평균." },
+  edge_count:             { label: "간선 수(문)",       scope: "global", hint: "그래프의 연결 수. 규칙에 따라 달라진다." },
+  disconnected_rooms:     { label: "고립된 실 수",      scope: "global", hint: "외부에서 도달할 수 없는 실. 0이어야 한다." },
+  fragmented_rooms:       { label: "조각난 실 수",      scope: "global", hint: "두 덩어리 이상으로 흩어진 실." },
+  area_error:             { label: "면적 오차 제곱합",  scope: "global", hint: "요구 면적과의 차이. Σ(실제−목표)²." },
+  mean_visual_integration:{ label: "평균 시각 통합도",  scope: "global", hint: "VGA 기준. 눈으로 닿기 쉬운 정도." },
+  visual_intelligibility: { label: "시각 명료성",       scope: "global", hint: "시각 연결도와 시각 통합도의 상관." },
+  mean_clustering:        { label: "시각 군집계수",     scope: "global", hint: "보이는 것끼리 서로 보이는 정도. 낮으면 시야가 다채롭다." },
+  // 실 단위
+  integration:      { label: "통합도",        scope: "room", hint: "1/RRA. 클수록 전체에서 접근하기 쉬운 중심." },
+  integration_rank: { label: "통합도 순위",   scope: "room", hint: "1이면 가장 통합적인 실." },
+  mean_depth:       { label: "평균깊이",      scope: "room", hint: "다른 모든 실까지의 평균 이동 횟수." },
+  connectivity:     { label: "연결도",        scope: "room", hint: "직접 이어진 실의 수 = 문의 개수." },
+  control_value:    { label: "제어값",        scope: "room", hint: "1보다 크면 주변을 통제하는 위치." },
+  choice:           { label: "선택도",        scope: "room", hint: "최단 경로가 통과하는 빈도. 동선의 목." },
+  step_depth:       { label: "현관 깊이",     scope: "room", hint: "외부에서 이 실까지 문을 몇 번 지나는가." },
+  visual_integration:{ label: "시각 통합도",  scope: "room", hint: "그 실 셀들의 VGA 통합도 평균." },
+  isovist_area:     { label: "아이소비스트 면적", scope: "room", hint: "그 실에서 평균적으로 보이는 칸 수." },
+};
+
+/* ── 조건 세트 프리셋 ────────────────────────────────────────── */
+const c = (o) => Object.assign({ mode: "range", weight: 1, enabled: true }, o);
+const CRIT_PRESETS = {
+  "주거 일반": () => [
+    c({ scope: "room", room: "hall", measure: "step_depth", worst: 4, best: 1, weight: 2,
+        why: "현관은 외부에서 바로 닿아야 한다. 깊이 1이 이상적." }),
+    c({ scope: "room", room: "living", measure: "integration_rank", worst: 5, best: 1, weight: 2,
+        why: "거실은 집에서 가장 통합적인 공간이어야 한다." }),
+    c({ scope: "room", room: "master", measure: "integration", worst: 3.0, best: 0.7, weight: 1.5,
+        why: "안방은 통합도가 낮아야(격리되어야) 한다." }),
+    c({ scope: "global", measure: "mean_depth_system", worst: 3.0, best: 1.4, weight: 1,
+        why: "평면 전체가 얕을수록 이동이 편하다." }),
+    c({ scope: "global", measure: "intelligibility", worst: 0.2, best: 0.9, weight: 1,
+        why: "눈앞의 연결만 보고도 전체 구조를 짐작할 수 있어야 한다." }),
+    c({ scope: "global", measure: "disconnected_rooms", worst: 2, best: 0, weight: 2.5,
+        why: "닿을 수 없는 실이 있으면 도면으로 성립하지 않는다." }),
+    c({ scope: "global", measure: "area_error", worst: 60, best: 0, weight: 1,
+        why: "요구 면적을 지켜야 한다." }),
+  ],
+  "프라이버시 우선": () => [
+    c({ scope: "room", room: "master", measure: "step_depth", mode: "target", target: 3, tol: 1, weight: 2.5,
+        why: "안방은 현관에서 세 단계쯤 떨어져야 한다." }),
+    c({ scope: "room", room: "bed2", measure: "step_depth", mode: "target", target: 3, tol: 1.5, weight: 2,
+        why: "작은방도 현관 동선에서 물러나야 한다." }),
+    c({ scope: "room", room: "bath", measure: "integration", worst: 3.0, best: 0.8, weight: 1.5,
+        why: "욕실이 너무 통합적이면 사생활이 노출된다." }),
+    c({ scope: "room", room: "hall", measure: "step_depth", worst: 3, best: 1, weight: 1.5,
+        why: "현관 자체는 얕아야 한다." }),
+    c({ scope: "room", room: "living", measure: "integration_rank", worst: 4, best: 1, weight: 1,
+        why: "공용 공간이 중심을 잡는다." }),
+    c({ scope: "global", measure: "disconnected_rooms", worst: 2, best: 0, weight: 2.5,
+        why: "고립된 실은 허용하지 않는다." }),
+  ],
+  "무장애 접근": () => [
+    c({ scope: "global", measure: "mean_depth_system", worst: 3.0, best: 1.2, weight: 2.5,
+        why: "이동 단계가 적어야 한다." }),
+    c({ scope: "global", measure: "max_depth_from_carrier", worst: 5, best: 2, weight: 2.5,
+        why: "가장 깊은 실까지도 두 단계 안이어야 한다." }),
+    c({ scope: "room", room: "hall", measure: "connectivity", worst: 1, best: 5, weight: 2,
+        why: "복도가 많은 실과 직접 이어져야 한다." }),
+    c({ scope: "global", measure: "disconnected_rooms", worst: 1, best: 0, weight: 3,
+        why: "모든 실이 도달 가능해야 한다." }),
+    c({ scope: "global", measure: "intelligibility", worst: 0.3, best: 0.9, weight: 1.5,
+        why: "길찾기가 쉬워야 한다." }),
+  ],
+  "가시성 중심 (상업·전시)": () => [
+    c({ scope: "global", measure: "mean_visual_integration", worst: 3, best: 9, weight: 3,
+        why: "시야가 잘 통해야 한다." }),
+    c({ scope: "global", measure: "visual_intelligibility", worst: 0.3, best: 0.95, weight: 2,
+        why: "보이는 대로 이해되는 공간." }),
+    c({ scope: "room", room: "living", measure: "visual_integration", worst: 3, best: 9, weight: 1.5,
+        why: "주 공간의 시각 통합도." }),
+    c({ scope: "global", measure: "mean_clustering", worst: 0.85, best: 0.45, weight: 1,
+        why: "군집계수가 낮으면 시야가 단조롭지 않다." }),
+    c({ scope: "global", measure: "disconnected_rooms", worst: 2, best: 0, weight: 2,
+        why: "고립된 실 금지." }),
+  ],
+};
+
+/* ══════════════════════════════════════════════════════════════
+   상태
+   ══════════════════════════════════════════════════════════════ */
+const S = {
+  w: 8, h: 8,
+  rooms: DEFAULT_ROOMS.map(r => ({ ...r })),
+  cells: [],
+  entrance: 56,
+  rules: { ...DEFAULT_RULES },
+  criteria: [],
+  critSet: "주거 일반",
+  paintKey: "hall",
+  tool: "paint",
+};
+
+const IDX = (x, y) => y * S.w + x;
+const XY = (i) => [i % S.w, Math.floor(i / S.w)];
+const roomBy = (k) => S.rooms.find(r => r.key === k);
+
+function blankCells() { return new Array(S.w * S.h).fill(null); }
+
+/* ══════════════════════════════════════════════════════════════
+   1. 격자 기하
+   ══════════════════════════════════════════════════════════════ */
+let GEO = null;
+function geo() {
+  if (GEO && GEO.w === S.w && GEO.h === S.h && GEO.ent === S.entrance) return GEO;
+  const pairs = [];
+  for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+    const i = IDX(x, y);
+    if (x + 1 < S.w) pairs.push([i, IDX(x + 1, y)]);
+    if (y + 1 < S.h) pairs.push([i, IDX(x, y + 1)]);
+  }
+  const [ex, ey] = XY(S.entrance);
+  const raw = [], perim = [];
+  for (let i = 0; i < S.w * S.h; i++) {
+    const [x, y] = XY(i);
+    raw.push(Math.abs(x - ex) + Math.abs(y - ey));
+    perim.push(x === 0 || y === 0 || x === S.w - 1 || y === S.h - 1);
+  }
+  const mx = Math.max(...raw) || 1;
+  GEO = { w: S.w, h: S.h, ent: S.entrance, pairs, perim,
+          entDist: raw.map(v => v / mx) };
+  return GEO;
+}
+function neighborsOf(i) {
+  const [x, y] = XY(i), out = [];
+  if (x > 0) out.push(IDX(x - 1, y));
+  if (x + 1 < S.w) out.push(IDX(x + 1, y));
+  if (y > 0) out.push(IDX(x, y - 1));
+  if (y + 1 < S.h) out.push(IDX(x, y + 1));
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   2. 벽 구간 → 문  (규칙이 작동하는 지점)
+   ══════════════════════════════════════════════════════════════ */
+function wallRuns(cells) {
+  const g = geo(), buckets = new Map();
+  for (const [a, b] of g.pairs) {
+    const ra = cells[a], rb = cells[b];
+    if (!ra || !rb || ra === rb) continue;
+    const [xa, ya] = XY(a), [xb, yb] = XY(b);
+    const pair = [ra, rb].sort();
+    let key, v;
+    if (xb === xa + 1) { key = pair.join("|") + "|V|" + xb; v = ya; }
+    else               { key = pair.join("|") + "|H|" + yb; v = xa; }
+    if (!buckets.has(key)) buckets.set(key, { pair, orient: key.split("|")[2],
+                                              fixed: +key.split("|")[3], items: [] });
+    buckets.get(key).items.push([v, [a, b]]);
+  }
+  const runs = [];
+  for (const bk of buckets.values()) {
+    bk.items.sort((p, q) => p[0] - q[0]);
+    let start = bk.items[0][0], len = 1, edges = [bk.items[0][1]];
+    for (let i = 1; i < bk.items.length; i++) {
+      if (bk.items[i][0] === bk.items[i - 1][0] + 1) { len++; edges.push(bk.items[i][1]); }
+      else { runs.push({ a: bk.pair[0], b: bk.pair[1], orient: bk.orient, fixed: bk.fixed, start, len, edges });
+             start = bk.items[i][0]; len = 1; edges = [bk.items[i][1]]; }
+    }
+    runs.push({ a: bk.pair[0], b: bk.pair[1], orient: bk.orient, fixed: bk.fixed, start, len, edges });
+  }
+  return runs;
+}
+
+function doorsOf(cells) {
+  const R = S.rules, best = new Map();
+  for (const run of wallRuns(cells)) {
+    if (run.len < R.doorMinCells) continue;
+    const k = run.a + "|" + run.b;
+    if (!best.has(k) || run.len > best.get(k).len) best.set(k, run);
+  }
+  const out = new Map();
+  for (const [k, run] of best) {
+    const w = Math.min(R.doorWidthCells, run.len);
+    const off = R.doorPosition === "first" ? 0
+              : R.doorPosition === "last" ? run.len - w
+              : Math.floor((run.len - w) / 2);
+    const mid = run.start + run.len / 2;
+    out.set(k, {
+      a: run.a, b: run.b, len: run.len, width: w,
+      openEdges: run.edges.slice(off, off + w),
+      coord: run.orient === "V" ? [run.fixed, mid] : [mid, run.fixed],
+    });
+  }
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   3. 볼록공간 그래프
+   ══════════════════════════════════════════════════════════════ */
+function buildGraph(cells) {
+  const R = S.rules, dr = doorsOf(cells);
+  const present = S.rooms.filter(r => cells.includes(r.key)).map(r => r.key);
+  const adj = new Map(present.map(k => [k, new Set()]));
+  const labels = new Map(S.rooms.map(r => [r.key, r.name]));
+  const doorCoord = new Map();
+  for (const d of dr.values()) {
+    if (adj.has(d.a) && adj.has(d.b)) {
+      adj.get(d.a).add(d.b); adj.get(d.b).add(d.a);
+      doorCoord.set(d.a + "|" + d.b, d.coord);
+    }
+  }
+  let nodes = present.slice();
+  if (R.includeCarrier) {
+    nodes = [CARRIER, ...nodes];
+    adj.set(CARRIER, new Set());
+    labels.set(CARRIER, "외부");
+    const g = geo();
+    let targets = [];
+    if (R.carrierMode === "perimeter") {
+      targets = [...new Set(cells.filter((k, i) => k && g.perim[i]))];
+    } else {
+      const k = cells[S.entrance];
+      targets = k ? [k] : [];
+    }
+    const [ex, ey] = XY(S.entrance);
+    for (const t of targets) if (adj.has(t)) {
+      adj.get(CARRIER).add(t); adj.get(t).add(CARRIER);
+      doorCoord.set([CARRIER, t].sort().join("|"), [ex + 0.5, ey + 0.5]);
+    }
+  }
+  return { nodes, adj, labels, doorCoord, doors: dr };
+}
+
+function bfs(adj, src) {
+  const d = new Map([[src, 0]]);
+  let q = [src];
+  while (q.length) {
+    const nx = [];
+    for (const v of q) for (const u of adj.get(v) || []) {
+      if (!d.has(u)) { d.set(u, d.get(v) + 1); nx.push(u); }
+    }
+    q = nx;
+  }
+  return d;
+}
+
+function diamond(k) {
+  if (k < 4) return NaN;
+  return 2 * (k * (Math.log2((k + 2) / 3) - 1) + 1) / ((k - 1) * (k - 2));
+}
+
+function brandes(nodes, adj) {
+  const cb = new Map(nodes.map(v => [v, 0]));
+  for (const s of nodes) {
+    const stack = [], preds = new Map(nodes.map(v => [v, []]));
+    const sigma = new Map(nodes.map(v => [v, 0]));
+    const dist = new Map(nodes.map(v => [v, -1]));
+    sigma.set(s, 1); dist.set(s, 0);
+    const q = [s];
+    while (q.length) {
+      const v = q.shift(); stack.push(v);
+      for (const w of adj.get(v) || []) {
+        if (dist.get(w) < 0) { dist.set(w, dist.get(v) + 1); q.push(w); }
+        if (dist.get(w) === dist.get(v) + 1) {
+          sigma.set(w, sigma.get(w) + sigma.get(v)); preds.get(w).push(v);
+        }
+      }
+    }
+    const delta = new Map(nodes.map(v => [v, 0]));
+    while (stack.length) {
+      const w = stack.pop();
+      for (const v of preds.get(w)) {
+        delta.set(v, delta.get(v) + sigma.get(v) / sigma.get(w) * (1 + delta.get(w)));
+      }
+      if (w !== s) cb.set(w, cb.get(w) + delta.get(w));
+    }
+  }
+  const n = nodes.length, norm = n > 2 ? (n - 1) * (n - 2) : 1;
+  return new Map([...cb].map(([v, x]) => [v, x / norm]));
+}
+
+function r2(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return NaN;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+  if (sxx <= 0 || syy <= 0) return NaN;
+  return (sxy * sxy) / (sxx * syy);
+}
+
+function analyzeGraph(G) {
+  const k = G.nodes.length, dk = diamond(k), ch = brandes(G.nodes, G.adj);
+  const carrierDepth = G.adj.has(CARRIER) ? bfs(G.adj, CARRIER) : new Map();
+  const nodes = new Map();
+  for (const v of G.nodes) {
+    const d = bfs(G.adj, v);
+    const reach = [...d].filter(([u]) => u !== v).map(([, x]) => x);
+    const td = reach.reduce((a, b) => a + b, 0);
+    const md = k > 1 ? td / (k - 1) : NaN;
+    const ra = k > 2 ? 2 * (md - 1) / (k - 2) : NaN;
+    const rra = isFinite(dk) && dk ? ra / dk : NaN;
+    const base = S.rules.normalize === "rra" ? rra : ra;
+    let cv = 0;
+    for (const u of G.adj.get(v)) { const dg = G.adj.get(u).size; if (dg) cv += 1 / dg; }
+    nodes.set(v, {
+      label: G.labels.get(v) || v,
+      connectivity: G.adj.get(v).size,
+      total_depth: td, mean_depth: md, RA: ra, RRA: rra,
+      integration: (base && isFinite(base) && base > 0) ? 1 / base : NaN,
+      control_value: cv, choice: ch.get(v),
+      step_depth: carrierDepth.has(v) ? carrierDepth.get(v) : null,
+      disconnected: reach.length < k - 1,
+    });
+  }
+  const rank = [...nodes].filter(([v]) => v !== CARRIER)
+    .filter(([, m]) => isFinite(m.integration))
+    .sort((a, b) => b[1].integration - a[1].integration);
+  rank.forEach(([v], i) => nodes.get(v).integration_rank = i + 1);
+
+  const withInt = [...nodes.values()].filter(m => isFinite(m.integration));
+  return {
+    nodes,
+    global: {
+      node_count: k,
+      edge_count: [...G.adj.values()].reduce((a, s) => a + s.size, 0) / 2,
+      diamond_value: dk,
+      mean_depth_system: [...nodes.values()].reduce((a, m) => a + (isFinite(m.mean_depth) ? m.mean_depth : 0), 0) / (k || 1),
+      mean_integration: withInt.reduce((a, m) => a + m.integration, 0) / (withInt.length || 1),
+      max_depth_from_carrier: carrierDepth.size ? Math.max(...carrierDepth.values()) : null,
+      intelligibility: r2(withInt.map(m => m.connectivity), withInt.map(m => m.integration)),
+      difference_factor: diffFactor([...nodes.values()].map(m => m.RA)),
+      disconnected_rooms: [...nodes].filter(([v, m]) => v !== CARRIER && m.disconnected).length,
+    },
+  };
+}
+
+function diffFactor(ras) {
+  const v = ras.filter(x => isFinite(x) && x > 0);
+  if (v.length < 2) return NaN;
+  const t = v.reduce((a, b) => a + b, 0);
+  const h = -v.reduce((a, x) => a + (x / t) * Math.log(x / t), 0);
+  return h / Math.log(v.length);
+}
+</script>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   4. 가시성 그래프 (VGA) · 아이소비스트
+   ══════════════════════════════════════════════════════════════ */
+function passableEdges(cells) {
+  const g = geo(), N = S.w * S.h, open = new Set();
+  const key = (a, b) => (a < b ? a * N + b : b * N + a);
+  for (const [a, b] of g.pairs) if (cells[a] && cells[a] === cells[b]) open.add(key(a, b));
+  for (const d of doorsOf(cells).values()) for (const [a, b] of d.openEdges) open.add(key(a, b));
+  return { open, key };
+}
+
+function stepOk(prev, cur, E) {
+  const [px, py] = XY(prev), [cx, cy] = XY(cur);
+  const dx = cx - px, dy = cy - py;
+  if (Math.abs(dx) + Math.abs(dy) === 1) return E.open.has(E.key(prev, cur));
+  if (Math.abs(dx) === 1 && Math.abs(dy) === 1) {
+    for (const [mx, my] of [[cx, py], [px, cy]]) {
+      const m = IDX(mx, my);
+      if (E.open.has(E.key(prev, m)) && E.open.has(E.key(m, cur))) return true;
+    }
+  }
+  return false;
+}
+
+function visibilityGraph(cells) {
+  const E = passableEdges(cells), N = S.w * S.h;
+  const vis = Array.from({ length: N }, () => new Set());
+  const step = 0.05;
+  for (let a = 0; a < N; a++) {
+    const ax = (a % S.w) + 0.5, ay = Math.floor(a / S.w) + 0.5;
+    for (let b = a + 1; b < N; b++) {
+      const bx = (b % S.w) + 0.5, by = Math.floor(b / S.w) + 0.5;
+      const dx = bx - ax, dy = by - ay;
+      const n = Math.max(2, Math.ceil(Math.hypot(dx, dy) / step));
+      let prev = a, blocked = false;
+      for (let t = 1; t <= n; t++) {
+        const f = t / n;
+        const gx = clamp(ax + dx * f, 0, S.w - 1e-9), gy = clamp(ay + dy * f, 0, S.h - 1e-9);
+        const cur = IDX(gx | 0, gy | 0);
+        if (cur !== prev) { if (!stepOk(prev, cur, E)) { blocked = true; break; } prev = cur; }
+      }
+      if (!blocked) { vis[a].add(b); vis[b].add(a); }
+    }
+  }
+  return vis;
+}
+
+function analyzeVGA(cells, vis) {
+  const N = S.w * S.h, dk = diamond(N), out = new Map();
+  for (let cIdx = 0; cIdx < N; cIdx++) {
+    const seen0 = vis[cIdx];
+    // 가시성 그래프 위 BFS
+    const d = new Map([[cIdx, 0]]);
+    let q = [cIdx];
+    while (q.length) {
+      const nx = [];
+      for (const v of q) for (const u of vis[v]) if (!d.has(u)) { d.set(u, d.get(v) + 1); nx.push(u); }
+      q = nx;
+    }
+    const reach = [...d].filter(([u]) => u !== cIdx).map(([, x]) => x);
+    const md = reach.length ? reach.reduce((a, b) => a + b, 0) / reach.length : NaN;
+    const ra = N > 2 ? 2 * (md - 1) / (N - 2) : NaN;
+    const rra = isFinite(dk) && dk ? ra / dk : NaN;
+    const base = S.rules.normalize === "rra" ? rra : ra;
+    // 군집계수
+    const nb = [...seen0];
+    let links = 0;
+    for (let i = 0; i < nb.length; i++) for (let j = i + 1; j < nb.length; j++)
+      if (vis[nb[i]].has(nb[j])) links++;
+    const pairs = nb.length * (nb.length - 1) / 2;
+    // 아이소비스트
+    const seen = [...seen0, cIdx];
+    const [px, py] = XY(cIdx);
+    const ox = px + 0.5, oy = py + 0.5;
+    let perim = 0, gx = 0, gy = 0, maxR = 0, sumR = 0;
+    const seenSet = new Set(seen);
+    for (const s2 of seen) {
+      const [sx, sy] = XY(s2);
+      gx += sx + 0.5; gy += sy + 0.5;
+      const r = Math.hypot(sx + 0.5 - ox, sy + 0.5 - oy);
+      maxR = Math.max(maxR, r); sumR += r;
+      for (const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx2 = sx + ddx, ny2 = sy + ddy;
+        if (nx2 < 0 || nx2 >= S.w || ny2 < 0 || ny2 >= S.h || !seenSet.has(IDX(nx2, ny2))) perim++;
+      }
+    }
+    gx /= seen.length; gy /= seen.length;
+    out.set(cIdx, {
+      x: px, y: py, room: cells[cIdx],
+      visual_connectivity: seen0.size,
+      visual_mean_depth: md,
+      visual_integration: (base && isFinite(base) && base > 0) ? 1 / base : NaN,
+      clustering: pairs ? links / pairs : 0,
+      isovist_area: seen.length,
+      isovist_perimeter: perim,
+      isovist_compactness: perim ? 4 * Math.PI * seen.length / (perim * perim) : NaN,
+      isovist_max_radial: maxR,
+      isovist_mean_radial: sumR / seen.length,
+      isovist_drift: Math.hypot(gx - ox, gy - oy),
+    });
+  }
+  const arr = [...out.values()].filter(v => isFinite(v.visual_integration));
+  return {
+    cells: out,
+    global: {
+      mean_visual_integration: arr.reduce((a, v) => a + v.visual_integration, 0) / (arr.length || 1),
+      mean_visual_connectivity: [...out.values()].reduce((a, v) => a + v.visual_connectivity, 0) / N,
+      visual_intelligibility: r2(arr.map(v => v.visual_connectivity), arr.map(v => v.visual_integration)),
+      mean_clustering: [...out.values()].reduce((a, v) => a + v.clustering, 0) / N,
+    },
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   5. 정당화 그래프 좌표 + 실 좌표
+   ══════════════════════════════════════════════════════════════ */
+function jgraphLayout(G) {
+  const root = G.adj.has(CARRIER) ? CARRIER : G.nodes[0];
+  if (!root) return { pos: new Map(), depth: new Map() };
+  const depth = bfs(G.adj, root);
+  const levels = new Map();
+  for (const [v, d] of depth) { if (!levels.has(d)) levels.set(d, []); levels.get(d).push(v); }
+  const orphan = G.nodes.filter(v => !depth.has(v));
+  if (orphan.length) levels.set(Math.max(...levels.keys(), -1) + 1, orphan);
+  const pos = new Map();
+  for (const d of [...levels.keys()].sort((a, b) => a - b)) {
+    const group = levels.get(d);
+    let order = group;
+    if (d > 0) {
+      order = group.slice().sort((a, b) => {
+        const px = v => {
+          const ps = [...(G.adj.get(v) || [])].filter(u => depth.get(u) === d - 1 && pos.has(u))
+            .map(u => pos.get(u)[0]);
+          return ps.length ? ps.reduce((x, y) => x + y, 0) / ps.length : 0;
+        };
+        return px(a) - px(b) || String(G.labels.get(a)).localeCompare(String(G.labels.get(b)));
+      });
+    }
+    const mid = (order.length - 1) / 2;
+    order.forEach((v, i) => pos.set(v, [i - mid, d]));
+  }
+  return { pos, depth };
+}
+
+function roomCoords(cells) {
+  const out = new Map();
+  for (const r of S.rooms) {
+    const idxs = [];
+    cells.forEach((k, i) => { if (k === r.key) idxs.push(i); });
+    if (!idxs.length) { out.set(r.key, null); continue; }
+    const pts = idxs.map(XY);
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    // 연결 성분
+    const rem = new Set(idxs);
+    let comp = 0;
+    while (rem.size) {
+      comp++;
+      const st = [rem.values().next().value]; rem.delete(st[0]);
+      while (st.length) for (const nb of neighborsOf(st.pop())) if (rem.has(nb)) { rem.delete(nb); st.push(nb); }
+    }
+    const set = new Set(idxs);
+    let wall = 0;
+    for (const i of idxs) wall += 4 - neighborsOf(i).filter(n => set.has(n)).length;
+    out.set(r.key, {
+      cells: idxs, area: idxs.length, target: r.target,
+      bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs) + 1, Math.max(...ys) + 1],
+      centroid: [xs.reduce((a, b) => a + b, 0) / xs.length + 0.5, ys.reduce((a, b) => a + b, 0) / ys.length + 0.5],
+      components: comp, wall_length: wall,
+      perimeter_cells: idxs.filter(i => geo().perim[i]).length,
+    });
+  }
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   6. 전체 분석
+   ══════════════════════════════════════════════════════════════ */
+function analyze() {
+  const cells = S.cells;
+  const filled = cells.filter(Boolean).length;
+  if (!filled) return { empty: true };
+  const G = buildGraph(cells);
+  const A = analyzeGraph(G);
+  const { pos, depth } = jgraphLayout(G);
+  const coords = roomCoords(cells);
+
+  let areaErr = 0, frag = 0;
+  for (const r of S.rooms) {
+    const c2 = coords.get(r.key);
+    const a = c2 ? c2.area : 0;
+    areaErr += (a - r.target) ** 2;
+    if (c2 && c2.components > 1) frag++;
+  }
+  A.global.area_error = areaErr;
+  A.global.fragmented_rooms = frag;
+  A.global.empty_cells = cells.length - filled;
+
+  let vga = null;
+  if (S.rules.vgaEnabled) {
+    vga = analyzeVGA(cells, visibilityGraph(cells));
+    Object.assign(A.global, vga.global);
+    for (const r of S.rooms) {
+      const c2 = coords.get(r.key);
+      if (!c2 || !A.nodes.has(r.key)) continue;
+      const cs = c2.cells.map(i => vga.cells.get(i));
+      A.nodes.get(r.key).visual_integration =
+        cs.reduce((a, v) => a + (isFinite(v.visual_integration) ? v.visual_integration : 0), 0) / cs.length;
+      A.nodes.get(r.key).isovist_area =
+        cs.reduce((a, v) => a + v.isovist_area, 0) / cs.length;
+    }
+  }
+  return { G, A, pos, depth, coords, vga, cells };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   7. 조건 문법(DSL) — 입력을 데이터로 바꾸는 모듈
+   ══════════════════════════════════════════════════════════════ */
+const SPANS = {
+  step_depth: 3, integration_rank: 4, integration: 2, mean_depth: 1.2,
+  connectivity: 4, control_value: 1.2, choice: 0.3,
+  visual_integration: 5, isovist_area: 20,
+  mean_depth_system: 1.6, max_depth_from_carrier: 3, intelligibility: 0.6,
+  difference_factor: 0.3, mean_integration: 1.5, edge_count: 6,
+  disconnected_rooms: 2, fragmented_rooms: 3, area_error: 60,
+  mean_visual_integration: 5, visual_intelligibility: 0.6, mean_clustering: 0.4,
+};
+
+let CRIT_SEQ = 0;
+function parseDSL(text) {
+  const out = [], errors = [];
+  text.split("\n").forEach((raw, ln) => {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) return;
+    const m = line.match(/^([A-Za-z0-9_@]+)\s*\.?\s*([A-Za-z0-9_]*)\s*(<=|>=|==)\s*([-\d.]+)\s*(?:(?:\.\.|±)\s*([-\d.]+))?\s*(?:w\s*=\s*([\d.]+))?$/);
+    if (!m) { errors.push(`${ln + 1}행: 해석할 수 없습니다 — "${raw.trim()}"`); return; }
+    let [, target, measure, op, val, second, weight] = m;
+    if (target.startsWith("@")) { measure = measure || target.slice(1); target = "@"; }
+    if (!MEASURES[measure]) { errors.push(`${ln + 1}행: 알 수 없는 지표 "${measure}"`); return; }
+    const meta = MEASURES[measure];
+    const scope = meta.scope;
+    if (scope === "room" && target === "@") { errors.push(`${ln + 1}행: "${measure}"는 실 단위 지표입니다. 실 키를 앞에 적으세요.`); return; }
+    if (scope === "global" && target !== "@") { errors.push(`${ln + 1}행: "${measure}"는 전역 지표입니다. @${measure} 형태로 적으세요.`); return; }
+    if (scope === "room" && !S.rooms.some(r => r.key === target)) {
+      errors.push(`${ln + 1}행: 알 수 없는 실 "${target}"`); return;
+    }
+    const v = parseFloat(val), span = SPANS[measure] || 1;
+    const cr = {
+      id: ++CRIT_SEQ, scope, room: scope === "room" ? target : null, measure,
+      weight: weight ? parseFloat(weight) : 1, enabled: true,
+      why: meta.hint,
+    };
+    if (op === "==") { cr.mode = "target"; cr.target = v; cr.tol = second != null ? parseFloat(second) : span / 3; }
+    else {
+      cr.mode = "range"; cr.best = v;
+      cr.worst = second != null ? parseFloat(second) : (op === "<=" ? v + span : v - span);
+    }
+    out.push(cr);
+  });
+  return { criteria: out, errors };
+}
+
+function toDSL(criteria) {
+  return criteria.map(cr => {
+    const t = cr.scope === "room" ? `${cr.room}.${cr.measure}` : `@${cr.measure}`;
+    const w = cr.weight !== 1 ? ` w=${cr.weight}` : "";
+    const off = cr.enabled ? "" : "# ";
+    if (cr.mode === "target") return `${off}${t} == ${cr.target} ± ${cr.tol}${w}`;
+    const op = cr.worst > cr.best ? "<=" : ">=";
+    return `${off}${t} ${op} ${cr.best} .. ${cr.worst}${w}`;
+  }).join("\n");
+}
+
+/* ══════════════════════════════════════════════════════════════
+   8. 채점 — 데이터화된 조건이 점수에 반영되는 지점
+   ══════════════════════════════════════════════════════════════ */
+function measureValue(cr, R) {
+  if (!R || R.empty) return null;
+  if (cr.scope === "global") {
+    const v = R.A.global[cr.measure];
+    return (v == null || !isFinite(v)) ? null : v;
+  }
+  const node = R.A.nodes.get(cr.room);
+  if (!node) return null;
+  const v = node[cr.measure];
+  return (v == null || !isFinite(v)) ? null : v;
+}
+
+function scoreCriterion(cr, R) {
+  const v = measureValue(cr, R);
+  if (v == null) return { value: null, score: null, note: "측정 불가" };
+  let s;
+  if (cr.mode === "target") s = 1 - Math.abs(v - cr.target) / Math.max(cr.tol, 1e-9);
+  else s = (v - cr.worst) / ((cr.best - cr.worst) || 1e-9);
+  return { value: v, score: clamp(s, 0, 1) };
+}
+
+function scoreAll(R) {
+  const rows = S.criteria.filter(cr => cr.enabled).map(cr => ({ cr, ...scoreCriterion(cr, R) }));
+  const scored = rows.filter(r => r.score != null);
+  const wsum = scored.reduce((a, r) => a + r.cr.weight, 0);
+  const total = wsum ? scored.reduce((a, r) => a + r.cr.weight * r.score, 0) / wsum * 100 : null;
+  return { rows, total, counted: scored.length, skipped: rows.length - scored.length };
+}
+
+function gradeOf(t) {
+  if (t == null) return { g: "—", cls: "g-C", sub: "평가할 조건이 없습니다" };
+  if (t >= 95) return { g: "A+", cls: "g-A", sub: "공간 구조가 조건을 거의 완전히 만족" };
+  if (t >= 90) return { g: "A",  cls: "g-A", sub: "조건을 매우 잘 만족" };
+  if (t >= 85) return { g: "B+", cls: "g-B", sub: "대체로 양호, 일부 보완 필요" };
+  if (t >= 80) return { g: "B",  cls: "g-B", sub: "양호하나 개선 여지 있음" };
+  if (t >= 70) return { g: "C+", cls: "g-C", sub: "조건 일부가 충족되지 않음" };
+  if (t >= 60) return { g: "C",  cls: "g-C", sub: "여러 조건에서 미달" };
+  if (t >= 45) return { g: "D",  cls: "g-D", sub: "구조적 재검토가 필요" };
+  return { g: "F", cls: "g-D", sub: "조건을 거의 만족하지 못함" };
+}
+</script>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   9. 렌더링
+   ══════════════════════════════════════════════════════════════ */
+const RAMP_WARM = ["#f7ede2","#f2dcc2","#e9c193","#dda263","#c8823a","#a76420","#7d4913"];
+const RAMP_COOL = ["#e8f1f2","#cfe4e6","#a9d0d4","#7ab6bd","#4e97a0","#2f757e","#1b545c"];
+const U = 40;
+const esc = (s) => String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+
+function rampColor(t, ramp) {
+  if (t == null || !isFinite(t)) return "#dcdcdc";
+  return ramp[Math.round(clamp(t, 0, 1) * (ramp.length - 1))];
+}
+function normalizer(vals) {
+  const xs = vals.filter(v => v != null && isFinite(v));
+  if (!xs.length) return () => NaN;
+  const lo = Math.min(...xs), hi = Math.max(...xs), sp = (hi - lo) || 1;
+  return v => (v == null || !isFinite(v)) ? NaN : (v - lo) / sp;
+}
+function wallPaths(cells, u) {
+  let out = "";
+  for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+    const i = IDX(x, y);
+    if (x + 1 < S.w && cells[i] !== cells[IDX(x + 1, y)])
+      out += `<line x1="${(x+1)*u}" y1="${y*u}" x2="${(x+1)*u}" y2="${(y+1)*u}" stroke="#1a1a1a" stroke-width="2.2"/>`;
+    if (y + 1 < S.h && cells[i] !== cells[IDX(x, y + 1)])
+      out += `<line x1="${x*u}" y1="${(y+1)*u}" x2="${(x+1)*u}" y2="${(y+1)*u}" stroke="#1a1a1a" stroke-width="2.2"/>`;
+  }
+  return out;
+}
+function entranceMark(u) {
+  const [ex, ey] = XY(S.entrance);
+  return `<circle cx="${(ex+.5)*u}" cy="${(ey+.5)*u}" r="${u*.17}" fill="#e63946" stroke="#fff" stroke-width="2"/>`;
+}
+
+/* ── 편집기 ── */
+function renderEditor() {
+  const sv = $("#editor"), W = S.w * U, H = S.h * U;
+  sv.setAttribute("viewBox", `-3 -3 ${W + 6} ${H + 6}`);
+  let g = "";
+  for (let i = 0; i < S.w * S.h; i++) {
+    const [x, y] = XY(i), k = S.cells[i];
+    const col = k ? (roomBy(k)?.color || "#ccc") : "var(--sunken)";
+    g += `<rect class="cell" data-i="${i}" x="${x*U}" y="${y*U}" width="${U}" height="${U}"
+           fill="${col}" stroke="rgba(0,0,0,.09)" stroke-width="1"/>`;
+  }
+  g += wallPaths(S.cells, U);
+  g += `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="#1a1a1a" stroke-width="3"/>`;
+  const co = roomCoords(S.cells);
+  for (const r of S.rooms) {
+    const c2 = co.get(r.key);
+    if (!c2) continue;
+    const [cx, cy] = c2.centroid;
+    const bw = (c2.bbox[2] - c2.bbox[0]) * U;
+    // 한글은 전각(1em)이라 글자 수 × 글자 크기가 곧 가로 폭이다
+    const fs = clamp(bw * .86 / Math.max(r.name.length, 1), 7, U * .3);
+    const tw = fs * r.name.length;
+    const tx = clamp(cx * U, tw / 2 + 2, S.w * U - tw / 2 - 2);
+    g += `<text x="${tx}" y="${cy*U}" text-anchor="middle" dominant-baseline="central"
+           font-size="${fs.toFixed(1)}" fill="#12303f" font-weight="600" pointer-events="none"
+           style="paint-order:stroke;stroke:rgba(255,255,255,.9);stroke-width:2.6px">${esc(r.name)}</text>`;
+  }
+  g += entranceMark(U);
+  sv.innerHTML = g;
+}
+
+let painting = false;
+function cellAt(e) {
+  const sv = $("#editor"), pt = sv.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(sv.getScreenCTM().inverse());
+  const x = Math.floor(p.x / U), y = Math.floor(p.y / U);
+  return (x < 0 || y < 0 || x >= S.w || y >= S.h) ? -1 : IDX(x, y);
+}
+function applyAt(e) {
+  const i = cellAt(e);
+  if (i < 0) return;
+  if (S.tool === "entrance") { S.entrance = i; GEO = null; painting = false; }
+  else if (S.tool === "erase") { if (S.cells[i] === null) return; S.cells[i] = null; }
+  else { if (S.cells[i] === S.paintKey) return; S.cells[i] = S.paintKey; }
+  renderEditor(); renderRooms(); schedule();
+}
+
+/* ── 실 팔레트 ── */
+function renderRooms() {
+  const counts = {};
+  S.cells.forEach(k => { if (k) counts[k] = (counts[k] || 0) + 1; });
+  const list = $("#roomList");
+  list.innerHTML = S.rooms.map((r, i) => {
+    const n = counts[r.key] || 0;
+    const cls = n === r.target ? "ok" : (n > r.target ? "over" : "");
+    return `<div class="roomrow ${r.key === S.paintKey ? "on" : ""}" data-key="${esc(r.key)}">
+      <input type="color" value="${r.color}" data-ci="${i}" title="색">
+      <span class="swatch" style="background:${r.color}"></span>
+      <span><input type="text" value="${esc(r.name)}" data-ni="${i}">
+        <span class="key">${esc(r.key)}</span></span>
+      <span class="cnt ${cls}">${n}/<input type="number" value="${r.target}" data-ti="${i}"
+        style="width:34px;padding:1px 3px;font-size:10.5px"></span>
+      <button class="btn sm danger" data-del="${i}" title="삭제">×</button></div>`;
+  }).join("");
+  const tot = S.cells.filter(Boolean).length, cap = S.w * S.h;
+  const tgt = S.rooms.reduce((a, r) => a + r.target, 0);
+  $("#areaTotal").innerHTML = `칠함 ${tot}/${cap} · 목표합 ${tgt}${tgt !== cap ? ` <span style="color:var(--bad)">≠${cap}</span>` : ""}`;
+  $("#legend").innerHTML = S.rooms.map(r =>
+    `<span><i style="background:${r.color}"></i>${esc(r.name)} <span class="dim">${counts[r.key] || 0}칸</span></span>`
+  ).join("") + `<span><i style="background:#e63946;border-radius:50%"></i>현관 위치</span>`;
+}
+
+/* ── 조건 카드 ── */
+function renderCriteria(R) {
+  const sc = R && !R.empty ? scoreAll(R) : null;
+  const byId = new Map((sc?.rows || []).map(r => [r.cr.id, r]));
+  $("#critCount").textContent = `${S.criteria.filter(c2 => c2.enabled).length}개 적용`;
+  $("#critList").innerHTML = S.criteria.map(cr => {
+    const r = byId.get(cr.id);
+    const pct = r && r.score != null ? Math.round(r.score * 100) : null;
+    const col = pct == null ? "var(--muted)" : pct >= 80 ? "var(--good)" : pct >= 55 ? "var(--warn)" : "var(--bad)";
+    const tgt = cr.scope === "room" ? (roomBy(cr.room)?.name || cr.room) : "전역";
+    const cond = cr.mode === "target"
+      ? `= ${cr.target} ± ${cr.tol}`
+      : `${cr.worst > cr.best ? "≤" : "≥"} ${cr.best} <span class="dim">(0점 ${cr.worst})</span>`;
+    return `<div class="crit ${cr.enabled ? "" : "off"}" data-id="${cr.id}">
+      <div class="ch" data-toggle>
+        <input type="checkbox" ${cr.enabled ? "checked" : ""} data-en>
+        <span class="nm">${esc(tgt)} · ${esc(MEASURES[cr.measure].label)}
+          <span class="dim" style="font-size:10.5px">${cond}</span></span>
+        <span class="dim" style="font-size:10.5px">w${cr.weight}</span>
+        <span class="sc" style="color:${col}">${pct == null ? "—" : pct}</span>
+      </div>
+      <div class="meter"><i style="width:${pct || 0}%;background:${col}"></i></div>
+      <div class="cb">
+        <div class="critgrid">
+          <label style="font-size:11px">대상
+            <select data-f="target" style="margin-top:3px">
+              <option value="@" ${cr.scope === "global" ? "selected" : ""}>전역 @</option>
+              ${S.rooms.map(rr => `<option value="${esc(rr.key)}" ${cr.room === rr.key ? "selected" : ""}>${esc(rr.name)}</option>`).join("")}
+            </select></label>
+          <label style="font-size:11px">지표
+            <select data-f="measure" style="margin-top:3px">
+              ${Object.entries(MEASURES).map(([k, m]) =>
+                `<option value="${k}" ${cr.measure === k ? "selected" : ""}>${esc(m.label)}</option>`).join("")}
+            </select></label>
+          <label style="font-size:11px">방식
+            <select data-f="mode" style="margin-top:3px">
+              <option value="range" ${cr.mode === "range" ? "selected" : ""}>범위</option>
+              <option value="target" ${cr.mode === "target" ? "selected" : ""}>목표 ±허용</option>
+            </select></label>
+          <label style="font-size:11px">가중치
+            <input type="number" step="0.5" min="0" value="${cr.weight}" data-f="weight" style="width:100%;margin-top:3px"></label>
+          ${cr.mode === "target"
+            ? `<label style="font-size:11px">목표값<input type="number" step="0.1" value="${cr.target}" data-f="target_v" style="width:100%;margin-top:3px"></label>
+               <label style="font-size:11px">허용치<input type="number" step="0.1" min="0.01" value="${cr.tol}" data-f="tol" style="width:100%;margin-top:3px"></label>`
+            : `<label style="font-size:11px">100점 값<input type="number" step="0.1" value="${cr.best}" data-f="best" style="width:100%;margin-top:3px"></label>
+               <label style="font-size:11px">0점 값<input type="number" step="0.1" value="${cr.worst}" data-f="worst" style="width:100%;margin-top:3px"></label>`}
+          <div class="full" style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">
+            <span class="dim" style="font-size:10.5px">측정값 ${r ? fmt(r.value, 3) : "—"}</span>
+            <button class="btn sm danger" data-rm>조건 삭제</button>
+          </div>
+        </div>
+        <p class="why">${esc(cr.why || MEASURES[cr.measure].hint)}</p>
+      </div></div>`;
+  }).join("") || `<p class="empty" style="padding:14px">조건이 없습니다. 위 문법 창에 입력한 뒤 “데이터화 →”를 누르세요.</p>`;
+  $("#critJson").value = JSON.stringify(S.criteria.map(({ id, ...rest }) => rest), null, 1);
+}
+
+/* ── 점수 ── */
+function renderScore(R) {
+  const arc = $("#ringArc");
+  if (!R || R.empty) {
+    $("#scoreNum").textContent = "—"; $("#gradeTxt").textContent = "—";
+    $("#gradeTxt").className = "grade g-C";
+    $("#gradeSub").textContent = "도면을 입력하세요";
+    arc.setAttribute("stroke-dashoffset", 195);
+    $("#paneScore").innerHTML = `<p class="empty">격자에 실을 칠하거나 샘플 도면을 불러오세요.</p>`;
+    return;
+  }
+  const sc = scoreAll(R), t = sc.total, gr = gradeOf(t);
+  $("#scoreNum").textContent = t == null ? "—" : Math.round(t);
+  $("#gradeTxt").textContent = gr.g; $("#gradeTxt").className = "grade " + gr.cls;
+  $("#gradeSub").textContent = gr.sub;
+  const C = 2 * Math.PI * 31;
+  arc.setAttribute("stroke-dasharray", C);
+  arc.setAttribute("stroke-dashoffset", C * (1 - (t || 0) / 100));
+  arc.setAttribute("stroke", t == null ? "var(--muted)" : t >= 80 ? "var(--good)" : t >= 60 ? "var(--warn)" : "var(--bad)");
+
+  const g = R.A.global;
+  let warn = "";
+  if (g.disconnected_rooms > 0) warn += `<div class="warnbox"><b>고립된 실 ${g.disconnected_rooms}개</b> — 외부에서 도달할 수 없습니다. 문 규칙(최소 접면)을 낮추거나 배치를 고치세요.</div>`;
+  if (g.empty_cells > 0) warn += `<div class="warnbox"><b>빈 칸 ${g.empty_cells}개</b> — 채우지 않은 칸은 벽으로 취급되어 시선과 동선을 막습니다.</div>`;
+  if (!warn && t != null && t >= 80) warn = `<div class="okbox">입력한 Space Syntax 조건을 잘 만족하는 구조입니다.</div>`;
+
+  const rows = sc.rows.map(r => {
+    const pct = r.score == null ? null : Math.round(r.score * 100);
+    const col = pct == null ? "var(--muted)" : pct >= 80 ? "var(--good)" : pct >= 55 ? "var(--warn)" : "var(--bad)";
+    const tgt = r.cr.scope === "room" ? (roomBy(r.cr.room)?.name || r.cr.room) : "전역";
+    const cond = r.cr.mode === "target" ? `목표 ${r.cr.target} ± ${r.cr.tol}`
+               : `${r.cr.worst > r.cr.best ? "≤" : "≥"} ${r.cr.best} (0점 ${r.cr.worst})`;
+    return `<div class="srow">
+      <div class="lab"><b>${esc(tgt)} · ${esc(MEASURES[r.cr.measure].label)}</b>
+        <span class="pill">w ${r.cr.weight}</span>
+        <small>${esc(cond)} · 측정 ${fmt(r.value, 3)}</small></div>
+      <div class="v" style="color:${col}">${pct == null ? "—" : pct}</div>
+      <div class="bar"><i style="width:${pct || 0}%;background:${col}"></i></div></div>`;
+  }).join("");
+
+  $("#paneScore").innerHTML = warn + `
+    <div class="summary">${rows || '<p class="empty">적용 중인 조건이 없습니다.</p>'}</div>
+    <p class="note">최종 점수 = Σ(가중치 × 조건점수) ÷ Σ(가중치).
+      적용 ${sc.counted}개${sc.skipped ? ` · 측정 불가 ${sc.skipped}개` : ""}.
+      조건은 좌측(또는 하단) <b>Space Syntax 조건 입력</b>에서 문법으로 고칠 수 있고, 고치는 즉시 점수에 반영됩니다.</p>`;
+}
+
+/* ── 좌표 / 지표 / 그래프 / 데이터 ── */
+function renderCoord(R) {
+  const rows = S.rooms.map(r => {
+    const c2 = R.coords.get(r.key), nd = R.A.nodes.get(r.key);
+    if (!c2) return `<tr class="dim"><td><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</td>
+      <td colspan="7" class="dim">배치되지 않음</td></tr>`;
+    const p = R.pos.get(r.key);
+    return `<tr><td><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</td>
+      <td class="n">${c2.centroid[0].toFixed(1)}, ${c2.centroid[1].toFixed(1)}</td>
+      <td class="n dim">${c2.bbox.join(",")}</td>
+      <td class="n ${c2.area === r.target ? "" : "hi"}">${c2.area}/${r.target}</td>
+      <td class="n">${c2.components > 1 ? `<span style="color:var(--bad)">${c2.components}</span>` : 1}</td>
+      <td class="n">${p ? `${p[0] >= 0 ? "+" : ""}${p[0].toFixed(1)}, ${p[1]}` : "—"}</td>
+      <td class="n">${nd && nd.step_depth != null ? nd.step_depth : "—"}</td>
+      <td class="n">${c2.wall_length}</td></tr>`;
+  }).join("");
+  const doors = [...R.G.doorCoord].map(([k, v]) => {
+    const [a, b] = k.split("|");
+    const la = a === CARRIER ? "외부" : (roomBy(a)?.name || a);
+    const lb = b === CARRIER ? "외부" : (roomBy(b)?.name || b);
+    const d = R.G.doors.get(a + "|" + b) || R.G.doors.get(b + "|" + a);
+    return `<tr><td>${esc(la)} ↔ ${esc(lb)}</td><td class="n">${v[0].toFixed(1)}, ${v[1].toFixed(1)}</td>
+      <td class="n">${d ? d.len : "—"}</td><td class="n">${d ? d.width : "—"}</td></tr>`;
+  }).join("");
+  $("#paneCoord").innerHTML = `
+    <h3 style="margin:0 0 8px;font-size:13px">실 좌표 — 실측 · 위상 · 깊이</h3>
+    <div class="tw"><table><thead><tr><th>실</th><th class="n">중심점</th><th class="n">바운딩박스</th>
+      <th class="n">면적/목표</th><th class="n">덩어리</th><th class="n">위상좌표 (jx, 깊이)</th>
+      <th class="n">현관깊이</th><th class="n">벽길이</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h3 style="margin:20px 0 8px;font-size:13px">문 — 규칙이 만들어낸 투과성 간선</h3>
+    <div class="tw"><table><thead><tr><th>연결</th><th class="n">문 좌표</th>
+      <th class="n">공유 벽(칸)</th><th class="n">문 폭(칸)</th></tr></thead><tbody>${doors}</tbody></table></div>`;
+}
+
+function renderMeasure(R) {
+  const g = R.A.global;
+  const gl = Object.entries(MEASURES).filter(([, m]) => m.scope === "global")
+    .map(([k, m]) => g[k] == null ? "" :
+      `<tr><td><b>${esc(m.label)}</b><br><span class="dim" style="font-size:10.5px">${esc(m.hint)}</span></td>
+       <td class="n hi">${typeof g[k] === "number" ? fmt(g[k], 3) : g[k]}</td></tr>`).join("");
+  const rows = S.rooms.map(r => {
+    const n2 = R.A.nodes.get(r.key);
+    if (!n2) return "";
+    return `<tr><td><i class="dot" style="background:${r.color}"></i>${esc(r.name)}</td>
+      <td class="n">${n2.connectivity}</td><td class="n">${fmt(n2.mean_depth)}</td>
+      <td class="n">${fmt(n2.RRA)}</td><td class="n hi">${fmt(n2.integration)}</td>
+      <td class="n">${n2.integration_rank || "—"}</td><td class="n">${fmt(n2.control_value)}</td>
+      <td class="n">${fmt(n2.choice)}</td><td class="n">${fmt(n2.visual_integration, 2)}</td></tr>`;
+  }).join("");
+  $("#paneMeasure").innerHTML = `
+    <div class="plots" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+      <div><h3 style="margin:0 0 8px;font-size:13px">전역 지표</h3>
+        <div class="tw"><table style="min-width:260px"><tbody>${gl}</tbody></table></div></div>
+      <div><h3 style="margin:0 0 8px;font-size:13px">실별 지표</h3>
+        <div class="tw"><table><thead><tr><th>실</th><th class="n">연결</th><th class="n">평균깊이</th>
+        <th class="n">RRA</th><th class="n">통합도</th><th class="n">순위</th><th class="n">제어값</th>
+        <th class="n">선택도</th><th class="n">시각통합</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    </div>`;
+}
+
+function jgraphSVG(R) {
+  const pts = [...R.pos];
+  if (!pts.length) return "";
+  const cell = 66, xs = pts.map(p => p[1][0]), ys = pts.map(p => p[1][1]);
+  const minx = Math.min(...xs), maxx = Math.max(...xs), maxy = Math.max(...ys);
+  const padX = 74, top = 24, W = (maxx - minx + 1) * cell + padX * 2, H = maxy * cell + top + 44;
+  const nx = x => padX + (x - minx) * cell, ny = y => top + y * cell;
+  const vals = pts.map(([v]) => R.A.nodes.get(v)?.integration);
+  const f = normalizer(vals);
+  let g = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img">`;
+  for (let d = 0; d <= maxy; d++) {
+    g += `<line x1="${padX-46}" y1="${ny(d)}" x2="${W-16}" y2="${ny(d)}" class="jlevel"/>`;
+    g += `<text x="${padX-54}" y="${ny(d)}" class="jdepth" text-anchor="end" dominant-baseline="central">깊이 ${d}</text>`;
+  }
+  for (const [k] of R.G.doorCoord) {
+    const [a, b] = k.split("|");
+    if (!R.pos.has(a) || !R.pos.has(b)) continue;
+    const p = R.pos.get(a), q = R.pos.get(b);
+    g += `<line x1="${nx(p[0])}" y1="${ny(p[1])}" x2="${nx(q[0])}" y2="${ny(q[1])}" class="jedge"/>`;
+  }
+  for (const [v, p] of pts) {
+    const cx = nx(p[0]), cy = ny(p[1]);
+    const lab = v === CARRIER ? "외부" : (roomBy(v)?.name || v);
+    if (v === CARRIER) g += `<rect x="${cx-12}" y="${cy-12}" width="24" height="24" transform="rotate(45 ${cx} ${cy})" class="jcarrier"/>`;
+    else g += `<circle cx="${cx}" cy="${cy}" r="14" fill="${rampColor(f(R.A.nodes.get(v)?.integration), RAMP_WARM)}" class="jnode"/>`;
+    g += `<text x="${cx}" y="${cy+28}" class="jlabel" text-anchor="middle">${esc(lab)}</text>`;
+  }
+  return g + "</svg>";
+}
+
+function roomHeatSVG(values, fmtFn, ramp) {
+  const f = normalizer(S.rooms.map(r => values[r.key]));
+  const u = 34, W = S.w * u, H = S.h * u;
+  let g = `<svg viewBox="-3 -3 ${W+6} ${H+6}" xmlns="http://www.w3.org/2000/svg" role="img">`;
+  for (let i = 0; i < S.w * S.h; i++) {
+    const [x, y] = XY(i), k = S.cells[i];
+    g += `<rect x="${x*u}" y="${y*u}" width="${u}" height="${u}" fill="${k ? rampColor(f(values[k]), ramp) : "#f2f2f2"}" stroke="rgba(0,0,0,.05)"/>`;
+  }
+  g += wallPaths(S.cells, u) + `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="#1a1a1a" stroke-width="2.6"/>`;
+  const co = roomCoords(S.cells);
+  for (const r of S.rooms) {
+    const c2 = co.get(r.key); if (!c2) continue;
+    const [cx, cy] = c2.centroid, bw = (c2.bbox[2] - c2.bbox[0]) * u;
+    const txt = fmtFn(values[r.key]);
+    const fs1 = clamp(bw * .86 / Math.max(r.name.length, 1), 6.5, u * .29);
+    const fs2 = clamp(bw * .86 / Math.max(txt.length, 1) / 0.62, 6.5, u * .26);
+    const w1 = fs1 * r.name.length, w2 = fs2 * txt.length * 0.62;
+    const x1 = clamp(cx * u, w1 / 2 + 1, S.w * u - w1 / 2 - 1);
+    const x2 = clamp(cx * u, w2 / 2 + 1, S.w * u - w2 / 2 - 1);
+    const st = 'paint-order:stroke;stroke:rgba(255,255,255,.92);stroke-width:2.4px';
+    g += `<text x="${x1}" y="${cy*u-3}" text-anchor="middle" font-size="${fs1.toFixed(1)}" fill="#1e2a33" font-weight="600" style="${st}">${esc(r.name)}</text>`;
+    g += `<text x="${x2}" y="${cy*u+fs1*.95+2}" text-anchor="middle" font-size="${fs2.toFixed(1)}" fill="#1e2a33" font-family="monospace" style="${st}">${esc(txt)}</text>`;
+  }
+  return g + entranceMark(u) + "</svg>";
+}
+
+function cellHeatSVG(R, key, ramp) {
+  const vals = [...R.vga.cells.values()].map(v => v[key]);
+  const f = normalizer(vals), u = 34, W = S.w * u, H = S.h * u;
+  let g = `<svg viewBox="-3 -3 ${W+6} ${H+6}" xmlns="http://www.w3.org/2000/svg" role="img">`;
+  for (let i = 0; i < S.w * S.h; i++) {
+    const [x, y] = XY(i);
+    g += `<rect x="${x*u}" y="${y*u}" width="${u}" height="${u}" fill="${rampColor(f(R.vga.cells.get(i)[key]), ramp)}"/>`;
+  }
+  g += wallPaths(S.cells, u) + `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="#12303f" stroke-width="2.6"/>`;
+  return g + entranceMark(u) + "</svg>";
+}
+
+function rampBar(vals, label, ramp) {
+  const xs = vals.filter(v => v != null && isFinite(v));
+  if (!xs.length) return "";
+  return `<div class="ramp"><span>${esc(label)}</span><span>${Math.min(...xs).toFixed(2)}</span>
+    <span class="rbar">${ramp.map(c2 => `<i style="background:${c2}"></i>`).join("")}</span>
+    <span>${Math.max(...xs).toFixed(2)}</span></div>`;
+}
+
+function renderGraph(R) {
+  const integ = {}, dep = {};
+  S.rooms.forEach(r => {
+    const n2 = R.A.nodes.get(r.key);
+    integ[r.key] = n2 ? n2.integration : NaN;
+    dep[r.key] = n2 && n2.step_depth != null ? n2.step_depth : NaN;
+  });
+  let html = `
+   <div class="plots">
+    <div class="plot"><h3>정당화 그래프 <span class="dim">위상 좌표</span></h3>
+      <div class="canvas">${jgraphSVG(R)}</div>
+      <p class="note">세로축이 외부로부터의 깊이. 색이 진할수록 통합도가 높다. 마름모는 외부(carrier).</p></div>
+    <div class="plot"><h3>통합도 <span class="dim">실 단위</span></h3>
+      <div class="canvas">${roomHeatSVG(integ, v => isFinite(v) ? v.toFixed(2) : "—", RAMP_WARM)}</div>
+      ${rampBar(Object.values(integ), "통합도", RAMP_WARM)}</div>
+    <div class="plot"><h3>현관 깊이 <span class="dim">실 단위</span></h3>
+      <div class="canvas">${roomHeatSVG(dep, v => isFinite(v) ? String(v) : "—", RAMP_WARM)}</div>
+      ${rampBar(Object.values(dep), "깊이", RAMP_WARM)}</div>`;
+  if (R.vga) {
+    html += `
+    <div class="plot"><h3>시각 통합도 <span class="dim">셀 단위 VGA</span></h3>
+      <div class="canvas">${cellHeatSVG(R, "visual_integration", RAMP_COOL)}</div>
+      ${rampBar([...R.vga.cells.values()].map(v => v.visual_integration), "시각 통합도", RAMP_COOL)}</div>
+    <div class="plot"><h3>아이소비스트 면적 <span class="dim">셀 단위</span></h3>
+      <div class="canvas">${cellHeatSVG(R, "isovist_area", RAMP_COOL)}</div>
+      <p class="note">그 지점에서 보이는 칸 수. 진할수록 시야가 넓다.</p></div>`;
+  }
+  $("#paneGraph").innerHTML = html + "</div>";
+}
+
+function renderData(R) {
+  const rows = S.rooms.map(r => {
+    const c2 = R.coords.get(r.key), n2 = R.A.nodes.get(r.key), p = R.pos.get(r.key);
+    if (!c2) return null;
+    return {
+      room: r.key, name: r.name, cx: +c2.centroid[0].toFixed(3), cy: +c2.centroid[1].toFixed(3),
+      bbox: c2.bbox, area: c2.area, target: r.target, components: c2.components,
+      jx: p ? +p[0].toFixed(2) : null, jdepth: p ? p[1] : null,
+      step_depth: n2 ? n2.step_depth : null,
+      connectivity: n2?.connectivity, mean_depth: n2 ? +n2.mean_depth.toFixed(5) : null,
+      RRA: n2 && isFinite(n2.RRA) ? +n2.RRA.toFixed(5) : null,
+      integration: n2 && isFinite(n2.integration) ? +n2.integration.toFixed(5) : null,
+      integration_rank: n2?.integration_rank ?? null,
+      control_value: n2 ? +n2.control_value.toFixed(5) : null,
+      choice: n2 ? +n2.choice.toFixed(5) : null,
+      visual_integration: n2 && isFinite(n2.visual_integration) ? +n2.visual_integration.toFixed(5) : null,
+    };
+  }).filter(Boolean);
+  const sc = scoreAll(R);
+  const payload = {
+    rules: S.rules, grid: { w: S.w, h: S.h }, entrance: XY(S.entrance),
+    criteria: S.criteria.map(({ id, ...x }) => x),
+    score: { total: sc.total == null ? null : +sc.total.toFixed(2), grade: gradeOf(sc.total).g,
+             breakdown: sc.rows.map(r => ({ target: r.cr.scope === "room" ? r.cr.room : "@",
+               measure: r.cr.measure, value: r.value, score: r.score == null ? null : +(r.score * 100).toFixed(1),
+               weight: r.cr.weight })) },
+    global: R.A.global, rooms: rows,
+    doors: [...R.G.doorCoord].map(([k, v]) => ({ pair: k.split("|"), coord: v })),
+  };
+  const cols = Object.keys(rows[0] || { room: 1 });
+  const csv = [cols.join(","), ...rows.map(r => cols.map(c2 => Array.isArray(r[c2]) ? `"${r[c2].join(" ")}"` : (r[c2] ?? "")).join(","))].join("\n");
+  $("#paneData").innerHTML = `
+    <p class="note" style="margin:0 0 10px">아래 내용을 복사해 엑셀·QGIS·스크립트로 옮길 수 있습니다.
+      (브라우저 보안 정책상 이 페이지는 파일을 직접 내려받지 않습니다.)</p>
+    <h3 style="margin:0 0 6px;font-size:13px">전체 결과 JSON</h3>
+    <div class="copywrap"><textarea readonly spellcheck="false" id="outJson" style="min-height:190px">${esc(JSON.stringify(payload, null, 1))}</textarea>
+      <button class="btn sm" data-copy="#outJson">복사</button></div>
+    <h3 style="margin:16px 0 6px;font-size:13px">실별 좌표·지표 CSV</h3>
+    <div class="copywrap"><textarea readonly spellcheck="false" id="outCsv" style="min-height:130px">${esc(csv)}</textarea>
+      <button class="btn sm" data-copy="#outCsv">복사</button></div>
+    <h3 style="margin:16px 0 6px;font-size:13px">도면 (격자 텍스트)</h3>
+    <div class="copywrap"><textarea readonly spellcheck="false" id="outPlan" style="min-height:110px">${esc(planToText())}</textarea>
+      <button class="btn sm" data-copy="#outPlan">복사</button></div>`;
+}
+
+function planToText() {
+  const out = [];
+  for (let y = 0; y < S.h; y++) {
+    const row = [];
+    for (let x = 0; x < S.w; x++) row.push(S.cells[IDX(x, y)] || ".");
+    out.push(row.join(" "));
+  }
+  return out.join("\n");
+}
+</script>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   10. UI 연결 · 초기화
+   ══════════════════════════════════════════════════════════════ */
+let LAST = null, timer = null;
+function schedule() { clearTimeout(timer); timer = setTimeout(recompute, 90); }
+
+function recompute() {
+  GEO = null;
+  const R = analyze();
+  LAST = R;
+  renderScore(R);
+  renderCriteria(R);
+  if (!R.empty) { renderCoord(R); renderMeasure(R); renderGraph(R); renderData(R); }
+  else {
+    ["#paneCoord", "#paneMeasure", "#paneGraph", "#paneData"].forEach(s =>
+      $(s).innerHTML = `<p class="empty">도면을 입력하면 좌표와 지표가 여기에 나타납니다.</p>`);
+  }
+  $("#rulesJson").value = JSON.stringify(S.rules, null, 1);
+  save();
+}
+
+/* ── 도면 입출력 ── */
+function setGrid(w, h) {
+  w = clamp(Math.round(w) || 8, 3, 16); h = clamp(Math.round(h) || 8, 3, 16);
+  const old = S.cells, ow = S.w, oh = S.h;
+  const nc = new Array(w * h).fill(null);
+  for (let y = 0; y < Math.min(h, oh); y++) for (let x = 0; x < Math.min(w, ow); x++)
+    nc[y * w + x] = old[y * ow + x] ?? null;
+  S.w = w; S.h = h; S.cells = nc;
+  S.entrance = clamp(S.entrance, 0, w * h - 1);
+  GEO = null;
+}
+
+function loadPlanText(text) {
+  const t = text.trim();
+  if (!t) return "내용이 비어 있습니다.";
+  if (t[0] === "[" || t[0] === "{") {
+    let data;
+    try { data = JSON.parse(t); } catch (e) { return "JSON을 해석할 수 없습니다."; }
+    const rects = Array.isArray(data) ? data : (data.rects || []);
+    if (!rects.length || !("room" in rects[0])) {
+      if (Array.isArray(data) && data[0] && data[0].assignment) {
+        const a = data[0].assignment;
+        const side = Math.round(Math.sqrt(a.length));
+        setGrid(side, a.length / side);
+        S.cells = a.map(v => (v && S.rooms.some(r => r.key === v)) ? v : null);
+        return null;
+      }
+      return "사각형 목록([{room,x,y,w,h}]) 형식이 아닙니다.";
+    }
+    S.cells = blankCells();
+    for (const rc of rects) {
+      if (!S.rooms.some(r => r.key === rc.room)) continue;
+      for (let dy = 0; dy < (+rc.h || 0); dy++) for (let dx = 0; dx < (+rc.w || 0); dx++) {
+        const x = (+rc.x) + dx, y = (+rc.y) + dy;
+        if (x >= 0 && x < S.w && y >= 0 && y < S.h) S.cells[IDX(x, y)] = rc.room;
+      }
+    }
+    return null;
+  }
+  const lines = t.split("\n").map(l => l.trim()).filter(Boolean);
+  const grids = lines.map(l => l.replace(/,/g, " ").split(/\s+/));
+  const h = grids.length, w = Math.max(...grids.map(g => g.length));
+  if (h < 3 || w < 3) return "격자가 너무 작습니다.";
+  if (h > 16 || w > 16) return "격자는 최대 16×16까지 지원합니다.";
+  setGrid(w, h);
+  const byKey = new Map(S.rooms.map(r => [r.key, r.key]));
+  const byInit = new Map(S.rooms.map(r => [r.name[0], r.key]));
+  let unknown = new Set();
+  S.cells = blankCells();
+  grids.forEach((row, y) => row.forEach((tok, x) => {
+    if (x >= S.w || y >= S.h) return;
+    if (tok === "." || tok === "-" || tok === "_") return;
+    const k = byKey.get(tok) || byInit.get(tok[0]);
+    if (k) S.cells[IDX(x, y)] = k; else unknown.add(tok);
+  }));
+  return unknown.size ? `알 수 없는 실 이름: ${[...unknown].slice(0, 5).join(", ")}` : null;
+}
+
+function fillRemaining() {
+  for (let pass = 0; pass < S.w * S.h; pass++) {
+    const empty = S.cells.map((v, i) => v === null ? i : -1).filter(i => i >= 0);
+    if (!empty.length) break;
+    let moved = false;
+    for (const i of empty) {
+      const cand = [...new Set(neighborsOf(i).map(n => S.cells[n]).filter(Boolean))];
+      if (!cand.length) continue;
+      const counts = {}; S.cells.forEach(k => { if (k) counts[k] = (counts[k] || 0) + 1; });
+      cand.sort((a, b) => ((roomBy(b)?.target || 0) - (counts[b] || 0)) - ((roomBy(a)?.target || 0) - (counts[a] || 0)));
+      S.cells[i] = cand[0]; moved = true;
+    }
+    if (!moved) { S.cells[empty[0]] = S.paintKey; }
+  }
+}
+
+/* ── 저장 ── */
+const LS = "spacesyntax-scorer-v1";
+function save() {
+  try {
+    localStorage.setItem(LS, JSON.stringify({
+      w: S.w, h: S.h, rooms: S.rooms, cells: S.cells, entrance: S.entrance,
+      rules: S.rules, criteria: S.criteria, critSet: S.critSet,
+    }));
+  } catch (e) { /* 사생활 보호 모드 등 — 무시 */ }
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS) || "null");
+    if (!d || !d.cells) return false;
+    S.w = d.w; S.h = d.h; S.rooms = d.rooms; S.cells = d.cells;
+    S.entrance = d.entrance; S.rules = { ...DEFAULT_RULES, ...d.rules };
+    S.criteria = (d.criteria || []).map(c2 => ({ ...c2, id: ++CRIT_SEQ }));
+    S.critSet = d.critSet || "주거 일반";
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ── 폼 동기화 ── */
+function syncRuleForm() {
+  $("#gw").value = S.w; $("#gh").value = S.h;
+  $("#doorMin").value = S.rules.doorMinCells;
+  $("#doorWidth").value = S.rules.doorWidthCells;
+  $("#doorPos").value = S.rules.doorPosition;
+  $("#carrierMode").value = S.rules.carrierMode;
+  $("#normalize").value = S.rules.normalize;
+  $("#includeCarrier").checked = S.rules.includeCarrier;
+  $("#vgaEnabled").checked = S.rules.vgaEnabled;
+}
+
+function copyText(el) {
+  el.select();
+  navigator.clipboard?.writeText(el.value).catch(() => { try { document.execCommand("copy"); } catch (e) {} });
+}
+
+/* ══════════════ 이벤트 ══════════════ */
+function wire() {
+  // 규칙
+  $("#gw").oninput = $("#gh").oninput = () => { setGrid(+$("#gw").value, +$("#gh").value); renderEditor(); renderRooms(); schedule(); };
+  $("#doorMin").oninput = e => { S.rules.doorMinCells = clamp(+e.target.value || 1, 1, 8); schedule(); };
+  $("#doorWidth").oninput = e => { S.rules.doorWidthCells = clamp(+e.target.value || 1, 1, 8); schedule(); };
+  $("#doorPos").onchange = e => { S.rules.doorPosition = e.target.value; schedule(); };
+  $("#carrierMode").onchange = e => { S.rules.carrierMode = e.target.value; schedule(); };
+  $("#normalize").onchange = e => { S.rules.normalize = e.target.value; schedule(); };
+  $("#includeCarrier").onchange = e => { S.rules.includeCarrier = e.target.checked; schedule(); };
+  $("#vgaEnabled").onchange = e => { S.rules.vgaEnabled = e.target.checked; schedule(); };
+  $$("[data-rulepreset]").forEach(b => b.onclick = () => {
+    Object.assign(S.rules, RULE_PRESETS[b.dataset.rulepreset]); syncRuleForm(); schedule();
+  });
+  $("#applyRules").onclick = () => {
+    try { Object.assign(S.rules, JSON.parse($("#rulesJson").value)); syncRuleForm(); schedule(); }
+    catch (e) { alert("규칙 JSON을 해석할 수 없습니다."); }
+  };
+  $("#copyRules").onclick = () => copyText($("#rulesJson"));
+
+  // 실 목록
+  $("#roomList").addEventListener("click", e => {
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      const i = +del.dataset.del, key = S.rooms[i].key;
+      S.rooms.splice(i, 1);
+      S.cells = S.cells.map(k => k === key ? null : k);
+      if (S.paintKey === key) S.paintKey = S.rooms[0]?.key;
+      S.criteria = S.criteria.filter(c2 => c2.room !== key);
+      renderEditor(); renderRooms(); schedule(); return;
+    }
+    const row = e.target.closest(".roomrow");
+    if (row && !e.target.matches("input")) { S.paintKey = row.dataset.key; S.tool = "paint"; setTool(); renderRooms(); }
+  });
+  $("#roomList").addEventListener("input", e => {
+    const t = e.target;
+    if (t.dataset.ci != null) { S.rooms[+t.dataset.ci].color = t.value; renderEditor(); renderRooms(); schedule(); }
+    else if (t.dataset.ni != null) { S.rooms[+t.dataset.ni].name = t.value; renderEditor(); schedule(); }
+    else if (t.dataset.ti != null) { S.rooms[+t.dataset.ti].target = Math.max(0, +t.value || 0); schedule(); }
+  });
+  $("#addRoom").onclick = () => {
+    const n = S.rooms.length + 1;
+    S.rooms.push({ key: "room" + n, name: "실 " + n, color: "#d9d9d9", target: 4 });
+    renderRooms(); schedule();
+  };
+  $("#autoTarget").onclick = () => {
+    const c2 = {}; S.cells.forEach(k => { if (k) c2[k] = (c2[k] || 0) + 1; });
+    S.rooms.forEach(r => r.target = c2[r.key] || 0); renderRooms(); schedule();
+  };
+
+  // 편집기
+  const sv = $("#editor");
+  sv.addEventListener("pointerdown", e => { painting = true; sv.setPointerCapture(e.pointerId); applyAt(e); e.preventDefault(); });
+  sv.addEventListener("pointermove", e => { if (painting) applyAt(e); });
+  window.addEventListener("pointerup", () => { painting = false; });
+
+  const setTool = () => {
+    $("#toolPaint").classList.toggle("on", S.tool === "paint");
+    $("#toolErase").classList.toggle("on", S.tool === "erase");
+    $("#toolEntrance").classList.toggle("on", S.tool === "entrance");
+  };
+  window.setTool = setTool;
+  $("#toolPaint").onclick = () => { S.tool = "paint"; setTool(); };
+  $("#toolErase").onclick = () => { S.tool = "erase"; setTool(); };
+  $("#toolEntrance").onclick = () => { S.tool = "entrance"; setTool(); };
+  $("#btnFill").onclick = () => { fillRemaining(); renderEditor(); renderRooms(); schedule(); };
+  $("#btnClear").onclick = () => { S.cells = blankCells(); renderEditor(); renderRooms(); schedule(); };
+
+  const sel = $("#sampleSel");
+  Object.keys(SAMPLES).forEach(k => sel.add(new Option(k, k)));
+  sel.onchange = () => {
+    if (!sel.value) return;
+    const msg = loadPlanText(SAMPLES[sel.value]);
+    syncRuleForm(); renderEditor(); renderRooms(); schedule();
+    if (msg) console.warn(msg);
+    sel.value = "";
+  };
+  $("#btnUpload").onclick = () => $("#fileInput").click();
+  $("#fileInput").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const msg = loadPlanText(String(rd.result));
+      syncRuleForm(); renderEditor(); renderRooms(); schedule();
+      if (msg) alert(msg);
+    };
+    rd.readAsText(f, "utf-8");
+    e.target.value = "";
+  };
+  $("#btnPaste").onclick = () => {
+    const b = $("#pasteBox");
+    b.style.display = b.style.display === "none" ? "block" : "none";
+    if (b.style.display === "block") $("#pasteArea").focus();
+  };
+  $("#cancelPaste").onclick = () => { $("#pasteBox").style.display = "none"; };
+  $("#applyPaste").onclick = () => {
+    const msg = loadPlanText($("#pasteArea").value);
+    $("#pasteMsg").textContent = msg || "불러왔습니다.";
+    $("#pasteMsg").style.color = msg ? "var(--bad)" : "var(--good)";
+    syncRuleForm(); renderEditor(); renderRooms(); schedule();
+  };
+
+  // 조건 세트
+  const ps = $("#critPreset");
+  Object.keys(CRIT_PRESETS).forEach(k => ps.add(new Option(k, k)));
+  ps.value = S.critSet;
+  ps.onchange = () => { S.critSet = ps.value; applyPreset(); };
+  $("#resetCrit") && ($("#resetCrit").onclick = applyPreset);
+
+  // DSL
+  $("#parseDsl").onclick = () => {
+    const { criteria, errors } = parseDSL($("#dsl").value);
+    const m = $("#dslMsg");
+    if (errors.length) { m.style.color = "var(--bad)"; m.textContent = errors[0] + (errors.length > 1 ? ` 외 ${errors.length - 1}건` : ""); }
+    else { m.style.color = "var(--good)"; m.textContent = `조건 ${criteria.length}개를 데이터로 변환했습니다.`; }
+    if (criteria.length) { S.criteria = criteria; schedule(); }
+  };
+  $("#dslHelp").onclick = () => {
+    const b = $("#dslHelpBox");
+    b.style.display = b.style.display === "none" ? "block" : "none";
+    $("#dslMeasures").innerHTML = `<b style="color:var(--ink)">쓸 수 있는 지표</b><br>` +
+      Object.entries(MEASURES).map(([k, mm]) =>
+        `<code>${mm.scope === "global" ? "@" : "실."}${k}</code> ${esc(mm.label)}`).join(" · ");
+  };
+  $("#addCrit").onclick = () => {
+    S.criteria.push({ id: ++CRIT_SEQ, scope: "global", room: null, measure: "intelligibility",
+      mode: "range", best: 0.9, worst: 0.3, weight: 1, enabled: true });
+    $("#dsl").value = toDSL(S.criteria); schedule();
+  };
+  $("#copyCrit").onclick = () => copyText($("#critJson"));
+
+  // 조건 카드 상호작용
+  $("#critList").addEventListener("click", e => {
+    const card = e.target.closest(".crit"); if (!card) return;
+    const cr = S.criteria.find(x => x.id === +card.dataset.id); if (!cr) return;
+    if (e.target.closest("[data-rm]")) {
+      S.criteria = S.criteria.filter(x => x.id !== cr.id);
+      $("#dsl").value = toDSL(S.criteria); schedule(); return;
+    }
+    if (e.target.matches("[data-en]")) {
+      cr.enabled = e.target.checked; $("#dsl").value = toDSL(S.criteria); schedule(); return;
+    }
+    if (e.target.closest("[data-toggle]") && !e.target.matches("input")) card.classList.toggle("open");
+  });
+  $("#critList").addEventListener("change", e => {
+    const card = e.target.closest(".crit"); if (!card) return;
+    const cr = S.criteria.find(x => x.id === +card.dataset.id); if (!cr) return;
+    const f = e.target.dataset.f; if (!f) return;
+    const v = e.target.value;
+    if (f === "target") {
+      if (v === "@") { cr.scope = "global"; cr.room = null; }
+      else { cr.scope = "room"; cr.room = v; }
+      if (MEASURES[cr.measure].scope !== cr.scope)
+        cr.measure = cr.scope === "room" ? "integration" : "intelligibility";
+    } else if (f === "measure") {
+      cr.measure = v; cr.scope = MEASURES[v].scope;
+      if (cr.scope === "room" && !cr.room) cr.room = S.rooms[0].key;
+      if (cr.scope === "global") cr.room = null;
+      const sp = SPANS[v] || 1;
+      if (cr.mode === "range") { cr.best = cr.best ?? 0; cr.worst = cr.best + sp; }
+    } else if (f === "mode") {
+      cr.mode = v;
+      const sp = SPANS[cr.measure] || 1;
+      if (v === "target") { cr.target = cr.best ?? 1; cr.tol = sp / 3; }
+      else { cr.best = cr.target ?? 1; cr.worst = cr.best + sp; }
+    } else if (f === "weight") cr.weight = Math.max(0, +v || 0);
+    else if (f === "best") cr.best = +v;
+    else if (f === "worst") cr.worst = +v;
+    else if (f === "target_v") cr.target = +v;
+    else if (f === "tol") cr.tol = Math.max(0.01, +v || 0.01);
+    $("#dsl").value = toDSL(S.criteria);
+    schedule();
+  });
+
+  // 탭
+  $$(".tab").forEach(t => t.onclick = () => {
+    $$(".tab").forEach(x => x.classList.remove("on"));
+    $$(".pane").forEach(x => x.classList.remove("on"));
+    t.classList.add("on"); $("#" + t.dataset.pane).classList.add("on");
+  });
+
+  // 복사 버튼 위임
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-copy]");
+    if (b) { const el = $(b.dataset.copy); if (el) { copyText(el); b.textContent = "복사됨"; setTimeout(() => b.textContent = "복사", 1200); } }
+  });
+}
+
+function applyPreset() {
+  S.criteria = CRIT_PRESETS[S.critSet]().map(c2 => ({ ...c2, id: ++CRIT_SEQ }));
+  $("#dsl").value = toDSL(S.criteria);
+  $("#dslMsg").textContent = "";
+  schedule();
+}
+
+/* ══════════════ 시작 ══════════════ */
+(function init() {
+  const restored = load();
+  if (!restored) {
+    S.cells = blankCells();
+    loadPlanText(SAMPLES["중앙 복도형"]);
+    S.entrance = IDX(0, S.h - 1);
+  }
+  S.paintKey = S.rooms[0]?.key || "hall";
+  syncRuleForm();
+  wire();
+  if (!restored || !S.criteria.length) applyPreset();
+  else $("#dsl").value = toDSL(S.criteria);
+  window.setTool();
+  renderEditor(); renderRooms(); recompute();
+})();
+</script>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   11. 축척 — 평수 정의
+   ══════════════════════════════════════════════════════════════ */
+const PYEONG_M2 = 3.3057851;
+const PYEONG_PRESETS = [
+  ["원룸 8평", 8], ["10평", 10], ["13평", 13], ["17평 (구 20평형)", 17],
+  ["18평", 18], ["20평", 20], ["24평 (구 30평형)", 24], ["25평", 25],
+  ["29평", 29], ["32평 (구 40평형)", 32], ["34평", 34], ["39평", 39],
+  ["45평", 45], ["49평", 49], ["59평", 59],
+];
+S.pyeong = 24;
+
+const totalM2 = () => S.pyeong * PYEONG_M2;
+const cellM2 = () => totalM2() / (S.w * S.h);
+const cellM = () => Math.sqrt(cellM2());
+const cellsToM2 = (n) => n * cellM2();
+const cellsToPyeong = (n) => cellsToM2(n) / PYEONG_M2;
+const lenToM = (cells) => cells * cellM();
+
+function syncScale() {
+  $("#pyeong").value = S.pyeong;
+  $("#scaleDesc").innerHTML =
+    `전체 <b>${totalM2().toFixed(1)}㎡</b> · 칸당 <b>${cellM2().toFixed(2)}㎡</b>
+     (${cellM().toFixed(2)}m × ${cellM().toFixed(2)}m) · 격자 ${(S.w*cellM()).toFixed(1)}m × ${(S.h*cellM()).toFixed(1)}m`;
+}
+
+function fitGridToMeter() {
+  // 칸 하나가 1㎡에 가장 가깝도록 w×h를 고른다 (가로세로비는 1에 가깝게)
+  const target = totalM2();
+  let best = null;
+  for (let w = 4; w <= 16; w++) for (let h = 4; h <= 16; h++) {
+    const per = target / (w * h);
+    const ratio = Math.max(w, h) / Math.min(w, h);
+    if (ratio > 1.6) continue;
+    const cost = Math.abs(per - 1) + (ratio - 1) * 0.25;
+    if (!best || cost < best.cost) best = { w, h, cost };
+  }
+  if (best) { setGrid(best.w, best.h); syncRuleForm(); syncScale(); renderEditor(); renderRooms(); schedule(); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   12. 도면 이미지 렌더 — 두께 있는 벽 · 바닥 재질 · 가구 배치
+   ══════════════════════════════════════════════════════════════ */
+const TYPE_RULES = [
+  [/hall|entry|현관|복도|홀/i,                 "entry"],
+  [/living|거실|리빙/i,                        "living"],
+  [/kitchen|dining|주방|식당|부엌/i,           "kitchen"],
+  [/bath|toilet|욕실|화장실|샤워/i,            "bath"],
+  [/master|bed|room|침실|안방|방/i,            "bedroom"],
+  [/store|utility|다용도|창고|세탁|팬트리/i,    "utility"],
+  [/balcony|발코니|베란다/i,                   "balcony"],
+];
+function roomType(r) {
+  for (const [re, t] of TYPE_RULES) if (re.test(r.key) || re.test(r.name)) return t;
+  return "bedroom";
+}
+const NEEDS_WINDOW = { living: 1, bedroom: 1, kitchen: 1, balcony: 1, entry: 0, bath: 0, utility: 0 };
+const FLOOR = {
+  entry:   { base: "#cfc6bb", kind: "tile-s" },
+  living:  { base: "#e6d6bf", kind: "wood" },
+  bedroom: { base: "#e9dcc6", kind: "wood" },
+  kitchen: { base: "#e3d7c6", kind: "wood" },
+  bath:    { base: "#dfe3e4", kind: "tile" },
+  utility: { base: "#d8d8d4", kind: "tile-s" },
+  balcony: { base: "#d5d3cd", kind: "tile-s" },
+};
+
+/* 바닥 패턴 정의 */
+function floorDefs(u) {
+  const plank = Math.max(8, u * 0.42), tile = Math.max(10, u * 0.5), tiles = Math.max(7, u * 0.3);
+  return `
+  <pattern id="pWood" width="${u*2.1}" height="${plank}" patternUnits="userSpaceOnUse">
+    <rect width="${u*2.1}" height="${plank}" fill="#e9dcc6"/>
+    <rect width="${u*2.1}" height="${plank}" fill="none" stroke="#d6c4a6" stroke-width="1"/>
+    <line x1="${u*0.9}" y1="0" x2="${u*0.9}" y2="${plank}" stroke="#d6c4a6" stroke-width=".8"/>
+    <line x1="0" y1="${plank*0.45}" x2="${u*2.1}" y2="${plank*0.45}" stroke="#dfd0b5" stroke-width=".6"/>
+  </pattern>
+  <pattern id="pWoodL" width="${u*2.1}" height="${plank}" patternUnits="userSpaceOnUse" patternTransform="translate(${plank/2},0)">
+    <rect width="${u*2.1}" height="${plank}" fill="#eee2cf"/>
+    <rect width="${u*2.1}" height="${plank}" fill="none" stroke="#dccdb2" stroke-width="1"/>
+    <line x1="${u*1.3}" y1="0" x2="${u*1.3}" y2="${plank}" stroke="#dccdb2" stroke-width=".8"/>
+  </pattern>
+  <pattern id="pTile" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse">
+    <rect width="${tile}" height="${tile}" fill="#eef1f2"/>
+    <rect width="${tile}" height="${tile}" fill="none" stroke="#d3dadc" stroke-width="1.1"/>
+  </pattern>
+  <pattern id="pTileS" width="${tiles}" height="${tiles}" patternUnits="userSpaceOnUse">
+    <rect width="${tiles}" height="${tiles}" fill="#dedbd4"/>
+    <rect width="${tiles}" height="${tiles}" fill="none" stroke="#cbc7bf" stroke-width=".9"/>
+  </pattern>
+  <linearGradient id="gWallTop" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#9aa7b6"/><stop offset="1" stop-color="#808f9f"/>
+  </linearGradient>
+  <filter id="fSoft" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="${u*0.06}" stdDeviation="${u*0.07}" flood-color="#2a3138" flood-opacity=".28"/>
+  </filter>
+  <filter id="fRoom" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="${u*0.05}" stdDeviation="${u*0.09}" flood-color="#1d242b" flood-opacity=".18"/>
+  </filter>`;
+}
+const FLOOR_FILL = { wood: "url(#pWood)", "wood-l": "url(#pWoodL)", tile: "url(#pTile)", "tile-s": "url(#pTileS)" };
+</script>
