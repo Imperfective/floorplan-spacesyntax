@@ -50,6 +50,11 @@ mkdir -p "$CONFD"
 sed -e "s|__DOMAIN__|$SITE_DOMAIN|g" -e "s|__WEBROOT__|$WEBROOT|g" \
     "$HERE/site.caddy.tpl" > "$SITEFILE"
 
+# netcup/Caddy 기본 placeholder(:80 → /usr/share/caddy)는 자동 HTTPS를 방해한다 → 제거
+if grep -q '/usr/share/caddy' "$CADDYFILE" 2>/dev/null; then
+  echo "   기본 :80 placeholder 감지 → conf.d import 전용으로 정리"
+  printf '# floorplan-spacesyntax\nimport conf.d/*.caddy\n' > "$CADDYFILE"
+fi
 if ! grep -qE '^\s*import\s+conf\.d/\*\.caddy' "$CADDYFILE"; then
   printf '\n# 사이트별 설정\nimport conf.d/*.caddy\n' >> "$CADDYFILE"
   echo "   Caddyfile 에 import 추가"
