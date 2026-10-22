@@ -94,16 +94,16 @@ const safeNext = (n) => (typeof n === "string" && n.startsWith("/") && !n.starts
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function page(title, body) {
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · 도면 평가 프로그램</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F7F8F9;color:#1B1F23;font:14px/1.6 "Pretendard Variable",Pretendard,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;padding:16px;box-sizing:border-box}
+<style>body{margin:0;min-height:100vh;word-break:keep-all;display:grid;place-items:center;background:#F7F8F9;color:#1B1F23;font:14px/1.6 "Pretendard Variable",Pretendard,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;padding:16px;box-sizing:border-box}
 .card{background:#fff;border:1px solid #E6E8EB;border-radius:12px;padding:32px;max-width:420px;width:100%;box-sizing:border-box}
 h1{font-size:20px;margin:0 0 8px}p{color:#5B6570;margin:0 0 20px}.brand{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:24px;color:#004F59}
-.mark{width:28px;height:28px;border-radius:8px;background:#004F59}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;height:44px;border-radius:8px;background:#004F59;color:#fff;text-decoration:none;font-weight:600}
+.mark{width:32px;height:32px;flex:none}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;height:44px;border-radius:8px;background:#004F59;color:#fff;text-decoration:none;font-weight:600}
 .btn.sec{background:#fff;color:#004F59;border:1px solid #C9D3D6;margin-top:8px}.hint{font-size:12px;color:#8A939C;margin-top:16px}code{font-size:12px}</style></head>
-<body><main class="card"><div class="brand"><span class="mark" aria-hidden="true"></span>도면 평가 프로그램</div>${body}</main></body></html>`;
+<body><main class="card"><div class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#004F59"/><path d="M8 8h16v16H8zM8 16h7M15 8v16M15 19.5h9" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M11.5 12 19.5 13.5 19.5 21.7M11.5 20.2 19.5 13.5" fill="none" stroke="#F47D30" stroke-width="1.3"/><circle cx="11.5" cy="12" r="1.9" fill="#F47D30"/><circle cx="19.5" cy="13.5" r="1.9" fill="#F47D30"/><circle cx="19.5" cy="21.7" r="1.9" fill="#F47D30"/><circle cx="11.5" cy="20.2" r="1.9" fill="#F47D30"/></svg>도면 평가 프로그램</div>${body}</main></body></html>`;
 }
-const loginPage = (next, msg = "") => page("로그인", `<h1>로그인</h1><p>${msg || "허용된 구글 계정으로 로그인해 주세요. 회원가입은 필요 없습니다."}</p>
+const loginPage = (next, msg = "") => page("로그인", `<h1>로그인</h1><p>${msg || "허용된 구글 계정으로 로그인해 주세요.<br>회원가입은 필요 없습니다."}</p>
   <a class="btn" href="/api/auth/login?next=${encodeURIComponent(next)}">Google 계정으로 로그인</a>
-  <div class="hint">이 프로그램은 누가 어떤 작업을 했는지 기록합니다(로그인 계정 · 시각 · 작업 내용). 접근 권한은 관리자에게 요청하세요.</div>`);
+  <div class="hint">이 프로그램은 누가 어떤 작업을 했는지 기록합니다.<br>(로그인 계정 · 시각 · 작업 내용)<br>접근 권한은 관리자에게 요청하세요.</div>`);
 
 /* ── 라우트 ── */
 async function handle(req, res) {
