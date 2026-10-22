@@ -451,7 +451,8 @@ const ST = {
   fileId: null, unitIdx: -1, room: null,
   criteria: E.parseDSL(E.PRESETS["시공가능성 + 공간구문"]).criteria,
   params: E.defaultParams(),
-  baseline: null, baseSource: "auto",
+  baseline: null, baseSource: store.get("aihub.baseSource") === "auto" ? "auto" : "default",
+  defaults: { baseline: null, stats: null },   // 사이트에 함께 올린 결과물(AI 허브 전체 정답지·통계) — 원본 아님
   layers: { fill: true, names: true, doors: true, graph: false, flags: true, dim: true },
   view: null, extent: null, extentFor: null,
   snaps: [], busy: false, cancel: false,
@@ -579,7 +580,7 @@ async function ingest(items, source, opt = {}) {
     await persistFile(f, data);
   } }));
   const { done, failed } = await runJobs("가져오는 중", jobs);
-  if (ST.baseSource === "auto") rebuildBaseline();
+  rebuildBaseline();
   rescore(false);
   if (!opt.quiet) toast(`${SOURCES[source] || source} — 파일 ${int(done - failed)}개를 가져왔습니다${failed ? ` · 실패 ${failed}개` : ""}${ST.cancel ? " (중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`, failed > 0 && done === failed);
   if (opt.stay) return render();
@@ -593,11 +594,14 @@ async function reprocessAll(label = "다시 계산하는 중") {
     if (DB.db) await dbDo("meta", "readwrite", s => s.put(metaOf(f))).catch(() => {});
   } })));
   if (failed) toast(`${failed}개 파일은 다시 계산하지 못했습니다`, true);
-  if (ST.baseSource === "auto") rebuildBaseline();
+  rebuildBaseline();
   ST.room = null;
   rescore();
 }
+/* 정답지 출처: default = 사이트 기본(AI 허브 전체) · auto = 보유 세대로 · file = 불러온 baseline.json(그대로 둔다) */
 function rebuildBaseline() {
+  if (ST.baseSource === "file") return;
+  if (ST.baseSource === "default") { if (ST.defaults.baseline) { ST.baseline = ST.defaults.baseline; return; } }
   const rows = [];
   for (const f of ST.files) for (const s of (f.sum && f.sum.units) || []) rows.push({ unit: s.uid, type: s.type, ...s.features });
   ST.baseline = rows.length >= 3 ? E.buildBaseline(rows) : null;
@@ -615,7 +619,7 @@ async function removeFiles(ids) {
   ST.files = ST.files.filter(f => !set.has(f.id));
   if (set.has(ST.fileId)) { ST.fileId = null; ST.unitIdx = -1; }
   await unpersist(ids);
-  if (ST.baseSource === "auto") rebuildBaseline();
+  rebuildBaseline();
   rescore();
 }
 
@@ -815,7 +819,7 @@ function renderShell() {
     ${nav("criteria", "평가 구조", ST.criteria.filter(c => c.enabled).length)}${nav("params", "판정 변수")}${nav("baseline", "정답지")}
     <div class="nav-section">기록</div>
     ${nav("archive", "보관 기록", ST.snaps.length)}
-    <div class="nav-foot">가져온 도면과 보관 기록은 이 브라우저에만 저장되고 밖으로 나가지 않습니다.</div>`;
+    <div class="nav-foot">가져온 도면과 보관 기록은 이 브라우저에만 저장되고 밖으로 나가지 않습니다.<br>기본 정답지·통계 출처: AI 허브 「건축 도면 데이터」(aihub.or.kr)</div>`;
 }
 function renderHeader(title, crumbs, tabs, extra = "") {
   const crumb = crumbs.map(c => Array.isArray(c) ? `<a href="${c[1]}">${esc(c[0])}</a>` : `<span>${esc(c)}</span>`).join(`<span>/</span>`);
@@ -841,7 +845,7 @@ function liveStats(type = "", source = "") {
 }
 function emptyData(title, desc) {
   return `<div class="card"><div class="empty-state"><h3>${title}</h3><p>${desc}</p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="#/data/aihub">${ico("inbox")}데이터 가져오기</a><button class="btn btn-secondary" data-act="sample">예시 도면으로 보기</button></div></div></div>`;
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="#/data/aihub">${ico("inbox")}데이터 가져오기</a>${ST.defaults.stats ? `<a class="btn btn-secondary" href="#/archive/${encodeURIComponent(ST.defaults.stats.id)}">AI 허브 전체 통계 보기</a>` : ""}<button class="btn btn-ghost" data-act="sample">예시 도면으로 보기</button></div></div></div>`;
 }
 function pageStats() {
   const types = [...new Set(allUnits().map(x => x.r.type))].sort();
@@ -916,7 +920,8 @@ function statsBody(S, tab, live) {
       <div class="card"><div class="card-header"><h2 class="card-title">이 통계를 낸 조건·변수</h2></div><div class="card-body">
         <pre class="num" style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:22px">${esc(S.config.dsl)}</pre>
         <div class="field-hint" style="margin-top:12px">${esc(Object.entries(S.config.params || {}).map(([k, v]) => `${k}=${v}`).join(" · "))}</div>
-        <div class="field-hint">정답지: ${S.baseline ? `${S.baseline.source === "auto" ? "보유 세대" : "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div></div></div>`;
+        <div class="field-hint">정답지: ${S.baseline ? `${{ default: "AI 허브 전체(기본)", auto: "보유 세대" }[S.baseline.source] || "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div>
+        ${S.builtin && S.memo ? `<div class="field-hint">${esc(S.memo)}</div>` : ""}</div></div>`;
   }
   const rows = S.units.slice().sort((a, b) => ST.unitSort === "asc" ? a.total - b.total : ST.unitSort === "desc" ? b.total - a.total : a.unit.localeCompare(b.unit));
   const LIM = 2000;
@@ -1154,9 +1159,13 @@ function pageData() {
 function dataAihub() {
   const o = ST.zipOpt, sel = ST.zips.length ? zipSelection() : null;
   const chk = (group, v, l) => `<label class="chk"><input type="checkbox" data-zopt="${group}" value="${v}"${o[group].includes(v) ? " checked" : ""}>${l}</label>`;
-  return `<div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아, 내려받은 <b>download.tar를 풀지 말고 그대로</b> 아래에 놓으면 브라우저 안에서 열어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
+  const DS = ST.defaults.stats;
+  return `${DS ? `<div class="callout">${ico("check")}<div><b>AI 허브 아파트 평면도 ${int(DS.summary.n_files)}장(${int(DS.summary.n_units)}세대)의 정답지와 전체 통계가 기본으로 들어 있습니다.</b>
+      별도로 받지 않아도 <a href="#/archive/${encodeURIComponent(DS.id)}">전체 통계</a>와 정답지 근접도를 쓸 수 있습니다. 기본 데이터는 계산 결과(분포·점수)만이고 원본 도면은 들어 있지 않습니다 — AI 허브 이용정책상 원본은 재배포할 수 없습니다.
+      <b>도면을 직접 보고 조건을 바꿔 다시 채점하려면</b> 아래 파일을 각자 받아 넣어 주세요.</div></div>` : ""}
+    <div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아, 내려받은 <b>download.tar를 풀지 말고 그대로</b> 아래에 놓으면 브라우저 안에서 열어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
     <div class="grid2">
-      <div class="card"><div class="card-header"><h2 class="card-title">AI 허브에서 받을 파일</h2><a class="btn btn-ghost btn-sm" href="${AIHUB_PAGE}" target="_blank" rel="noopener">${ico("ext")}데이터셋 화면</a></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">도면을 직접 보려면 받을 파일</h2><a class="btn btn-ghost btn-sm" href="${AIHUB_PAGE}" target="_blank" rel="noopener">${ico("ext")}데이터셋 화면</a></div>
         <div class="card-body flush tw"><table class="t compact"><thead><tr><th>파일</th><th class="n">용량</th><th class="n">파일키</th><th>쓰임</th></tr></thead><tbody>
         ${AIHUB_LABEL_ZIPS.map(([n, s, k, d, need]) => `<tr><td><b>${n}</b>${need ? ` <span class="badge badge-info">필수</span>` : ""}</td><td class="n">${s}</td><td class="n">${k}</td><td class="field-hint" style="font-size:12px">${d}</td></tr>`).join("")}
         </tbody></table></div>
@@ -1577,11 +1586,13 @@ function pageBaseline() {
   renderHeader("정답지", ["평가 설정"], null);
   const b = ST.baseline;
   const typeRows = b ? Object.entries(b.type_counts).map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="n">${int(n)}</td><td>${b.types && b.types[t] ? `<span class="badge badge-neutral">유형 분포 사용</span>` : `<span class="field-hint">5세대 미만 — 전체 분포 사용</span>`}</td></tr>`).join("") : "";
-  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>실제 지어진 아파트(AI 허브)의 특징 분포를 정답지로 씁니다. 세대의 면적비·깊이·거실 통합도 순위 등이 같은 유형의 분포에서 얼마나 벗어나는지로 <code>@typicality</code>(정답지 근접도)를 0~100점으로 계산합니다.</div></div>
-    ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 보유한 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 전체 데이터로 만든 baseline.json(CLI <code>aihub_eval.py baseline</code>)을 불러오세요.</div></div>` : ""}
-    <div class="toolbar"><button class="btn btn-secondary" data-act="baseAuto">보유 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
+  const D = ST.defaults.baseline;
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>실제 지어진 아파트(AI 허브)의 특징 분포를 정답지로 씁니다. 세대의 면적비·깊이·거실 통합도 순위 등이 같은 유형의 분포에서 얼마나 벗어나는지로 <code>@typicality</code>(정답지 근접도)를 0~100점으로 계산합니다.
+      ${D ? `<br>기본 정답지는 AI 허브 아파트 평면도 ${int(D.meta && D.meta.files)}장(${int(D.n_units)}세대)에서 계산한 분포입니다 — 원본 도면은 들어 있지 않습니다. ${esc(D.meta && D.meta.source || "")}` : ""}</div></div>
+    ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 보유한 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 기본 정답지(AI 허브 전체)를 쓰세요.</div></div>` : ""}
+    <div class="toolbar">${D && ST.baseSource !== "default" ? `<button class="btn btn-secondary" data-act="baseDefault">기본 정답지(AI 허브 전체)로</button>` : ""}<button class="btn btn-ghost" data-act="baseAuto">보유 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
     ${b ? `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">현재 정답지</h2></div><div class="card-body">
-        <div class="kv"><span>출처</span><span>${ST.baseSource === "auto" ? "보유 세대에서 자동 생성" : "baseline.json 파일"}</span></div>
+        <div class="kv"><span>출처</span><span>${{ default: "기본 — AI 허브 전체", auto: "보유 세대에서 자동 생성", file: "baseline.json 파일" }[ST.baseSource]}</span></div>
         <div class="kv"><span>세대 수</span><span class="num">${int(b.n_units)}</span></div>
         <div class="kv"><span>유형 수</span><span class="num">${int(Object.keys(b.type_counts).length)}</span></div>
         <div class="kv"><span>최다 유형</span><span>${esc(Object.keys(b.type_counts)[0] || "—")}</span></div></div></div>
@@ -1614,7 +1625,7 @@ function pageArchive() {
     <div class="card">${list.length ? `<div class="card-body flush tw"><table class="t"><thead><tr><th>이름</th><th>보관 일시</th><th class="n">세대</th><th class="n">평균 점수</th><th class="n">시공 가능</th><th class="n">조건</th><th></th></tr></thead><tbody>
       ${list.map(s => `<tr class="click" data-open="${esc(s.id)}"><td><b>${esc(s.name || "(이름 없음)")}</b>${s.memo ? `<div class="field-hint">${esc(s.memo)}</div>` : ""}</td><td class="num">${dt(s.created)}</td>
         <td class="n">${int(s.summary.n_units)}</td><td class="n">${fx(s.summary.score.mean)}</td><td class="n">${pct(s.summary.feasibility_pass_rate)}</td><td class="n">${int((s.config.criteria || []).filter(c => c.enabled !== false).length)}</td>
-        <td style="white-space:nowrap;text-align:right"><button class="btn btn-ghost btn-sm" data-act="applySnap" data-sid="${esc(s.id)}">조건 적용</button><button class="btn btn-ghost btn-sm" data-act="dlSnap" data-sid="${esc(s.id)}">JSON</button><button class="btn btn-ghost btn-sm btn-icon" data-act="delSnap" data-sid="${esc(s.id)}" title="삭제" aria-label="삭제">${ico("trash")}</button></td></tr>`).join("")}
+        <td style="white-space:nowrap;text-align:right"><button class="btn btn-ghost btn-sm" data-act="applySnap" data-sid="${esc(s.id)}">조건 적용</button><button class="btn btn-ghost btn-sm" data-act="dlSnap" data-sid="${esc(s.id)}">JSON</button>${s.builtin ? `<span class="badge badge-neutral" style="margin-left:6px">기본</span>` : `<button class="btn btn-ghost btn-sm btn-icon" data-act="delSnap" data-sid="${esc(s.id)}" title="삭제" aria-label="삭제">${ico("trash")}</button>`}</td></tr>`).join("")}
       </tbody></table></div>` : `<div class="empty-state"><h3>${ST.snaps.length ? "검색 결과가 없습니다" : "보관한 기록이 없습니다"}</h3><p>통계 화면에서 ‘현재 통계 보관’을 누르면 그때의 점수·지표와 조건·변수가 한 기록으로 이 브라우저에 남습니다. CLI <code>score --stats</code>로 만든 JSON도 불러올 수 있습니다.</p></div>`}</div>
     ${DB.ok ? "" : `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div>이 브라우저는 저장소를 쓸 수 없어 창을 닫으면 기록이 사라집니다. JSON으로 내려받아 두세요.</div></div>`}`;
 }
@@ -1622,7 +1633,15 @@ function pageArchive() {
 /* ═════════════════════════════════════ 보관 기록 */
 async function loadSnaps() {
   if (DB.db) { try { ST.snaps = (await dbDo("snapshots", "readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
-  ST.snaps.sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+  ST.snaps = ST.snaps.filter(s => !s.builtin).sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+  if (ST.defaults.stats) ST.snaps.unshift(ST.defaults.stats);   // 기본 통계(AI 허브 전체)는 맨 위에, 지울 수 없음
+}
+/* 사이트 기본 데이터 — AI 허브 라벨에서 계산한 결과물만(tools/build_default_data.js). 없으면 조용히 넘어간다. */
+async function loadDefaults() {
+  const get = (u) => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [b, s] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json")]);
+  ST.defaults.baseline = b && b.all ? b : null;
+  ST.defaults.stats = s && s.kind === "aihub-stats" ? Object.assign(s, { builtin: true, id: s.id || "builtin-aihub" }) : null;
 }
 async function saveSnap(s) {
   s.id = s.id || "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1791,7 +1810,7 @@ async function onClick(e) {
       case "applySnap": return snap && modal({ title: "보관 기록의 조건·변수 적용", ok: "적용",
         body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int((snap.config.criteria || []).length)}개와 판정 변수로 지금 설정을 바꾸고, 보유한 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
         onOk: async () => { await applyConfig(snap.config, `‘${snap.name}’의 조건·변수를 적용했습니다`); go("#/stats"); } });
-      case "delSnap": return snap && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
+      case "delSnap": return snap && !snap.builtin && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
         body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 이 브라우저에서 지웁니다. 지운 기록은 되돌릴 수 없습니다. 필요하면 먼저 JSON으로 내려받아 두세요.</p>`,
         onOk: async () => { await delSnap(snap.id); toast("기록을 지웠습니다"); if (ST.route.id) go("#/archive"); else render(); } });
       case "unroom": ST.room = null; return render();
@@ -1812,7 +1831,8 @@ async function onClick(e) {
       case "cfgIn": return $("#cfgIn").click();
       case "cfgOut": return download("평가구조_설정.json", configJSON(), "application/json");
       case "paramReset": ST.params = E.defaultParams(); store.set("aihub.params", JSON.stringify(ST.params)); return reprocessAll();
-      case "baseAuto": ST.baseSource = "auto"; rebuildBaseline(); rescore(); return toast(ST.baseline ? "보유 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
+      case "baseAuto": ST.baseSource = "auto"; store.set("aihub.baseSource", "auto"); rebuildBaseline(); rescore(); return toast(ST.baseline ? "보유 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
+      case "baseDefault": ST.baseSource = "default"; store.set("aihub.baseSource", "default"); rebuildBaseline(); rescore(); return toast("기본 정답지(AI 허브 전체)로 바꿨습니다");
       case "baseLoad": return $("#baseIn").click();
     }
     return;
@@ -1913,7 +1933,7 @@ async function onClick(e) {
   try { const c = JSON.parse(store.get("aihub.criteria") || "null"); if (Array.isArray(c) && c.length) ST.criteria = c; } catch {}
   try { const p = JSON.parse(store.get("aihub.params") || "null"); if (p) ST.params = Object.assign(E.defaultParams(), p); } catch {}
   ST.route = parseHash(); render();
-  await dbOpen();
+  await Promise.all([dbOpen(), loadDefaults()]);
   await loadSnaps();
   if (DB.db) {
     try {
@@ -1924,7 +1944,8 @@ async function onClick(e) {
   }
   const stale = ST.files.some(f => f.pkey !== pkey());
   if (stale) await reprocessAll("판정 변수가 바뀌어 다시 계산하는 중");
-  else { if (ST.baseSource === "auto") rebuildBaseline(); rescore(false); }
+  else { rebuildBaseline(); rescore(false); }
+  if (!ST.baseline) rebuildBaseline();
   onRoute();
 })();
 </script>
