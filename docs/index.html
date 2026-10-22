@@ -370,15 +370,16 @@ details.more[open]>summary svg{transform:rotate(90deg)}
 </div>
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" hidden></div>
-<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 데이터(JSON · AI 허브 라벨 zip)를 가져옵니다</div></div>
+<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 데이터(JSON · AI 허브 download.tar · zip · 도면 이미지)를 가져옵니다</div></div>
 <div class="progress" id="progress" hidden>
   <div style="display:flex;align-items:center;gap:8px"><b id="progText" style="flex:1;font-size:13px">가져오는 중</b><button class="btn btn-ghost btn-sm" id="progCancel">멈춤</button></div>
   <div class="bar"><b id="progBar" style="width:0%"></b></div>
   <div class="field-hint" id="progSub"></div>
 </div>
-<input type="file" id="fileIn" accept=".json,.zip,application/json,application/zip" multiple hidden>
+<input type="file" id="fileIn" multiple hidden>
 <input type="file" id="dirIn" webkitdirectory directory multiple hidden>
-<input type="file" id="zipIn" accept=".zip,application/zip" multiple hidden>
+<input type="file" id="zipIn" multiple hidden>
+<input type="file" id="pngIn" accept="image/png,image/jpeg" multiple hidden>
 <input type="file" id="cfgIn" accept=".json,.txt" hidden>
 <input type="file" id="baseIn" accept=".json" hidden>
 <input type="file" id="statIn" accept=".json" hidden>
@@ -563,7 +564,7 @@ async function runJobs(label, jobs) {
   return { done, failed };
 }
 /* items: [{ name, file?, data?, load?() }] — load가 있으면 zip 안의 항목처럼 그때 읽는다 */
-async function ingest(items, source) {
+async function ingest(items, source, opt = {}) {
   if (ST.busy) return toast("다른 작업이 끝난 뒤에 다시 해 주세요", true);
   const added = new Date().toISOString();
   const before = ST.files.length;
@@ -580,7 +581,8 @@ async function ingest(items, source) {
   const { done, failed } = await runJobs("가져오는 중", jobs);
   if (ST.baseSource === "auto") rebuildBaseline();
   rescore(false);
-  toast(`${SOURCES[source] || source} — 파일 ${int(done - failed)}개를 가져왔습니다${failed ? ` · 실패 ${failed}개` : ""}${ST.cancel ? " (중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`, failed > 0 && done === failed);
+  if (!opt.quiet) toast(`${SOURCES[source] || source} — 파일 ${int(done - failed)}개를 가져왔습니다${failed ? ` · 실패 ${failed}개` : ""}${ST.cancel ? " (중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`, failed > 0 && done === failed);
+  if (opt.stay) return render();
   const first = ST.files.find(x => x.name === items[0]?.name);
   if (items.length === 1 && first) { selectFile(first.id); go(`#/plans/${first.id}`); }
   else go("#/stats");
@@ -664,13 +666,62 @@ async function zipReadText(file, e) {
   if (typeof DecompressionStream === "undefined") throw new Error("이 브라우저는 zip 풀기를 지원하지 않습니다 — 최신 Chrome·Edge·Firefox·Safari를 쓰세요");
   return new Response(blob.stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
 }
+/* AI 허브 웹 다운로드는 download.tar 안에 '…/TL_SPA.zip.part0' 처럼 조각으로 들어 있다(조각 이름 = 바이트 위치).
+   tar 머리만 훑어 각 항목의 위치를 알아 두고, 같은 zip의 조각을 순서대로 이어 하나의 Blob으로 본다(복사 없이 slice). */
+async function tarList(file) {
+  const out = [], dec = (u8) => { try { return new TextDecoder("utf-8", { fatal: true }).decode(u8); } catch { return new TextDecoder("euc-kr").decode(u8); } };
+  const str = (u8) => dec(u8.subarray(0, (u8.indexOf(0) + 1 || u8.length + 1) - 1));
+  const num = (u8) => { if (u8[0] & 0x80) { let n = 0; for (let i = 1; i < u8.length; i++) n = n * 256 + u8[i]; return n; } return parseInt(str(u8).trim() || "0", 8); };
+  let off = 0, longName = null, paxPath = null;
+  while (off + 512 <= file.size) {
+    const h = new Uint8Array(await file.slice(off, off + 512).arrayBuffer());
+    if (h.every(b => b === 0)) break;
+    const size = num(h.subarray(124, 136)), type = String.fromCharCode(h[156] || 48), data = off + 512;
+    if (type === "L") longName = str(new Uint8Array(await file.slice(data, data + size).arrayBuffer()));
+    else if (type === "x") { const t = dec(new Uint8Array(await file.slice(data, data + size).arrayBuffer())); const m = t.match(/\d+ path=([^\n]*)\n/); paxPath = m ? m[1] : null; }
+    else {
+      let name = longName || paxPath;
+      if (!name) { const prefix = h[257] === 117 /* ustar */ ? str(h.subarray(345, 500)) : ""; name = (prefix ? prefix + "/" : "") + str(h.subarray(0, 100)); }
+      if (type === "0" || type === "7") out.push({ name, base: name.split("/").pop(), off: data, size });
+      longName = paxPath = null;
+    }
+    off = data + Math.ceil(size / 512) * 512;
+  }
+  return out;
+}
+/* 파일들 → [{name, blob}] zip 목록. tar 안의 zip/조각, 따로 놓은 조각(.zip.partN), 그냥 zip 모두 */
+async function archivesToZips(files) {
+  const parts = new Map(), zips = [];
+  const addPart = (base, idx, blob) => { if (!parts.has(base)) parts.set(base, []); parts.get(base).push([idx, blob]); };
+  for (const file of files) {
+    if (/\.tar$/i.test(file.name)) {
+      for (const e of await tarList(file)) {
+        const m = e.base.match(/^(.+\.zip)\.part(\d+)$/i), blob = file.slice(e.off, e.off + e.size);
+        if (m) addPart(m[1], +m[2], blob); else if (/\.zip$/i.test(e.base)) zips.push({ name: e.base, blob });
+      }
+    } else {
+      const m = file.name.match(/^(.+\.zip)\.part(\d+)$/i);
+      if (m) addPart(m[1], +m[2], file); else zips.push({ name: file.name, blob: file });
+    }
+  }
+  for (const [base, list] of parts) {
+    list.sort((a, b) => a[0] - b[0]);
+    let pos = 0;
+    for (const [idx, b] of list) { if (idx !== pos) throw new Error(`${base}: 조각이 빠져 있습니다(${pos}바이트 위치)`); pos += b.size; }
+    zips.push({ name: base, blob: list.length === 1 ? list[0][1] : new Blob(list.map(x => x[1])) });
+  }
+  return zips;
+}
 const LABEL_RE = /^(APT|ROW|DEH)_(FP|EP|CS|SD)_(SPA|STR|OBJ|OCR)_\d+\.json$/i;
 async function addZips(files) {
-  for (const file of files) {
+  let zips = [];
+  try { zips = await archivesToZips(files); } catch (e) { toast(e.message, true); }
+  if (!zips.length && files.length) toast("tar 안에서 zip을 찾지 못했습니다", true);
+  for (const z of zips) {
     try {
-      const entries = (await zipList(file)).filter(e => /\.json$/i.test(e.base));
-      ST.zips = ST.zips.filter(z => z.name !== file.name).concat([{ name: file.name, size: file.size, file, entries }]);
-    } catch (e) { toast(`${file.name}: ${e.message}`, true); }
+      const entries = (await zipList(z.blob)).filter(e => /\.json$/i.test(e.base));
+      ST.zips = ST.zips.filter(x => x.name !== z.name).concat([{ name: z.name, size: z.blob.size, file: z.blob, entries }]);
+    } catch (e) { toast(`${z.name}: ${e.message}`, true); }
   }
   go("#/data/aihub");
 }
@@ -690,19 +741,21 @@ function zipSelection() {
 }
 
 /* ═════════════════════════════════════ 파일 고르기 · 끌어놓기(폴더 포함) */
-const isJson = (n) => /\.json$/i.test(n), isZip = (n) => /\.zip$/i.test(n);
+const isImg = (n) => /\.(png|jpe?g)$/i.test(n), isJson = (n) => /\.json$/i.test(n), isZip = (n) => /\.(zip|tar)$|\.zip\.part\d+$/i.test(n);
 function pickFiles(list, source = "upload") {
   const arr = [...list];
   const zips = arr.filter(f => isZip(f.name));
   const items = arr.filter(f => isJson(f.name)).map(f => ({ name: f.name, file: f }));
+  const imgs = arr.filter(f => isImg(f.name));
+  if (imgs.length) pngOpen(imgs);
   if (zips.length) addZips(zips);
   if (items.length) ingest(items, source);
-  if (!zips.length && !items.length) toast("JSON 또는 zip 파일이 없습니다", true);
+  if (!zips.length && !items.length && !imgs.length) toast("JSON · zip · tar · 이미지 파일이 없습니다", true);
 }
 async function entriesToFiles(entries) {
   const out = [];
   const walk = async (en) => {
-    if (en.isFile) { if (isJson(en.name) || isZip(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
+    if (en.isFile) { if (isJson(en.name) || isZip(en.name) || isImg(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
     else if (en.isDirectory) {
       const rd = en.createReader();
       for (;;) { const b = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!b.length) break; for (const x of b) await walk(x); }
@@ -716,7 +769,7 @@ async function entriesToFiles(entries) {
 const PAGES = {
   stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["criteria", "조건·점검"], ["measures", "지표"], ["units", "점수표"]] },
   plans:    { title: "도면", icon: "plan" },
-  data:     { title: "데이터 가져오기", icon: "inbox", tabs: [["aihub", "AI 허브"], ["upload", "파일 업로드"], ["manual", "직접 입력"], ["stored", "보유 데이터"]] },
+  data:     { title: "데이터 가져오기", icon: "inbox", tabs: [["aihub", "AI 허브"], ["upload", "파일 업로드"], ["png", "이미지 변환"], ["manual", "직접 입력"], ["stored", "보유 데이터"]] },
   criteria: { title: "평가 구조", icon: "sliders", tabs: [["list", "조건"], ["dsl", "문법 편집"]] },
   params:   { title: "판정 변수", icon: "settings" },
   baseline: { title: "정답지", icon: "check" },
@@ -1072,8 +1125,9 @@ function pageData() {
   renderHeader("데이터 가져오기", ["데이터"], PAGES.data.tabs.map(([k, l]) => [k, l, `#/data/${k}`, k === "stored" ? ST.files.length || null : null]));
   const c = $("#content");
   if (tab === "aihub") return void (c.innerHTML = dataAihub());
+  if (tab === "png") { c.innerHTML = dataPng(); return pngDraw(); }
   if (tab === "upload") return void (c.innerHTML = `
-    <div class="callout">${ico("info")}<div>AI 허브 라벨 JSON(SPA·STR·OBJ·OCR)이나 같은 형식(COCO)의 JSON을 가져옵니다. 여러 개를 한꺼번에, 폴더째로도 됩니다. zip을 고르면 AI 허브 탭에서 고를 항목을 정합니다.</div></div>
+    <div class="callout">${ico("info")}<div>AI 허브 라벨 JSON(SPA·STR·OBJ·OCR)이나 같은 형식(COCO)의 JSON을 가져옵니다. 여러 개를 한꺼번에, 폴더째로도 됩니다. zip · download.tar를 고르면 AI 허브 탭에서 가져올 범위를 정하고, PNG·JPG 도면 이미지는 이미지 변환 탭에서 JSON으로 바꿉니다.</div></div>
     <div class="card"><div class="card-body">
       <div class="drop-area" data-drop="upload"><b>JSON 파일이나 폴더를 여기에 끌어다 놓으세요</b>화면 어디에 놓아도 됩니다.
         <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"><button class="btn btn-secondary" data-act="pickFiles">${ico("file")}파일 선택</button><button class="btn btn-secondary" data-act="pickDir">${ico("folder")}폴더 선택</button></div></div>
@@ -1100,17 +1154,17 @@ function pageData() {
 function dataAihub() {
   const o = ST.zipOpt, sel = ST.zips.length ? zipSelection() : null;
   const chk = (group, v, l) => `<label class="chk"><input type="checkbox" data-zopt="${group}" value="${v}"${o[group].includes(v) ? " checked" : ""}>${l}</label>`;
-  return `<div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아 아래에 놓으면, 브라우저 안에서 풀어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
+  return `<div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아, 내려받은 <b>download.tar를 풀지 말고 그대로</b> 아래에 놓으면 브라우저 안에서 열어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
     <div class="grid2">
       <div class="card"><div class="card-header"><h2 class="card-title">AI 허브에서 받을 파일</h2><a class="btn btn-ghost btn-sm" href="${AIHUB_PAGE}" target="_blank" rel="noopener">${ico("ext")}데이터셋 화면</a></div>
         <div class="card-body flush tw"><table class="t compact"><thead><tr><th>파일</th><th class="n">용량</th><th class="n">파일키</th><th>쓰임</th></tr></thead><tbody>
         ${AIHUB_LABEL_ZIPS.map(([n, s, k, d, need]) => `<tr><td><b>${n}</b>${need ? ` <span class="badge badge-info">필수</span>` : ""}</td><td class="n">${s}</td><td class="n">${k}</td><td class="field-hint" style="font-size:12px">${d}</td></tr>`).join("")}
         </tbody></table></div>
-        <div class="card-body" style="border-top:1px solid var(--color-divider)"><div class="field-hint" style="font-size:12px;line-height:18px">로그인 → 데이터셋 화면에서 다운로드 승인(내국인) → 파일 목록의 [다운로드]로 받습니다. aihubshell로 받을 때는 파일키를 꼭 지정하세요(지정하지 않으면 26GB 전체를 받습니다).<br>
+        <div class="card-body" style="border-top:1px solid var(--color-divider)"><div class="field-hint" style="font-size:12px;line-height:18px">로그인 → 데이터셋 화면에서 다운로드 승인(내국인) → 파일 목록의 [다운로드]로 받습니다. 받으면 <b>download.tar</b> 안에 <code>TL_SPA.zip.part0</code>처럼 들어 있는데, 풀거나 합치지 않고 그대로 놓으면 됩니다. aihubshell로 받을 때는 파일키를 꼭 지정하세요(지정하지 않으면 26GB 전체를 받습니다).<br>
           <code>aihubshell -mode d -datasetkey 71465 -filekey 497461,497469 -aihubapikey '키'</code></div></div></div>
       <div class="card"><div class="card-header"><h2 class="card-title">라벨 zip 가져오기</h2></div><div class="card-body">
-        <div class="drop-area" data-drop="zip"><b>TL_SPA.zip · VL_SPA.zip 등을 끌어다 놓으세요</b>여러 개를 한꺼번에 놓아도 됩니다.
-          <div style="margin-top:14px"><button class="btn btn-secondary" data-act="pickZip">${ico("file")}zip 선택</button></div></div>
+        <div class="drop-area" data-drop="zip"><b>download.tar를 그대로 끌어다 놓으세요</b>zip · 조각 파일(.zip.part0 …)도 됩니다. 여러 개를 한꺼번에 놓아도 됩니다.
+          <div style="margin-top:14px"><button class="btn btn-secondary" data-act="pickZip">${ico("file")}파일 선택</button></div></div>
         ${ST.zips.length ? `<div style="margin-top:16px">${ST.zips.map(z => `<div class="kv"><span><b style="color:var(--color-text-primary)">${esc(z.name)}</b> · ${mb(z.size)}</span><span class="num">JSON ${int(z.entries.length)}개 <button class="btn btn-ghost btn-sm btn-icon" data-act="zipRemove" data-zip="${esc(z.name)}" title="빼기" aria-label="${esc(z.name)} 빼기">${ico("x")}</button></span></div>`).join("")}</div>` : ""}
       </div></div>
     </div>
@@ -1153,6 +1207,261 @@ function manualParse() {
     if (type === "SPA" && !units.length) { info.style.color = "#C42B3A"; info.textContent += " — 현관(16)이 있는 세대가 없어 채점할 수 없습니다"; }
     return { name, data };
   } catch (e) { info.style.color = "#C42B3A"; info.textContent = "형식 오류 — " + e.message; return null; }
+}
+
+/* ═════════════════════════════════════ 도면 이미지(PNG) → JSON
+   예전 '이미지 분석 스튜디오'의 인식 방식을 옮겼다: 벽 마스크 → 벽까지 거리(Chamfer 3-4) → 문 틈을 봉한 핵심부 →
+   되자라기로 방 복원 → 테두리에 닿는 가장 큰 영역 = 외부. 여기에 방 윤곽을 다각형으로 따서(외곽 추적 + 단순화)
+   AI 허브 SPA 라벨과 같은 COCO JSON으로 만든다. 좌표는 벽 두께가 AI 허브 라벨(약 16px)과 비슷해지도록 맞춘다 —
+   그래야 '벽 두께 허용(px)' 같은 판정 변수를 그대로 쓸 수 있다. */
+const PNG_MAX = 900;
+const PKINDS = [["living", "거실", 13], ["bed", "침실", 14], ["kitchen", "주방", 15], ["entry", "현관", 16], ["bath", "화장실", 18],
+  ["balcony", "발코니", 17], ["dress", "드레스룸", 20], ["ac", "실외기실", 19], ["multi", "다목적공간", 1], ["etc", "기타", 22], ["skip", "제외", null]];
+const PNG = { queue: [], cur: null };
+function pngNewState(file, bmp) {
+  const sc = Math.min(1, PNG_MAX / Math.max(bmp.width, bmp.height));
+  const w = Math.max(40, Math.round(bmp.width * sc)), h = Math.max(40, Math.round(bmp.height * sc));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(bmp, 0, 0, w, h);
+  return { file, name: file.name, iw: bmp.width, ih: bmp.height, w, h, sc, bmp, px: g.getImageData(0, 0, w, h).data,
+    p: { mode: "color", wallColor: [138, 151, 168], tol: 52, darkT: 0.55, r: 6, minPct: 0.4 },
+    regions: [], doors: [], lab: null, carrier: null, kinds: new Map(), sel: null, edited: false };
+}
+async function pngOpen(files) {
+  PNG.queue.push(...files);
+  if (!PNG.cur) await pngNext();
+  go("#/data/png");
+}
+async function pngNext() {
+  PNG.cur = null;
+  while (PNG.queue.length && !PNG.cur) {
+    const file = PNG.queue.shift();
+    try { const bmp = await createImageBitmap(file); PNG.cur = pngNewState(file, bmp); pngGuessWall(PNG.cur); pngAutoCal(PNG.cur); pngDetect(PNG.cur); pngAutoKinds(PNG.cur); }
+    catch (e) { toast(`${file.name}: 이미지를 읽지 못했습니다 — ${e.message}`, true); }
+  }
+}
+function pngGuessWall(S) {
+  const d = S.px, W = S.w, H = S.h, hist = new Map();
+  const put = (i) => { const r = d[i], g = d[i + 1], b = d[i + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (l > 0.82 || d[i + 3] < 40) return; const k = `${r >> 4},${g >> 4},${b >> 4}`; const e = hist.get(k) || { n: 0, r: 0, g: 0, b: 0 }; e.n++; e.r += r; e.g += g; e.b += b; hist.set(k, e); };
+  for (let y = 0; y < H; y += 3) for (let x = 0; x < W; x += 3) put((y * W + x) * 4);
+  let best = null; for (const e of hist.values()) if (!best || e.n > best.n) best = e;
+  if (best) S.p.wallColor = [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
+}
+function pngWall(S) {
+  const d = S.px, N = S.w * S.h, m = new Uint8Array(N), P = S.p;
+  if (P.mode === "color") { const [wr, wg, wb] = P.wallColor, t2 = P.tol * P.tol;
+    for (let i = 0, q = 0; i < N; i++, q += 4) { if (d[q + 3] < 40) continue; const dr = d[q] - wr, dg = d[q + 1] - wg, db = d[q + 2] - wb; m[i] = dr * dr + dg * dg + db * db <= t2 ? 1 : 0; } }
+  else { const t = P.darkT * 255; for (let i = 0, q = 0; i < N; i++, q += 4) { if (d[q + 3] < 40) continue; m[i] = (0.2126 * d[q] + 0.7152 * d[q + 1] + 0.0722 * d[q + 2]) < t ? 1 : 0; } }
+  return m;
+}
+function pngDist(wall, w, h) {
+  const N = w * h, d = new Float32Array(N);
+  for (let i = 0; i < N; i++) d[i] = wall[i] ? 0 : 1e9;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; let v = d[i];
+    if (x > 0) v = Math.min(v, d[i - 1] + 3); if (y > 0) v = Math.min(v, d[i - w] + 3);
+    if (x > 0 && y > 0) v = Math.min(v, d[i - w - 1] + 4); if (x < w - 1 && y > 0) v = Math.min(v, d[i - w + 1] + 4); d[i] = v; }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = y * w + x; let v = d[i];
+    if (x < w - 1) v = Math.min(v, d[i + 1] + 3); if (y < h - 1) v = Math.min(v, d[i + w] + 3);
+    if (x < w - 1 && y < h - 1) v = Math.min(v, d[i + w + 1] + 4); if (x > 0 && y < h - 1) v = Math.min(v, d[i + w - 1] + 4); d[i] = v; }
+  for (let i = 0; i < N; i++) d[i] /= 3;
+  return d;
+}
+function pngComponents(open, w, h, minArea) {
+  const lab = new Int32Array(w * h).fill(-1), comps = [], q = new Int32Array(w * h);
+  for (let s = 0; s < w * h; s++) {
+    if (!open[s] || lab[s] >= 0) continue;
+    const id = comps.length; let head = 0, tail = 0, area = 0, border = false; q[tail++] = s; lab[s] = id;
+    while (head < tail) { const p = q[head++], x = p % w, y = (p / w) | 0; area++;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) border = true;
+      if (x > 0 && open[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; q[tail++] = p - 1; }
+      if (x < w - 1 && open[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; q[tail++] = p + 1; }
+      if (y > 0 && open[p - w] && lab[p - w] < 0) { lab[p - w] = id; q[tail++] = p - w; }
+      if (y < h - 1 && open[p + w] && lab[p + w] < 0) { lab[p + w] = id; q[tail++] = p + w; } }
+    comps.push({ id, area, border });
+  }
+  return { lab, keep: comps.filter(c => c.area >= minArea) };
+}
+function pngSegment(dist, open, w, h, r, minArea) {
+  const N = w * h, core = new Uint8Array(N);
+  for (let i = 0; i < N; i++) core[i] = open[i] && dist[i] > r ? 1 : 0;
+  const { lab: cl, keep } = pngComponents(core, w, h, minArea), ids = new Set(keep.map(c => c.id));
+  const lab = new Int32Array(N).fill(-1), q = new Int32Array(N); let head = 0, tail = 0;
+  for (let i = 0; i < N; i++) if (cl[i] >= 0 && ids.has(cl[i])) { lab[i] = cl[i]; q[tail++] = i; }
+  while (head < tail) { const p = q[head++], x = p % w, y = (p / w) | 0, id = lab[p];
+    if (x > 0 && open[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; q[tail++] = p - 1; }
+    if (x < w - 1 && open[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; q[tail++] = p + 1; }
+    if (y > 0 && open[p - w] && lab[p - w] < 0) { lab[p - w] = id; q[tail++] = p - w; }
+    if (y < h - 1 && open[p + w] && lab[p + w] < 0) { lab[p + w] = id; q[tail++] = p + w; } }
+  return { lab, keep };
+}
+function pngAutoCal(S) {
+  const w = S.w, h = S.h, N = w * h, wall = pngWall(S), open = new Uint8Array(N);
+  for (let i = 0; i < N; i++) open[i] = wall[i] ? 0 : 1;
+  const dist = pngDist(wall, w, h), minArea = Math.max(24, Math.round(N * S.p.minPct / 100)), maxR = Math.max(8, Math.round(Math.min(w, h) / 6));
+  let best = null;
+  for (let r = 2; r <= maxR; r += Math.max(1, Math.round(maxR / 20))) {
+    const { keep } = pngSegment(dist, open, w, h, r, minArea); if (!keep.length) continue;
+    const out = keep.filter(c => c.border).sort((a, b) => b.area - a.area)[0], rooms = keep.filter(c => c !== out);
+    if (!rooms.length) continue;
+    const score = rooms.length - ((out ? out.area / N : 1) > 0.55 ? 100 : 0);
+    if (!best || score > best.score) best = { r, score };
+  }
+  if (best && best.score > -50) S.p.r = best.r;
+}
+function pngDetect(S) {
+  const w = S.w, h = S.h, N = w * h, P = S.p;
+  S.wall = pngWall(S);
+  const open = new Uint8Array(N); for (let i = 0; i < N; i++) open[i] = S.wall[i] ? 0 : 1;
+  S.lab = pngSegment(pngDist(S.wall, w, h), open, w, h, P.r, Math.max(24, Math.round(N * P.minPct / 100))).lab;
+  const st = new Map();
+  for (let i = 0; i < N; i++) { const id = S.lab[i]; if (id < 0) continue; const x = i % w, y = (i / w) | 0;
+    const e = st.get(id) || { id, area: 0, sx: 0, sy: 0, x0: 1e9, y0: 1e9, x1: -1, y1: -1, border: false, start: i };
+    e.area++; e.sx += x; e.sy += y; if (x < e.x0) e.x0 = x; if (x > e.x1) e.x1 = x; if (y < e.y0) e.y0 = y; if (y > e.y1) e.y1 = y;
+    if (x === 0 || y === 0 || x === w - 1 || y === h - 1) e.border = true; st.set(id, e); }
+  S.regions = [...st.values()].map(e => ({ id: e.id, area: e.area, cx: e.sx / e.area, cy: e.sy / e.area, bbox: [e.x0, e.y0, e.x1, e.y1], border: e.border, start: e.start }));
+  const out = S.regions.filter(r => r.border).sort((a, b) => b.area - a.area)[0];
+  S.carrier = out ? out.id : null;
+  S.regions = S.regions.filter(r => r.id !== S.carrier).sort((a, b) => b.area - a.area);
+  // 벽 없이 맞닿은 구간 = 문 (현관 추정에만 쓴다 — 실제 채점의 문은 엔진이 맞닿음으로 다시 추정)
+  const m = new Map();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const p = y * w + x; if (!open[p]) continue;
+    for (const q of [x < w - 1 ? p + 1 : -1, y < h - 1 ? p + w : -1]) { if (q < 0 || !open[q]) continue; const a = S.lab[p], b = S.lab[q];
+      if (a < 0 || b < 0 || a === b) continue; const k = a < b ? a + "|" + b : b + "|" + a; m.set(k, (m.get(k) || 0) + 1); } }
+  S.doors = [...m].filter(([, n]) => n >= 5).map(([k]) => k.split("|").map(Number));
+  S.sel = null;
+}
+function pngAutoKinds(S) {
+  S.kinds = new Map(); S.edited = false;
+  const inner = S.regions; if (!inner.length) return;
+  const adjOut = new Set(S.doors.filter(([a, b]) => a === S.carrier || b === S.carrier).map(([a, b]) => a === S.carrier ? b : a));
+  const give = (r, k) => { if (r && !S.kinds.has(r.id)) S.kinds.set(r.id, k); };
+  give(inner.filter(r => adjOut.has(r.id)).sort((a, b) => a.area - b.area)[0] || inner.slice().sort((a, b) => a.area - b.area)[0], "entry");
+  const rest = inner.filter(r => !S.kinds.has(r.id));
+  ["living", "bed", "kitchen", "bed"].forEach((k, i) => give(rest[i], k));
+  const left = inner.filter(r => !S.kinds.has(r.id)).sort((a, b) => a.area - b.area);
+  give(left[0], "bath"); give(left[1], "etc");
+  left.slice(2).forEach(r => give(r, "bed"));
+}
+/* 영역 외곽 추적(무어 이웃, Jacob 정지) → Douglas–Peucker 단순화 */
+function pngTrace(lab, w, h, id, start) {
+  const D = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  const inside = (x, y) => x >= 0 && y >= 0 && x < w && y < h && lab[y * w + x] === id;
+  let x = start % w, y = (start / w) | 0, dir = 0, first = -1;
+  const sx = x, sy = y, pts = [[x, y]];
+  for (let guard = 0; guard < w * h * 2; guard++) {
+    let moved = false;
+    for (let i = 0; i < 8; i++) { const d = (dir + 6 + i) % 8, nx = x + D[d][0], ny = y + D[d][1];
+      if (inside(nx, ny)) { if (x === sx && y === sy && first >= 0 && d === first) return pts; if (first < 0) first = d; x = nx; y = ny; dir = d; pts.push([x, y]); moved = true; break; } }
+    if (!moved) return pts;
+  }
+  return pts;
+}
+function pngSimplify(pts, eps) {
+  if (pts.length < 4) return pts;
+  // 닫힌 외곽선은 시작점 = 끝점이라 기준선 길이가 0이다 — 시작점에서 가장 먼 점에서 둘로 나눠 각각 단순화
+  let far = 0, fd = -1;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]); if (d > fd) { fd = d; far = i; } }
+  if (far > 0 && far < pts.length - 1 && fd > eps) {
+    const a = pngSimplifyOpen(pts.slice(0, far + 1), eps), b = pngSimplifyOpen(pts.slice(far).concat([pts[0]]), eps);
+    const out = a.concat(b.slice(1)); out.pop();          // 마지막 = 시작점 중복 제거
+    return out;
+  }
+  return pngSimplifyOpen(pts, eps);
+}
+function pngSimplifyOpen(pts, eps) {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const st = [[0, pts.length - 1]];
+  while (st.length) { const [a, b] = st.pop(); let md = 0, mi = -1; const [ax, ay] = pts[a], [bx, by] = pts[b], L = Math.hypot(bx - ax, by - ay) || 1;
+    for (let i = a + 1; i < b; i++) { const d = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / L; if (d > md) { md = d; mi = i; } }
+    if (md > eps) { keep[mi] = 1; st.push([a, mi], [mi, b]); } }
+  const out = pts.filter((_, i) => keep[i]);
+  if (out.length > 1 && out[0][0] === out[out.length - 1][0] && out[0][1] === out[out.length - 1][1]) out.pop();
+  return out;
+}
+/* 벽 두께(작업 해상도 px) — 벽 안쪽에서 열린 곳까지의 거리 상위값 × 2 */
+function pngWallThickness(S) {
+  const N = S.w * S.h, inv = new Uint8Array(N); for (let i = 0; i < N; i++) inv[i] = S.wall[i] ? 0 : 1;
+  const d = pngDist(inv, S.w, S.h), vals = [];
+  for (let i = 0; i < N; i++) if (S.wall[i] && d[i] > 0 && d[i] < 1e8) vals.push(d[i]);
+  if (vals.length < 50) return 6;
+  vals.sort((a, b) => a - b);
+  return Math.max(2, 2 * vals[Math.floor(vals.length * 0.9)]);
+}
+function pngToCoco(S) {
+  const k = Math.min(8, Math.max(0.5, 16 / pngWallThickness(S)));    // AI 허브 라벨의 벽 두께(약 16px)에 맞춘다
+  const anns = [];
+  for (const r of S.regions) {
+    const kind = S.kinds.get(r.id) || "etc", cat = (PKINDS.find(x => x[0] === kind) || [])[2];
+    if (cat == null) continue;
+    const poly = pngSimplify(pngTrace(S.lab, S.w, S.h, r.id, r.start), 1.2);
+    if (poly.length < 3) continue;
+    const flat = poly.flatMap(([x, y]) => [+(x * k).toFixed(1), +(y * k).toFixed(1)]);
+    const xs = poly.map(p => p[0] * k), ys = poly.map(p => p[1] * k), x0 = Math.min(...xs), y0 = Math.min(...ys);
+    anns.push({ id: anns.length, image_id: 1, category_id: cat, segmentation: [flat], area: +(r.area * k * k).toFixed(1),
+      bbox: [+x0.toFixed(1), +y0.toFixed(1), +(Math.max(...xs) - x0).toFixed(1), +(Math.max(...ys) - y0).toFixed(1)], iscrowd: 0, attributes: { occluded: false } });
+  }
+  return { info: { description: "도면 이미지에서 변환", source_image: S.name, converted: new Date().toISOString(), scale: +(k / S.sc).toFixed(4) },
+    images: [{ id: 1, width: Math.round(S.w * k), height: Math.round(S.h * k), file_name: S.name }],
+    categories: PKINDS.filter(x => x[2] != null).map(([, n, id]) => ({ id, name: "공간_" + n })), annotations: anns };
+}
+const pngJsonName = (S) => S.name.replace(/\.[^.]+$/, "") + "_변환.json";
+function pngDraw() {
+  const S = PNG.cur, cv = $("#pngCanvas"); if (!S || !cv) return;
+  const box = cv.parentElement.getBoundingClientRect(), scale = Math.min(box.width / S.w, 560 / S.h, 2);
+  cv.width = Math.round(S.w * scale); cv.height = Math.round(S.h * scale); cv.style.width = cv.width + "px"; cv.style.height = cv.height + "px";
+  const g = cv.getContext("2d"); g.imageSmoothingEnabled = true; g.drawImage(S.bmp, 0, 0, cv.width, cv.height);
+  const img = g.getImageData(0, 0, cv.width, cv.height), d = img.data, color = new Map();
+  for (const r of S.regions) { const kc = KIND_COLOR[S.kinds.get(r.id)] || "#E7E3DA"; color.set(r.id, kc === undefined || S.kinds.get(r.id) === "skip" ? null : [parseInt(kc.slice(1, 3), 16), parseInt(kc.slice(3, 5), 16), parseInt(kc.slice(5, 7), 16)]); }
+  for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+    const id = S.lab[Math.min(S.h - 1, (y / scale) | 0) * S.w + Math.min(S.w - 1, (x / scale) | 0)], c = color.get(id); if (!c) continue;
+    const q = (y * cv.width + x) * 4, a = id === S.sel ? .75 : .5;
+    d[q] = d[q] * (1 - a) + c[0] * a; d[q + 1] = d[q + 1] * (1 - a) + c[1] * a; d[q + 2] = d[q + 2] * (1 - a) + c[2] * a;
+  }
+  g.putImageData(img, 0, 0);
+  g.font = `600 ${Math.max(11, Math.round(12 * Math.min(1.4, scale)))}px Pretendard Variable, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+  S.regions.forEach((r, i) => { const k = S.kinds.get(r.id); if (k === "skip") return;
+    const label = `${i + 1} ${(PKINDS.find(x => x[0] === k) || [, "기타"])[1]}`, x = r.cx * scale, y = r.cy * scale;
+    g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.9)"; g.strokeText(label, x, y); g.fillStyle = r.id === S.sel ? "#004F59" : "#222"; g.fillText(label, x, y); });
+  cv._scale = scale;
+}
+function dataPng() {
+  const S = PNG.cur;
+  const head = `<div class="callout">${ico("info")}<div>평면도 이미지(PNG·JPG)를 올리면 벽·방을 인식해 AI 허브 SPA 라벨과 같은 형식의 JSON으로 바꾸고, <b>파일 업로드</b> 데이터로 추가해 같은 기준으로 채점합니다.
+    인식한 방의 용도는 자동으로 추정하니 확인하고 고쳐 주세요. 현관이 있어야 세대로 나뉩니다. 이미지는 브라우저 밖으로 나가지 않습니다.<br>
+    벽이 굵고 단순한 평면도(생성 모델 출력, 다이어그램)에 맞춘 인식입니다. 치수선·글자·도곽이 많은 CAD 원본 도면은 방이 제대로 나뉘지 않습니다 — AI 허브 도면은 라벨 JSON을 쓰세요.</div></div>`;
+  if (!S) return head + `<div class="card"><div class="card-body"><div class="drop-area" data-drop="png"><b>도면 이미지를 끌어다 놓으세요</b>PNG·JPG, 여러 장을 한꺼번에 놓으면 차례로 변환합니다.
+    <div style="margin-top:14px"><button class="btn btn-secondary" data-act="pickPng">${ico("file")}이미지 선택</button></div></div></div></div>`;
+  const P = S.p, rows = S.regions.map((r, i) => `<tr class="click${r.id === S.sel ? " is-sel" : ""}" data-preg="${r.id}"><td class="n">${i + 1}</td>
+    <td><select class="select input-sm" data-pkind="${r.id}" aria-label="${i + 1}번 실 용도">${PKINDS.map(([k, l]) => `<option value="${k}"${(S.kinds.get(r.id) || "etc") === k ? " selected" : ""}>${l}</option>`).join("")}</select></td>
+    <td class="n">${(r.area / S.regions.reduce((s, x) => s + x.area, 0) * 100).toFixed(1)}%</td></tr>`).join("");
+  const nEntry = [...S.kinds.values()].filter(k => k === "entry").length;
+  return head + `<div class="toolbar"><b style="font-size:14px">${esc(S.name)}</b><span class="field-hint">${S.iw}×${S.ih}px · 인식한 실 ${S.regions.length}개${PNG.queue.length ? ` · 남은 이미지 ${PNG.queue.length}장` : ""}</span><span class="spacer"></span>
+      ${PNG.queue.length ? `<button class="btn btn-ghost" data-act="pngAll">남은 ${PNG.queue.length}장 자동 변환·추가</button><button class="btn btn-ghost" data-act="pngSkip">이 이미지 건너뛰기</button>` : `<button class="btn btn-ghost" data-act="pngSkip">닫기</button>`}
+      <button class="btn btn-secondary" data-act="pngDownload">${ico("download")}JSON 내려받기</button>
+      <button class="btn btn-primary" data-act="pngAdd"${S.regions.length ? "" : " disabled"}>업로드 데이터로 추가</button></div>
+    ${nEntry !== 1 ? `<div class="callout is-warning">${ico("alert")}<div>현관이 ${nEntry}개입니다. 세대마다 현관이 하나씩 있어야 채점됩니다.</div></div>` : ""}
+    <div class="grid2" style="grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr)">
+      <div class="card"><div class="card-body" style="display:flex;justify-content:center;background:var(--color-bg-canvas);border-radius:var(--radius-md)"><canvas id="pngCanvas" style="cursor:pointer;max-width:100%" aria-label="인식 결과 — 실을 누르면 선택"></canvas></div></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">실 용도</h2><button class="btn btn-ghost btn-sm" data-act="pngAutoKinds">자동 추정</button></div>
+        <div class="card-body flush tw" style="max-height:340px;overflow:auto"><table class="t compact"><thead><tr><th class="n">#</th><th>용도</th><th class="n">면적비</th></tr></thead><tbody>${rows || `<tr><td colspan="3" class="field-hint">인식한 실이 없습니다. 아래 인식 설정을 바꿔 보세요.</td></tr>`}</tbody></table></div>
+        <div class="card-body" style="border-top:1px solid var(--color-divider)">
+          <div class="field"><label class="field-label">벽 인식</label><select class="select" data-png="mode">${[["color", "벽 색으로"], ["dark", "어두운 선으로"]].map(([v, l]) => `<option value="${v}"${P.mode === v ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+          ${P.mode === "color" ? `<div class="field"><label class="field-label">벽 색 허용 오차 <span class="num">${P.tol}</span></label><input type="range" min="10" max="140" value="${P.tol}" data-png="tol"><div class="field-hint">벽 색 rgb(${P.wallColor.join(", ")}) — 이미지에서 가장 흔한 진한 색</div></div>`
+            : `<div class="field"><label class="field-label">어두움 기준 <span class="num">${P.darkT.toFixed(2)}</span></label><input type="range" min="0.1" max="0.9" step="0.01" value="${P.darkT}" data-png="darkT"></div>`}
+          <div class="field"><label class="field-label">문 틈 막기 <span class="num">${P.r}px</span></label><input type="range" min="1" max="${Math.max(8, Math.round(Math.min(S.w, S.h) / 6))}" value="${P.r}" data-png="r"><div class="field-hint">방이 합쳐지면 키우고, 작은 방이 사라지면 줄입니다. <button class="btn btn-ghost btn-sm" data-act="pngAutoCal">자동</button></div></div>
+          <div class="field" style="margin:0"><label class="field-label">최소 방 크기 <span class="num">${P.minPct}%</span></label><input type="range" min="0.05" max="3" step="0.05" value="${P.minPct}" data-png="minPct"></div>
+          <div class="field-hint" style="margin-top:8px">인식 설정을 바꾸면 실 용도는 자동 추정으로 다시 채워집니다.</div>
+        </div></div>
+    </div>`;
+}
+async function pngAddCurrent(silent) {
+  const S = PNG.cur; if (!S) return;
+  const data = pngToCoco(S);
+  if (!data.annotations.length) { toast(`${S.name}: 변환할 실이 없습니다`, true); return false; }
+  await ingest([{ name: pngJsonName(S), data }], "upload", { stay: true, quiet: silent });
+  return true;
 }
 
 /* ── 평가 구조 ── */
@@ -1443,6 +1752,19 @@ async function onClick(e) {
       case "pickFiles": return $("#fileIn").click();
       case "pickDir": return $("#dirIn").click();
       case "pickZip": return $("#zipIn").click();
+      case "pickPng": return $("#pngIn").click();
+      case "pngAutoKinds": pngAutoKinds(PNG.cur); return render();
+      case "pngAutoCal": pngAutoCal(PNG.cur); pngDetect(PNG.cur); pngAutoKinds(PNG.cur); return render();
+      case "pngDownload": return PNG.cur && download(pngJsonName(PNG.cur), JSON.stringify(pngToCoco(PNG.cur)), "application/json");
+      case "pngSkip": await pngNext(); return render();
+      case "pngAdd": { const name = PNG.cur && PNG.cur.name; if (await pngAddCurrent()) { toast(`‘${name}’을(를) 변환해 업로드 데이터에 추가했습니다`); await pngNext(); render(); } return; }
+      case "pngAll": {
+        const items = [];
+        if (PNG.cur) items.push({ name: pngJsonName(PNG.cur), data: pngToCoco(PNG.cur) });
+        while (PNG.queue.length) { await pngNext(); if (PNG.cur) items.push({ name: pngJsonName(PNG.cur), data: pngToCoco(PNG.cur) }); }
+        PNG.cur = null;
+        return ingest(items.filter(x => x.data.annotations.length), "upload");
+      }
       case "zipRemove": ST.zips = ST.zips.filter(z => z.name !== a.dataset.zip); return render();
       case "zipImport": {
         const { pick } = zipSelection();
@@ -1495,6 +1817,13 @@ async function onClick(e) {
     }
     return;
   }
+  if (e.target.id === "pngCanvas" && PNG.cur) {
+    const S = PNG.cur, cv = e.target, r = cv.getBoundingClientRect(), k = cv._scale || 1;
+    const x = Math.floor((e.clientX - r.left) / k), y = Math.floor((e.clientY - r.top) / k), id = S.lab[y * S.w + x];
+    S.sel = id >= 0 && id !== S.carrier ? (S.sel === id ? null : id) : null; return render();
+  }
+  const pr = e.target.closest("[data-preg]");
+  if (pr && !e.target.closest("select")) { const id = +pr.dataset.preg; PNG.cur.sel = PNG.cur.sel === id ? null : id; return render(); }
   const lay = e.target.closest("[data-l]");
   if (lay) { const k = lay.dataset.l; ST.layers[k] = !ST.layers[k]; lay.classList.toggle("is-active", ST.layers[k]); lay.setAttribute("aria-pressed", ST.layers[k]); return drawPlan(); }
   const cl = e.target.closest("[data-close]");
@@ -1523,6 +1852,11 @@ async function onClick(e) {
     const t = e.target;
     if (t.closest("#critList")) return onCritEdit(e);
     if (t.dataset.p) return onParam(e);
+    if (t.dataset.pkind && PNG.cur) { PNG.cur.kinds.set(+t.dataset.pkind, t.value); PNG.cur.edited = true; PNG.cur.sel = +t.dataset.pkind; return render(); }
+    if (t.dataset.png && PNG.cur) {
+      const S = PNG.cur, k = t.dataset.png; S.p[k] = k === "mode" ? t.value : +t.value;
+      pngDetect(S); pngAutoKinds(S); return render();
+    }
     if (t.dataset.zopt) {
       const k = t.dataset.zopt, o = ST.zipOpt;
       if (t.type === "checkbox") { const set = new Set(o[k]); t.checked ? set.add(t.value) : set.delete(t.value); o[k] = [...set]; }
@@ -1544,6 +1878,7 @@ async function onClick(e) {
   $("#fileIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
   $("#dirIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
   $("#zipIn").onchange = (e) => { addZips([...e.target.files]); e.target.value = ""; };
+  $("#pngIn").onchange = (e) => { pngOpen([...e.target.files]); e.target.value = ""; };
   $("#cfgIn").onchange = (e) => { if (e.target.files[0]) loadConfig(e.target.files[0]); e.target.value = ""; };
   $("#statIn").onchange = (e) => { if (e.target.files[0]) loadStatFile(e.target.files[0]); e.target.value = ""; };
   $("#baseIn").onchange = async (e) => {
