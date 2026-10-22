@@ -265,7 +265,26 @@ python tests/test_aihub_eval.py          # 평가기(세대 나누기 · 점검 
 python tests/test_engine_parity.py [라벨 폴더]   # 웹 엔진(JS) ↔ 파이썬 값 일치 — 실제 라벨 300장(948세대)에서 오차 0
 node tests/test_stats.js                 # 연구용 통계를 기준값(t·χ²·F 분포표, R 예제, Wilson, Newcombe 등)과 대조
 python tests/test_genspec.py             # 생성 사양 → BuildingSpec(셀 합 · 필수 실 · 인접 가중치 범위)
+node tools/validity_check.js <라벨 폴더> [300]   # 타당성 점검(아래 표) — 약 5분
 ```
+
+### 타당성 점검 (2026-10-22, AI 허브 라벨 300장 · 948세대)
+
+| 점검 | 결과 |
+|---|---|
+| 불변성 — 회전 90° · 좌우 반전 | 300장 모두 세대 나눔 동일, 948세대 중 944세대 점수 완전 동일(4세대 최대 2.8점 — 경계 표본 간격 때문에 기준값 근처에서 생기는 차이) |
+| 불변성 — 평행 이동 | 948세대 모두 1점 이내 |
+| 손상 — 거실↔안방 라벨 교환 | 90.7%에서 정답지 근접도 하락(평균 −22.8점, 총점 −47.0점) |
+| 손상 — 주방 삭제 | 100% 필수 조건 탈락 |
+| 민감도 — 벽 간격 25 / 40px | 세대 나눔 98.9% / 100% 유지, 순위 τ(총점 · 근접도) .87 · .87 / .83 · .84 |
+| 민감도 — 최소 접촉 30 / 60px | 100% / 98.9%, τ .91 · .92 / .90 · .91 |
+| 민감도 — 덕트 면적 6,000 / 20,000px² | 100%, τ .85 · .78 / .84 · .80 |
+| 민감도 — **그래프 규약(문 추정 → 벽 인접)** | 100%, **τ .67 · .58** — 결과를 가장 크게 바꾸는 선택 |
+
+**검증된 것**: 계산이 정의대로 되는가(웹 ↔ 파이썬 오차 0, 통계 기준값 일치, 기하 변환 불변, 손상에 의도대로 반응, 수치 기준값에 대해 순위가 비교적 안정).
+**아직 검증되지 않은 것**: ① 추정한 문(출입) 관계가 실제 문과 맞는가 — 구조 라벨(STR)의 실제 문과 같은 도면끼리 대조해야 함,
+② 현관 기준 세대 나누기의 오류율 — 표본 수동 검수 필요, ③ 정답지 근접도가 전문가·거주자 평가와 관련되는가(외부 기준 타당도),
+④ 축척(㎡ 표시는 ‘침실 중앙값 9㎡’ 가정의 추정치), ⑤ 표본 실측으로 정한 기준값(근거 등급 D).
 
 ---
 
@@ -280,7 +299,7 @@ docs/fonts/                Pretendard · Red Hat Display(자체 서빙)
 docs/syntax-report.html    Space Syntax 리포트 · docs/benchmark-report.html  벤치마크 리포트
 server/floorplan-api/      로그인 · 허용 계정 · 활동 기록 · 공유 보관 기록 API
 deploy/                    api-up.sh · caddy/(블록 · apply.py) · deploy.sh
-tools/build_default_data.js  AI 허브 라벨 → 기본 데이터
+tools/build_default_data.js  AI 허브 라벨 → 기본 데이터 · tools/validity_check.js  타당성 점검
 aihub_eval.py              평가 CLI
 floorplan_bench/           aihub · evaluate · criteria · stats · render_aihub · genspec(평가 · 생성 사양) / spacesyntax · syntax_render(공간구문)
                            spec · env · terms · plan · qubo · generate · solve_ortools · solve_dwave · diagnose · report(벤치마크)
