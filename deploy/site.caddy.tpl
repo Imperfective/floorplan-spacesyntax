@@ -25,7 +25,7 @@ __DOMAIN__ {
 	redir /syntax    /syntax-report.html
 	redir /benchmark /benchmark-report.html
 	redir /aihub     /
-	redir /image     /image.html
+	redir /image     /
 }
 
 www.__DOMAIN__ {

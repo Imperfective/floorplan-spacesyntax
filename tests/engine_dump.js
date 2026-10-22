@@ -10,7 +10,10 @@ for (const f of process.argv.slice(2)) {
   const data = JSON.parse(fs.readFileSync(f, "utf8"));
   if (E.labelType(data, path.basename(f)) !== "SPA") continue;
   for (const u of E.loadUnits(data, path.basename(f))) {
-    const r = E.evaluate(u, crit);
+    const A = E.analyzeUnit(u), r = E.scoreUnit(u, A, crit);
+    // 웹이 저장해 두고 다시 채점하는 경로(요약 → scoreCached)도 같은 점수를 내야 한다
+    const c = E.scoreCached(structuredClone(E.summarizeUnit(u, A)), crit);
+    if (Math.abs(c.score.total - r.score.total) > 1e-9) throw new Error(`cached score differs: ${u.uid}`);
     rows.push(E.statRow(r, path.basename(f)));
     out.push({ unit: r.unit, type: r.type, doors: r.doors, issues: r.issues.map(i => [i.id, i.level]),
       global: r.measures.global, rooms: r.measures.rooms, features: r.features, total: r.score.total });

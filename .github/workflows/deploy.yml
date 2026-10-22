@@ -73,7 +73,7 @@ jobs:
 
       - name: 배포 확인
         run: |
-          for f in index.html image.html; do
+          for f in index.html grid-editor.html; do
             want=$(sha256sum "docs/$f" | cut -c1-64)
             for i in 1 2 3 4 5; do
               got=$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/$f" | sha256sum | cut -c1-64) || got=""

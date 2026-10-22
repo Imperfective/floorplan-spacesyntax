@@ -734,17 +734,33 @@ function evaluate(u, criteria, params = {}, baseline = null) {
   return scoreUnit(u, analyzeUnit(u, params), criteria, baseline);
 }
 
+/* 저장용 요약 — 조건과 무관한 부분(지표·특징·점검 결과)만. 구조화 복제 가능한 평범한 객체.
+   조건이 바뀌면 원본을 다시 읽지 않고 이 요약으로 다시 채점한다(scoreCached). */
+function summarizeUnit(u, A) {
+  const m = measures(u, A.adj, A.issues, A.res, A.f, A.ranked, null);
+  return { uid: u.uid, type: typeKey(u), features: A.f, measures: m,
+    pass: !A.issues.some(i => i.level === "error"),
+    issueCounts: Object.fromEntries(ISSUE_IDS.map(id => [id, A.issues.filter(i => i.id === id && i.level !== "info").length])) };
+}
+function scoreCached(s, criteria, baseline = null) {
+  const typ = baseline ? typicality(s.features, s.type, baseline) : null;
+  const m = { global: Object.assign({}, s.measures.global, { typicality: typ ? typ.score : null }), rooms: s.measures.rooms };
+  return { unit: s.uid, type: s.type, measures: m, score: scoreAll(criteria, m), features: s.features, typicality: typ,
+    feasibility: { pass: s.pass }, issueCounts: s.issueCounts, cached: true };
+}
+
 /* ═════════════════════════════════════ 통계 집계 (floorplan_bench/stats.py 와 같은 형식) */
 const ISSUE_IDS = ["F1", "F2", "F3", "F4", "F5", "F6", "F8"];
 const GRADES = ["A+", "A", "B+", "B", "C+", "C", "D", "F"];
 
 /* 세대 결과 → 통계에 남길 한 행. 그림·폴리곤은 빼고 점수·지표·조건점수만. */
-function statRow(r, file) {
-  const issues = Object.fromEntries(ISSUE_IDS.map(id => [id, r.issues.filter(i => i.id === id && i.level !== "info").length]));
+function statRow(r, file, extra) {
+  const issues = r.issueCounts ? Object.assign({}, r.issueCounts)
+    : Object.fromEntries(ISSUE_IDS.map(id => [id, r.issues.filter(i => i.id === id && i.level !== "info").length]));
   return { unit: r.unit, file, type: r.type, total: r.score.total, base: r.score.base, penalty: r.score.penalty,
     gated: r.score.gated, grade: r.score.grade, pass: r.feasibility.pass, issues,
     global: Object.fromEntries(Object.entries(r.measures.global).map(([k, v]) => [k, fin(v) ? v : null])),
-    crit: r.score.rows.map(x => x.score) };
+    crit: r.score.rows.map(x => x.score), ...(extra || {}) };
 }
 function describe(xs) {
   const v = xs.filter(fin);
@@ -794,6 +810,6 @@ function aggregate(rows, config, extra = {}) {
 const API = { SPACE_CATS, CORE_CATS, STR_CATS, OBJ_CATS, KIND_NAME, PARAMS, defaultParams, MEASURES, TARGETS,
   EFFECTS, MODES, PRESETS, FEATURES, CARRIER, labelType, loadUnits, loadStruct, structChecks, permeability,
   feasibility, features, typeKey, buildBaseline, typicality, parseDSL, toDSL, scoreAll, scoreValue, measures,
-  evaluate, analyzeUnit, scoreUnit, statRow, aggregate, describe, ISSUE_IDS, GRADES, grade, unitOf, neighbors, pts, bbOf };
+  evaluate, analyzeUnit, scoreUnit, summarizeUnit, scoreCached, statRow, aggregate, describe, ISSUE_IDS, GRADES, grade, unitOf, neighbors, pts, bbOf };
 if (typeof module !== "undefined" && module.exports) module.exports = API; else root.AIHub = API;
 })(typeof globalThis !== "undefined" ? globalThis : this);

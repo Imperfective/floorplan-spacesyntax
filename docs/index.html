@@ -1,6 +1,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>도면 평가 스튜디오</title>
+<title>도면 평가 프로그램</title>
+<meta name="description" content="AI 허브 건축 도면 라벨(JSON)을 불러와 시공 가능성·공간구문으로 채점하고 통계로 쌓는 도면 평가 프로그램">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%228%22%20fill%3D%22%23004F59%22/%3E%3Cpath%20d%3D%22M8%208h16v16H8zM8%2016h7M15%208v16M15%2019.5h9%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M11.5%2012%2019.5%2013.5%2019.5%2021.7M11.5%2020.2%2019.5%2013.5%22%20fill%3D%22none%22%20stroke%3D%22%23F47D30%22%20stroke-width%3D%221.3%22/%3E%3Ccircle%20cx%3D%2211.5%22%20cy%3D%2212%22%20r%3D%221.9%22%20fill%3D%22%23F47D30%22/%3E%3Ccircle%20cx%3D%2219.5%22%20cy%3D%2213.5%22%20r%3D%221.9%22%20fill%3D%22%23F47D30%22/%3E%3Ccircle%20cx%3D%2219.5%22%20cy%3D%2221.7%22%20r%3D%221.9%22%20fill%3D%22%23F47D30%22/%3E%3Ccircle%20cx%3D%2211.5%22%20cy%3D%2220.2%22%20r%3D%221.9%22%20fill%3D%22%23F47D30%22/%3E%3C/svg%3E">
 <style>
 /* ═════════════════════════════════════════════════════════════════
    Works Design System(MS DX팀) 토큰·프리미티브를 따른다.
@@ -324,14 +326,37 @@ details.more[open]>summary svg{transform:rotate(90deg)}
   .crow-main{grid-template-columns:44px 1fr 32px}.crow-main>.select,.crow-main>.grp{grid-column:2/3}
   .input-search{min-width:0;flex:1}
 }
+
+/* ── 브랜드 · 데이터 가져오기 ─────────────────────────── */
+.brand{align-items:center}
+.brand-mark{width:28px;height:28px;display:block;flex-shrink:0}
+.brand-name{font-size:16px;font-weight:800;letter-spacing:-.4px;color:var(--color-text-primary)}
+.brand-en{font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--color-primary-100);text-transform:uppercase}
+.src{display:inline-flex;align-items:center;padding:0 6px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid var(--color-divider);background:var(--color-bg-1);color:var(--color-text-secondary);white-space:nowrap}
+.drop-area{border:1.5px dashed var(--color-gray-200);border-radius:var(--radius-md);padding:var(--space-7) var(--space-6);text-align:center;background:var(--color-bg-1);color:var(--color-text-secondary);font-size:13px;transition:border-color var(--duration-fast) var(--ease-standard),background var(--duration-fast) var(--ease-standard)}
+.drop-area.over{border-color:var(--color-primary-100);background:var(--color-primary-50)}
+.drop-area b{display:block;color:var(--color-text-primary);font-size:14px;margin-bottom:4px}
+.opt-grid{display:grid;grid-template-columns:140px minmax(0,1fr);gap:var(--space-3) var(--space-5);align-items:center}
+.opt-grid>.l{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
+.opt-grid>.c{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chk{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--color-divider);border-radius:10px;font-size:12.5px;cursor:pointer;background:var(--color-bg-0);user-select:none}
+.chk input{accent-color:var(--color-primary-100);margin:0}
+.chk:has(input:checked){border-color:var(--color-primary-100);background:var(--color-primary-50);color:var(--color-primary-200);font-weight:600}
+.zip-sum{display:flex;gap:var(--space-5);flex-wrap:wrap;font-size:13px;color:var(--color-text-secondary)}
+.zip-sum b{color:var(--color-text-primary);font-feature-settings:"tnum" 1}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--color-text-secondary);font-size:13px;z-index:3}
+@media (max-width:720px){.opt-grid{grid-template-columns:1fr}.brand-en{display:none}}
 </style>
 
 <div class="app">
   <header class="topbar">
     <button class="topbar-icon menu-btn" id="menuBtn" aria-label="메뉴"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-    <a class="brand" href="#/stats"><span class="brand-word">SPACESYNTAX</span><span class="brand-sub">도면 평가 스튜디오</span></a>
+    <a class="brand" href="#/stats" aria-label="도면 평가 프로그램 처음으로">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#004F59"/><path d="M8 8h16v16H8zM8 16h7M15 8v16M15 19.5h9" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M11.5 12 19.5 13.5 19.5 21.7M11.5 20.2 19.5 13.5" fill="none" stroke="#F47D30" stroke-width="1.3"/><circle cx="11.5" cy="12" r="1.9" fill="#F47D30"/><circle cx="19.5" cy="13.5" r="1.9" fill="#F47D30"/><circle cx="19.5" cy="21.7" r="1.9" fill="#F47D30"/><circle cx="11.5" cy="20.2" r="1.9" fill="#F47D30"/></svg>
+      <span class="brand-name">도면 평가 프로그램</span><span class="brand-en">Space Syntax</span>
+    </a>
     <div class="topbar-spacer"></div>
-    <div class="dataset" id="dataset" title="불러온 데이터"></div>
+    <div class="dataset" id="dataset" title="보유 데이터"></div>
     <a class="topbar-icon" href="https://github.com/Imperfective/floorplan-spacesyntax#d-ai-허브-라벨json-평가-모델" target="_blank" rel="noopener" title="사용 설명서(README)" aria-label="사용 설명서">
       <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 2-2.5 3.5"/><path d="M12 17.5v.01"/></svg></a>
   </header>
@@ -345,14 +370,15 @@ details.more[open]>summary svg{transform:rotate(90deg)}
 </div>
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" hidden></div>
-<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 JSON을 불러옵니다</div></div>
+<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 데이터(JSON · AI 허브 라벨 zip)를 가져옵니다</div></div>
 <div class="progress" id="progress" hidden>
-  <div style="display:flex;align-items:center;gap:8px"><b id="progText" style="flex:1;font-size:13px">불러오는 중</b><button class="btn btn-ghost btn-sm" id="progCancel">멈춤</button></div>
+  <div style="display:flex;align-items:center;gap:8px"><b id="progText" style="flex:1;font-size:13px">가져오는 중</b><button class="btn btn-ghost btn-sm" id="progCancel">멈춤</button></div>
   <div class="bar"><b id="progBar" style="width:0%"></b></div>
   <div class="field-hint" id="progSub"></div>
 </div>
-<input type="file" id="fileIn" accept=".json,application/json" multiple hidden>
+<input type="file" id="fileIn" accept=".json,.zip,application/json,application/zip" multiple hidden>
 <input type="file" id="dirIn" webkitdirectory directory multiple hidden>
+<input type="file" id="zipIn" accept=".zip,application/zip" multiple hidden>
 <input type="file" id="cfgIn" accept=".json,.txt" hidden>
 <input type="file" id="baseIn" accept=".json" hidden>
 <input type="file" id="statIn" accept=".json" hidden>
@@ -371,18 +397,18 @@ const pct = (v) => v == null ? "—" : (v * 100).toFixed(v >= .995 || v === 0 ? 
 const short = (n) => String(n).replace(/\.json$/i, "").replace(/^APT_FP_/, "");
 const pad2 = (n) => String(n).padStart(2, "0");
 const dt = (iso) => { const d = new Date(iso); return isNaN(d) ? "—" : `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const mb = (b) => b == null ? "—" : b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : (b / 1e6).toFixed(1) + " MB";
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 const tick = () => new Promise(r => setTimeout(r, 0));
 
-/* 아이콘 — Works Lucide 세트(1.5px stroke) */
 const ICON = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   plan: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h9M12 3v18M12 15h9"/>',
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13l3.5 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
   sliders: '<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.5 1.5 0 0 0 .3 1.6l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.5 1.5 0 0 0-2.5.6V20a2 2 0 1 1-4 0v-.1a1.5 1.5 0 0 0-2.6-.9l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.5 1.5 0 0 0-.9-2.6H4a2 2 0 1 1 0-4h.1a1.5 1.5 0 0 0 .9-2.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.5 1.5 0 0 0 2.6-.9V4a2 2 0 1 1 4 0v.1a1.5 1.5 0 0 0 2.6.9l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.5 1.5 0 0 0 .9 2.6H20a2 2 0 1 1 0 4h-.1a1.5 1.5 0 0 0-.5.4z"/>',
   check: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
   folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2.5h7A1.5 1.5 0 0 1 19 9v8.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/>',
-  ext: '<path d="M14 5h5v5"/><path d="M19 5 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/>',
   search: '<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
@@ -395,6 +421,7 @@ const ICON = {
   chevR: '<path d="m9 18 6-6-6-6"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  ext: '<path d="M14 5h5v5"/><path d="M19 5 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/>',
 };
 const ico = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ""}</svg>`;
 
@@ -402,8 +429,21 @@ const KIND_COLOR = { living: "#F2D99B", bed: "#B7D2EA", kitchen: "#F1BFA0", entr
   balcony: "#DCE6CB", dress: "#EACAD8", ac: "#DADADA", etc: "#E7E3DA", multi: "#CFE0BE" };
 const GRADE_BADGE = (g) => ({ A: "badge-success", B: "badge-info", C: "badge-warning" }[g[0]] || "badge-error");
 const gradeFill = (g) => ({ A: "#00804F", B: "#11798A", C: "#8B6914" }[g[0]] || "#C42B3A");
+const SOURCES = { aihub: "AI 허브", upload: "파일 업로드", manual: "직접 입력", sample: "예시" };
 
-/* ═════════════════════════════════════ 상태 */
+/* AI 허브 '건축 도면 데이터'(datasetkey 71465) 라벨 묶음 — 원천 이미지(TS_/VS_, 약 26GB)는 받지 않는다 */
+const AIHUB_LABEL_ZIPS = [
+  ["TL_SPA.zip", "37.81 MB", 497461, "공간 — 채점에 필요", true], ["VL_SPA.zip", "4.92 MB", 497469, "공간 — 채점에 필요", true],
+  ["TL_STR.zip", "91.44 MB", 497462, "구조(벽·문·창) — 문·창 겹침 검사", false], ["VL_STR.zip", "11.74 MB", 497470, "구조(벽·문·창) — 문·창 겹침 검사", false],
+  ["TL_OBJ.zip", "9.03 MB", 497459, "객체(위생·주방 기구) — 그림만", false], ["VL_OBJ.zip", "1.13 MB", 497467, "객체 — 그림만", false],
+  ["TL_OCR.zip", "15.10 MB", 497460, "도면 글자 — 그림만", false], ["VL_OCR.zip", "1.91 MB", 497468, "도면 글자 — 그림만", false],
+];
+const AIHUB_PAGE = "https://aihub.or.kr/aihubdata/data/view.do?dataSetSn=71465";
+
+/* ═════════════════════════════════════ 상태
+   파일 기록 f = { id, name, type, source, added, pkey, sum, results, sheetScore, full }
+     sum     저장되는 요약(세대별 지표·특징·점검 수) — 조건이 바뀌면 이것으로만 다시 채점
+     full    도면을 그릴 때만 원본에서 다시 계산한 전체 결과(한 번에 한 파일만 메모리에) */
 const ST = {
   files: [], seq: 0,
   route: { page: "stats", tab: "summary", id: null },
@@ -414,32 +454,103 @@ const ST = {
   layers: { fill: true, names: true, doors: true, graph: false, flags: true, dim: true },
   view: null, extent: null, extentFor: null,
   snaps: [], busy: false, cancel: false,
-  statType: "", fileQuery: "", archQuery: "", unitSort: "name",
+  statType: "", statSource: "", fileQuery: "", archQuery: "", unitSort: "name",
+  zips: [], zipOpt: { labels: ["SPA", "STR"], houses: ["APT"], drawings: ["FP"], limit: "all", n: 200, q: "" },
 };
+const pkey = () => JSON.stringify(Object.keys(ST.params).sort().map(k => [k, ST.params[k]]));
 const curFile = () => ST.files.find(f => f.id === ST.fileId) || null;
-const curResult = () => { const f = curFile(); return f && f.results ? f.results[ST.unitIdx] || null : null; };
+const curResult = () => { const f = curFile(); return f && f.full && f.full.results ? f.full.results[ST.unitIdx] || null : null; };
 const allUnits = () => ST.files.flatMap(f => (f.results || []).map((r, ui) => ({ f, ui, r })));
 const cleanParams = () => Object.fromEntries(Object.entries(ST.params).filter(([, v]) => v != null));
 
-/* ═════════════════════════════════════ 처리 (나눠서 — 많아도 멈추지 않게) */
-function analyzeFile(f) {
-  f.type = E.labelType(f.data, f.name);
-  f.units = []; f.analyses = []; f.results = []; f.struct = null; f.issues = [];
+/* ═════════════════════════════════════ 저장소 (IndexedDB: 기록·원본·요약) */
+const DB = { name: "aihub-studio", db: null, ok: true };
+function dbOpen() {
+  return new Promise((res) => {
+    try {
+      const rq = indexedDB.open(DB.name, 2);
+      rq.onupgradeneeded = () => {
+        const db = rq.result;
+        for (const s of ["snapshots", "files", "meta"]) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: "id" });
+      };
+      rq.onsuccess = () => { DB.db = rq.result; res(true); };
+      rq.onerror = () => { DB.ok = false; res(false); };
+      rq.onblocked = () => { DB.ok = false; res(false); };
+    } catch { DB.ok = false; res(false); }
+  });
+}
+function dbDo(storeName, mode, fn) {
+  return new Promise((res, rej) => {
+    if (!DB.db) return rej(new Error("저장소 없음"));
+    const tx = DB.db.transaction(storeName, mode), rq = fn(tx.objectStore(storeName));
+    tx.oncomplete = () => res(rq && rq.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+  });
+}
+const metaOf = (f) => ({ id: f.id, name: f.name, type: f.type, source: f.source, added: f.added, pkey: f.pkey, sum: f.sum });
+async function persistFile(f, data) {
+  if (!DB.db) { f.data = data; return; }       // 저장소가 없으면 이 창 메모리에만
+  try {
+    await new Promise((res, rej) => {
+      const tx = DB.db.transaction(["files", "meta"], "readwrite");
+      tx.objectStore("files").put({ id: f.id, data }); tx.objectStore("meta").put(metaOf(f));
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  } catch (e) { f.data = data; if (DB.ok) { DB.ok = false; toast("브라우저 저장 공간에 쓰지 못했습니다. 이 창에서만 유지됩니다 — " + (e && e.name || ""), true); } }
+}
+async function unpersist(ids) {
+  if (!DB.db || !ids.length) return;
+  await new Promise((res) => {
+    const tx = DB.db.transaction(["files", "meta"], "readwrite");
+    for (const id of ids) { tx.objectStore("files").delete(id); tx.objectStore("meta").delete(id); }
+    tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+  });
+}
+async function rawOf(f) {
+  if (f.data) return f.data;
+  if (f.full && f.full.data) return f.full.data;
+  const rec = DB.db ? await dbDo("files", "readonly", s => s.get(f.id)) : null;
+  if (!rec) throw new Error("원본이 저장소에 없습니다");
+  return rec.data;
+}
+
+/* ═════════════════════════════════════ 처리 — 원본 → 요약(저장) */
+function summarize(f, data) {
+  f.type = E.labelType(data, f.name);
+  f.pkey = pkey();
   if (f.type === "SPA") {
-    f.units = E.loadUnits(f.data, f.name, ST.params);
-    f.analyses = f.units.map(u => E.analyzeUnit(u, ST.params));
-  } else if (f.type === "STR") {
-    f.struct = E.loadStruct(f.data, f.name);
-    f.issues = E.structChecks(f.struct, ST.params.door_window_min_overlap);
+    const units = E.loadUnits(data, f.name, ST.params);
+    const analyses = units.map(u => E.analyzeUnit(u, ST.params));
+    f.sum = { units: units.map((u, i) => E.summarizeUnit(u, analyses[i])) };
+    return { data, units, analyses };
   }
+  if (f.type === "STR") {
+    const struct = E.loadStruct(data, f.name), issues = E.structChecks(struct, ST.params.door_window_min_overlap);
+    f.sum = { issues, counts: { door: struct.door.length, window: struct.window.length, wall: struct.wall.length } };
+    return { data, struct, issues };
+  }
+  f.sum = {};
+  return { data };
+}
+/* 도면을 그릴 때 — 원본을 꺼내 전체 결과(문·점검 메시지·실별 좌표)를 만든다. 한 파일만 메모리에 둔다. */
+async function ensureFull(f) {
+  if (f.full) return f.full;
+  const data = await rawOf(f);
+  const full = summarize(f, data);
+  ST.files.forEach(x => { if (x !== f && x.full && !x.data) x.full = null; });
+  f.full = full; scoreFull(f);
+  return full;
+}
+function scoreFull(f) {
+  const full = f.full; if (!full) return;
+  if (full.units) full.results = full.units.map((u, i) => E.scoreUnit(u, full.analyses[i], ST.criteria, ST.baseline));
 }
 async function runJobs(label, jobs) {
   ST.busy = true; ST.cancel = false;
   $("#progress").hidden = false; $("#progBar").style.width = "0%"; $("#progText").textContent = label; $("#progSub").textContent = "";
-  let t = performance.now(), done = 0;
+  let t = performance.now(), done = 0, failed = 0;
   for (const j of jobs) {
     if (ST.cancel) break;
-    try { await j.fn(); } catch (e) { console.error(j.name, e); toast(`${j.name}: 읽지 못했습니다 — ${e.message}`, true); }
+    try { await j.fn(); } catch (e) { failed++; console.error(j.name, e); if (failed <= 3) toast(`${j.name}: 읽지 못했습니다 — ${e.message}`, true); }
     done++;
     if (performance.now() - t > 40) {
       $("#progText").textContent = `${label} ${int(done)} / ${int(jobs.length)}`;
@@ -449,58 +560,149 @@ async function runJobs(label, jobs) {
     }
   }
   $("#progress").hidden = true; ST.busy = false;
-  return done;
+  return { done, failed };
 }
-async function ingest(items) {
-  const jobs = items.map(it => ({ name: it.name, fn: async () => {
-    const data = it.data || JSON.parse(await it.file.text());
-    if (!data || !Array.isArray(data.annotations)) throw new Error("COCO 라벨 형식이 아닙니다");
-    const old = ST.files.find(f => f.name === it.name);
-    const rec = old || { id: "f" + (++ST.seq), name: it.name };
-    rec.data = data; analyzeFile(rec);
-    if (!old) ST.files.push(rec);
-  } }));
+/* items: [{ name, file?, data?, load?() }] — load가 있으면 zip 안의 항목처럼 그때 읽는다 */
+async function ingest(items, source) {
+  if (ST.busy) return toast("다른 작업이 끝난 뒤에 다시 해 주세요", true);
+  const added = new Date().toISOString();
   const before = ST.files.length;
-  const n = await runJobs("불러오는 중", jobs);
+  const jobs = items.map(it => ({ name: it.name, fn: async () => {
+    const data = it.data || (it.load ? await it.load() : JSON.parse(await it.file.text()));
+    if (!data || !Array.isArray(data.annotations)) throw new Error("COCO 라벨 형식(annotations)이 아닙니다");
+    const old = ST.files.find(f => f.name === it.name);
+    const f = old || { id: "f" + Date.now().toString(36) + (++ST.seq).toString(36), name: it.name };
+    f.source = source; f.added = added; f.full = null; f.data = null;
+    summarize(f, data);
+    if (!old) ST.files.push(f);
+    await persistFile(f, data);
+  } }));
+  const { done, failed } = await runJobs("가져오는 중", jobs);
   if (ST.baseSource === "auto") rebuildBaseline();
   rescore(false);
-  toast(`파일 ${int(n)}개를 처리했습니다${ST.cancel ? "(중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`);
-  const first = ST.files.find(x => x.name === items[0].name);
+  toast(`${SOURCES[source] || source} — 파일 ${int(done - failed)}개를 가져왔습니다${failed ? ` · 실패 ${failed}개` : ""}${ST.cancel ? " (중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`, failed > 0 && done === failed);
+  const first = ST.files.find(x => x.name === items[0]?.name);
   if (items.length === 1 && first) { selectFile(first.id); go(`#/plans/${first.id}`); }
-  else if (ST.route.page === "plans") { if (!curFile() && first) selectFile(first.id); render(); }
   else go("#/stats");
 }
-async function reprocessAll() {
-  await runJobs("다시 계산하는 중", ST.files.map(f => ({ name: f.name, fn: () => analyzeFile(f) })));
+async function reprocessAll(label = "다시 계산하는 중") {
+  const { failed } = await runJobs(label, ST.files.map(f => ({ name: f.name, fn: async () => {
+    const data = await rawOf(f); f.full = null; summarize(f, data);
+    if (DB.db) await dbDo("meta", "readwrite", s => s.put(metaOf(f))).catch(() => {});
+  } })));
+  if (failed) toast(`${failed}개 파일은 다시 계산하지 못했습니다`, true);
   if (ST.baseSource === "auto") rebuildBaseline();
-  const f = curFile(); if (f) ST.unitIdx = f.units.length ? Math.min(Math.max(ST.unitIdx, 0), f.units.length - 1) : -1;
   ST.room = null;
   rescore();
 }
 function rebuildBaseline() {
   const rows = [];
-  for (const f of ST.files) f.units.forEach((u, i) => rows.push({ unit: u.uid, type: E.typeKey(u), ...f.analyses[i].f }));
+  for (const f of ST.files) for (const s of (f.sum && f.sum.units) || []) rows.push({ unit: s.uid, type: s.type, ...s.features });
   ST.baseline = rows.length >= 3 ? E.buildBaseline(rows) : null;
 }
 function rescore(draw = true) {
   for (const f of ST.files) {
-    f.results = f.units.map((u, i) => E.scoreUnit(u, f.analyses[i], ST.criteria, ST.baseline));
-    if (f.type === "STR") f.sheetScore = E.scoreAll(ST.criteria, { global: { door_window_overlaps: f.issues.length }, rooms: {} });
+    f.results = (f.sum && f.sum.units || []).map(s => E.scoreCached(s, ST.criteria, ST.baseline));
+    f.sheetScore = f.type === "STR" ? E.scoreAll(ST.criteria, { global: { door_window_overlaps: (f.sum.issues || []).length }, rooms: {} }) : null;
+    scoreFull(f);
   }
   if (draw) render();
 }
+async function removeFiles(ids) {
+  const set = new Set(ids);
+  ST.files = ST.files.filter(f => !set.has(f.id));
+  if (set.has(ST.fileId)) { ST.fileId = null; ST.unitIdx = -1; }
+  await unpersist(ids);
+  if (ST.baseSource === "auto") rebuildBaseline();
+  rescore();
+}
+
+/* ═════════════════════════════════════ zip 읽기 (라이브러리 없이 — 압축 해제는 브라우저 내장 DecompressionStream)
+   중앙 디렉터리만 먼저 읽어 목록을 만들고, 고른 항목만 그때 풀어 읽는다 — 큰 zip도 메모리를 적게 쓴다 */
+async function zipList(file) {
+  const tailLen = Math.min(file.size, 65557);
+  const tail = new DataView(await file.slice(file.size - tailLen).arrayBuffer());
+  let p = -1;
+  for (let i = tailLen - 22; i >= 0; i--) if (tail.getUint32(i, true) === 0x06054b50) { p = i; break; }
+  if (p < 0) throw new Error("zip 파일이 아니거나 손상되었습니다");
+  let count = tail.getUint16(p + 10, true), cdSize = tail.getUint32(p + 12, true), cdOff = tail.getUint32(p + 16, true);
+  if (cdOff === 0xffffffff || count === 0xffff) {           // ZIP64
+    const lp = p - 20;
+    if (lp < 0 || tail.getUint32(lp, true) !== 0x07064b50) throw new Error("ZIP64 정보를 찾지 못했습니다");
+    const z64off = Number(tail.getBigUint64(lp + 8, true));
+    const z = new DataView(await file.slice(z64off, z64off + 56).arrayBuffer());
+    count = Number(z.getBigUint64(32, true)); cdSize = Number(z.getBigUint64(40, true)); cdOff = Number(z.getBigUint64(48, true));
+  }
+  const cd = new DataView(await file.slice(cdOff, cdOff + cdSize).arrayBuffer());
+  const utf8 = new TextDecoder("utf-8"), kr = new TextDecoder("euc-kr");
+  const out = [];
+  for (let q = 0, k = 0; k < count && q + 46 <= cd.byteLength; k++) {
+    if (cd.getUint32(q, true) !== 0x02014b50) break;
+    const flags = cd.getUint16(q + 8, true), method = cd.getUint16(q + 10, true);
+    let csize = cd.getUint32(q + 20, true), usize = cd.getUint32(q + 24, true), off = cd.getUint32(q + 42, true);
+    const nlen = cd.getUint16(q + 28, true), elen = cd.getUint16(q + 30, true), clen = cd.getUint16(q + 32, true);
+    const nameBytes = new Uint8Array(cd.buffer, cd.byteOffset + q + 46, nlen);
+    let x = q + 46 + nlen; const xend = x + elen;
+    while (x + 4 <= xend) {                                    // ZIP64 확장 필드
+      const id = cd.getUint16(x, true), sz = cd.getUint16(x + 2, true);
+      if (id === 1) { let y = x + 4; if (usize === 0xffffffff) { usize = Number(cd.getBigUint64(y, true)); y += 8; } if (csize === 0xffffffff) { csize = Number(cd.getBigUint64(y, true)); y += 8; } if (off === 0xffffffff) off = Number(cd.getBigUint64(y, true)); }
+      x += 4 + sz;
+    }
+    const name = (flags & 0x800 ? utf8 : kr).decode(nameBytes);
+    if (!name.endsWith("/")) out.push({ name, base: name.split("/").pop(), method, csize, usize, off });
+    q = xend + clen;
+  }
+  return out;
+}
+async function zipReadText(file, e) {
+  const h = new DataView(await file.slice(e.off, e.off + 30).arrayBuffer());
+  if (h.getUint32(0, true) !== 0x04034b50) throw new Error("zip 항목 머리를 읽지 못했습니다");
+  const start = e.off + 30 + h.getUint16(26, true) + h.getUint16(28, true);
+  const blob = file.slice(start, start + e.csize);
+  if (e.method === 0) return blob.text();
+  if (e.method !== 8) throw new Error("지원하지 않는 압축 방식입니다");
+  if (typeof DecompressionStream === "undefined") throw new Error("이 브라우저는 zip 풀기를 지원하지 않습니다 — 최신 Chrome·Edge·Firefox·Safari를 쓰세요");
+  return new Response(blob.stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+}
+const LABEL_RE = /^(APT|ROW|DEH)_(FP|EP|CS|SD)_(SPA|STR|OBJ|OCR)_\d+\.json$/i;
+async function addZips(files) {
+  for (const file of files) {
+    try {
+      const entries = (await zipList(file)).filter(e => /\.json$/i.test(e.base));
+      ST.zips = ST.zips.filter(z => z.name !== file.name).concat([{ name: file.name, size: file.size, file, entries }]);
+    } catch (e) { toast(`${file.name}: ${e.message}`, true); }
+  }
+  go("#/data/aihub");
+}
+function zipSelection() {
+  const o = ST.zipOpt, q = o.q.trim().toLowerCase(), all = [];
+  for (const z of ST.zips) for (const e of z.entries) {
+    const m = e.base.match(LABEL_RE);
+    if (m) { if (!o.houses.includes(m[1].toUpperCase()) || !o.drawings.includes(m[2].toUpperCase()) || !o.labels.includes(m[3].toUpperCase())) continue; }
+    else if (o.labels.length < 4) continue;                    // 이름 규칙 밖의 JSON은 '모든 라벨'일 때만
+    if (q && !e.base.toLowerCase().includes(q)) continue;
+    all.push({ z, e });
+  }
+  let pick = all;
+  if (o.limit === "first") pick = all.slice(0, o.n);
+  if (o.limit === "random") { pick = all.slice(); for (let i = pick.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pick[i], pick[j]] = [pick[j], pick[i]]; } pick = pick.slice(0, o.n); }
+  return { all, pick };
+}
 
 /* ═════════════════════════════════════ 파일 고르기 · 끌어놓기(폴더 포함) */
-const isJson = (n) => /\.json$/i.test(n);
-function pickFiles(list) {
-  const items = [...list].filter(f => isJson(f.name)).map(f => ({ name: f.name, file: f }));
-  if (!items.length) return toast("JSON 파일이 없습니다", true);
-  ingest(items);
+const isJson = (n) => /\.json$/i.test(n), isZip = (n) => /\.zip$/i.test(n);
+function pickFiles(list, source = "upload") {
+  const arr = [...list];
+  const zips = arr.filter(f => isZip(f.name));
+  const items = arr.filter(f => isJson(f.name)).map(f => ({ name: f.name, file: f }));
+  if (zips.length) addZips(zips);
+  if (items.length) ingest(items, source);
+  if (!zips.length && !items.length) toast("JSON 또는 zip 파일이 없습니다", true);
 }
 async function entriesToFiles(entries) {
   const out = [];
   const walk = async (en) => {
-    if (en.isFile) { if (isJson(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
+    if (en.isFile) { if (isJson(en.name) || isZip(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
     else if (en.isDirectory) {
       const rd = en.createReader();
       for (;;) { const b = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!b.length) break; for (const x of b) await walk(x); }
@@ -510,10 +712,11 @@ async function entriesToFiles(entries) {
   return out;
 }
 
-/* ═════════════════════════════════════ 라우팅 (URL로 페이지·탭을 잡는다) */
+/* ═════════════════════════════════════ 라우팅 */
 const PAGES = {
-  stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["criteria", "조건·점검"], ["measures", "지표"], ["units", "세대 목록"]] },
+  stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["criteria", "조건·점검"], ["measures", "지표"], ["units", "점수표"]] },
   plans:    { title: "도면", icon: "plan" },
+  data:     { title: "데이터 가져오기", icon: "inbox", tabs: [["aihub", "AI 허브"], ["upload", "파일 업로드"], ["manual", "직접 입력"], ["stored", "보유 데이터"]] },
   criteria: { title: "평가 구조", icon: "sliders", tabs: [["list", "조건"], ["dsl", "문법 편집"]] },
   params:   { title: "판정 변수", icon: "settings" },
   baseline: { title: "정답지", icon: "check" },
@@ -523,7 +726,7 @@ function parseHash() {
   const p = (location.hash || "#/stats").replace(/^#\/?/, "").split("/").map(s => { try { return decodeURIComponent(s); } catch { return s; } });
   const page = PAGES[p[0]] ? p[0] : "stats";
   const r = { page, tab: null, id: null };
-  if (page === "stats" || page === "criteria") r.tab = (PAGES[page].tabs.find(t => t[0] === p[1]) || PAGES[page].tabs[0])[0];
+  if (PAGES[page].tabs && page !== "archive") r.tab = (PAGES[page].tabs.find(t => t[0] === p[1]) || PAGES[page].tabs[0])[0];
   if (page === "plans" || page === "archive") r.id = p[1] || null;
   if (page === "archive" && r.id) r.tab = (PAGES.stats.tabs.find(t => t[0] === p[2]) || PAGES.stats.tabs[0])[0];
   return r;
@@ -541,63 +744,67 @@ function onRoute() {
 }
 function selectFile(id) {
   ST.fileId = id; ST.room = null;
-  const f = curFile(); ST.unitIdx = f && f.results.length ? 0 : -1;
+  const f = curFile(); ST.unitIdx = f && f.results && f.results.length ? 0 : -1;
 }
 
 /* ═════════════════════════════════════ 셸 */
 function renderShell() {
   const n = allUnits().length, files = ST.files.length;
   const avg = n ? allUnits().reduce((s, x) => s + x.r.score.total, 0) / n : null;
-  $("#dataset").innerHTML = files ? `<span>도면 <b>${int(files)}</b></span><i></i><span>세대 <b>${int(n)}</b></span>${avg != null ? `<i class="opt"></i><span class="opt">평균 <b>${fx(avg)}</b>점</span>` : ""}` : `<span>불러온 도면 없음</span>`;
+  $("#dataset").innerHTML = files ? `<span>도면 <b>${int(files)}</b></span><i></i><span>세대 <b>${int(n)}</b></span>${avg != null ? `<i class="opt"></i><span class="opt">평균 <b>${fx(avg)}</b>점</span>` : ""}` : `<span>보유 데이터 없음</span>`;
   const nav = (page, label, cnt) => `<a class="nav-link${ST.route.page === page ? " is-active" : ""}" href="#/${page}" title="${label}"${ST.route.page === page ? ' aria-current="page"' : ""}>${ico(PAGES[page].icon)}<span class="lbl">${label}</span>${cnt ? `<span class="cnt">${int(cnt)}</span>` : ""}</a>`;
   $("#sidebar").innerHTML = `
     <div class="nav-section">분석</div>
     ${nav("stats", "통계", n)}${nav("plans", "도면", files)}
+    <div class="nav-section">데이터</div>
+    ${nav("data", "데이터 가져오기")}
     <div class="nav-section">평가 설정</div>
     ${nav("criteria", "평가 구조", ST.criteria.filter(c => c.enabled).length)}${nav("params", "판정 변수")}${nav("baseline", "정답지")}
     <div class="nav-section">기록</div>
     ${nav("archive", "보관 기록", ST.snaps.length)}
-    <div class="nav-section">도구</div>
-    <a class="nav-link" href="image.html" title="이미지 분석 스튜디오">${ico("ext")}<span class="lbl">이미지 분석 스튜디오</span></a>
-    <div class="nav-foot">라벨 파일은 브라우저 밖으로 나가지 않습니다. 보관 기록은 이 브라우저에만 저장됩니다.</div>`;
+    <div class="nav-foot">가져온 도면과 보관 기록은 이 브라우저에만 저장되고 밖으로 나가지 않습니다.</div>`;
 }
 function renderHeader(title, crumbs, tabs, extra = "") {
   const crumb = crumbs.map(c => Array.isArray(c) ? `<a href="${c[1]}">${esc(c[0])}</a>` : `<span>${esc(c)}</span>`).join(`<span>/</span>`);
   $("#pageHeader").innerHTML = `<div class="breadcrumb">${crumb}</div>
     <div class="page-title-row"><h1 class="page-title">${esc(title)}</h1>${extra}</div>
     ${tabs ? `<nav class="tabbar" aria-label="${esc(title)} 탭">${tabs.map(([k, l, href, cnt]) => `<a class="tab${k === ST.route.tab ? " is-active" : ""}" href="${href}"${k === ST.route.tab ? ' aria-current="page"' : ""}>${esc(l)}${cnt != null ? `<span class="cnt">${int(cnt)}</span>` : ""}</a>`).join("")}</nav>` : ""}`;
-  document.title = `${title} · 도면 평가 스튜디오`;
+  document.title = `${title} · 도면 평가 프로그램`;
 }
 function render() {
   renderShell();
   const r = ST.route, c = $("#content");
   c.className = "main-content" + (r.page === "plans" && ST.files.length ? " full" : "");
-  ({ stats: pageStats, plans: pagePlans, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive })[r.page]();
+  ({ stats: pageStats, plans: pagePlans, data: pageData, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive })[r.page]();
 }
 
 /* ── 통계 ── */
-function liveStats(type = "") {
-  const rows = allUnits().filter(x => !type || x.r.type === type).map(({ f, r }) => E.statRow(r, f.name));
+function liveStats(type = "", source = "") {
+  const rows = allUnits().filter(x => (!type || x.r.type === type) && (!source || x.f.source === source))
+    .map(({ f, r }) => E.statRow(r, f.name, { source: f.source }));
   const b = ST.baseline;
   return E.aggregate(rows, { params: cleanParams(), criteria: ST.criteria },
     { baseline: b ? { source: ST.baseSource, n_units: b.n_units, type_counts: b.type_counts } : null });
 }
 function emptyData(title, desc) {
   return `<div class="card"><div class="empty-state"><h3>${title}</h3><p>${desc}</p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" data-act="openMenu">${ico("upload")}도면 불러오기</button><button class="btn btn-secondary" data-act="sample">예시 도면으로 보기</button></div></div></div>`;
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="#/data/aihub">${ico("inbox")}데이터 가져오기</a><button class="btn btn-secondary" data-act="sample">예시 도면으로 보기</button></div></div></div>`;
 }
 function pageStats() {
   const types = [...new Set(allUnits().map(x => x.r.type))].sort();
+  const sources = [...new Set(ST.files.map(f => f.source))];
   if (ST.statType && !types.includes(ST.statType)) ST.statType = "";
-  const S = liveStats(ST.statType);
+  if (ST.statSource && !sources.includes(ST.statSource)) ST.statSource = "";
+  const S = liveStats(ST.statType, ST.statSource);
   renderHeader("통계", ["분석"], PAGES.stats.tabs.map(([k, l]) => [k, l, `#/stats/${k}`, k === "units" ? S.summary.n_units : null]));
   const c = $("#content");
-  if (!allUnits().length) { c.innerHTML = emptyData("불러온 도면이 없습니다", "AI 허브 ‘건축 도면 데이터’의 라벨 JSON(SPA·STR·OBJ·OCR)을 여러 개 또는 폴더째 불러오면, 세대마다 채점한 결과가 이 화면에 모입니다. 화면 아무 곳에나 끌어다 놓아도 됩니다."); return; }
+  if (!allUnits().length) { c.innerHTML = emptyData("보유한 도면이 없습니다", "AI 허브 라벨 zip, JSON 파일, 직접 입력한 JSON으로 도면을 가져오면 세대마다 채점한 결과가 이 화면에 쌓입니다. 화면 어디에나 끌어다 놓아도 됩니다."); return; }
   c.innerHTML = `<div class="toolbar">
+      <select class="select" id="statSource" style="width:auto" aria-label="출처">${[["", "전체 출처"], ...sources.map(s => [s, SOURCES[s] || s])].map(([v, l]) => `<option value="${v}"${v === ST.statSource ? " selected" : ""}>${l}</option>`).join("")}</select>
       <select class="select" id="statType" style="width:auto" aria-label="유형">${[["", "전체 유형"], ...types.map(t => [t, t])].map(([v, l]) => `<option value="${v}"${v === ST.statType ? " selected" : ""}>${l}</option>`).join("")}</select>
       <span class="field-hint">유형 = 침실 수 R · 화장실 수 B (평형 대용)</span>
       <span class="spacer"></span>
-      <button class="btn btn-ghost" data-act="csv">${ico("download")}CSV</button>
+      <button class="btn btn-ghost" data-act="csv">${ico("download")}점수표 CSV</button>
       <button class="btn btn-secondary" data-act="dlLive">${ico("download")}통계 JSON</button>
       <button class="btn btn-primary" data-act="saveSnap">현재 통계 보관</button>
     </div>${statsBody(S, ST.route.tab, true)}`;
@@ -616,7 +823,6 @@ function histogram(h, total) {
     <div class="xax">${h.map(b => `<span>${b.lo}</span>`).join("")}</div>
   </div>`;
 }
-/* 통계 본문 — 현재 통계와 보관 기록이 같이 쓴다 */
 function statsBody(S, tab, live) {
   const sm = S.summary, sc = sm.score;
   if (tab === "summary") {
@@ -657,67 +863,70 @@ function statsBody(S, tab, live) {
       <div class="card"><div class="card-header"><h2 class="card-title">이 통계를 낸 조건·변수</h2></div><div class="card-body">
         <pre class="num" style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:22px">${esc(S.config.dsl)}</pre>
         <div class="field-hint" style="margin-top:12px">${esc(Object.entries(S.config.params || {}).map(([k, v]) => `${k}=${v}`).join(" · "))}</div>
-        <div class="field-hint">정답지: ${S.baseline ? `${S.baseline.source === "auto" ? "불러온 세대" : "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div></div></div>`;
+        <div class="field-hint">정답지: ${S.baseline ? `${S.baseline.source === "auto" ? "보유 세대" : "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div></div></div>`;
   }
   const rows = S.units.slice().sort((a, b) => ST.unitSort === "asc" ? a.total - b.total : ST.unitSort === "desc" ? b.total - a.total : a.unit.localeCompare(b.unit));
   const LIM = 2000;
   return `<div class="toolbar"><select class="select" id="unitSort" style="width:auto" aria-label="정렬">${[["name", "이름순"], ["asc", "점수 낮은 순"], ["desc", "점수 높은 순"]].map(([v, l]) => `<option value="${v}"${v === ST.unitSort ? " selected" : ""}>${l}</option>`).join("")}</select>
       ${live ? `<span class="field-hint">행을 누르면 그 세대의 도면을 엽니다.</span>` : ""}</div>
     <div class="card"><div class="card-body flush tw" style="max-height:calc(100vh - 320px);min-height:240px;overflow:auto">
-    <table class="t"><thead><tr><th>세대</th><th>유형</th><th class="n">총점</th><th>등급</th><th class="n">기본점</th><th class="n">감점</th><th>시공</th></tr></thead><tbody>
-    ${rows.slice(0, LIM).map(u => `<tr class="${live ? "click" : ""}" data-unit="${esc(u.unit)}"><td class="num">${esc(short(u.unit))}</td><td>${esc(u.type)}</td><td class="n"><b>${fx(u.total)}</b></td><td><span class="badge ${GRADE_BADGE(u.grade)}">${u.grade}</span></td>
+    <table class="t"><thead><tr><th>세대</th><th>출처</th><th>유형</th><th class="n">총점</th><th>등급</th><th class="n">기본점</th><th class="n">감점</th><th>시공</th></tr></thead><tbody>
+    ${rows.slice(0, LIM).map(u => `<tr class="${live ? "click" : ""}" data-unit="${esc(u.unit)}"><td class="num">${esc(short(u.unit))}</td><td>${u.source ? `<span class="src">${esc(SOURCES[u.source] || u.source)}</span>` : "—"}</td><td>${esc(u.type)}</td><td class="n"><b>${fx(u.total)}</b></td><td><span class="badge ${GRADE_BADGE(u.grade)}">${u.grade}</span></td>
       <td class="n">${fx(u.base)}</td><td class="n">${fx(u.penalty)}</td><td>${u.pass ? `<span class="badge badge-neutral">가능</span>` : `<span class="badge badge-error">불가</span>`}</td></tr>`).join("")}
-    </tbody></table></div></div>${rows.length > LIM ? `<div class="field-hint" style="margin-top:8px">처음 ${int(LIM)}세대만 표시합니다. 전체는 통계 JSON에 들어 있습니다.</div>` : ""}`;
+    </tbody></table></div></div>${rows.length > LIM ? `<div class="field-hint" style="margin-top:8px">처음 ${int(LIM)}세대만 표시합니다. 전체는 점수표 CSV·통계 JSON에 들어 있습니다.</div>` : ""}`;
 }
 
 /* ── 도면 ── */
 function pagePlans() {
-  const f = curFile(), r = curResult();
-  renderHeader("도면", ["분석"], null, f ? `<span class="badge badge-neutral">${f.type}</span><span class="field-hint" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw">${esc(f.name)}</span>` : "");
+  const f = curFile();
+  renderHeader("도면", ["분석"], null, f ? `<span class="badge badge-neutral">${f.type}</span><span class="src">${esc(SOURCES[f.source] || f.source || "")}</span><span class="field-hint" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw">${esc(f.name)}</span>` : "");
   const c = $("#content");
-  if (!ST.files.length) { c.innerHTML = emptyData("불러온 도면이 없습니다", "라벨 JSON을 불러오면 파일마다 도면을 그리고, 세대를 나눠 채점합니다. 파일 여러 개나 폴더를 한꺼번에 불러올 수 있습니다."); return; }
+  if (!ST.files.length) { c.innerHTML = emptyData("보유한 도면이 없습니다", "가져온 도면 JSON이 여기에 파일별로 나옵니다. AI 허브 라벨 zip이나 JSON 파일을 가져오세요."); return; }
   const listScroll = $("#fileList") ? $("#fileList").scrollTop : 0;
   const q = ST.fileQuery.trim().toLowerCase();
   const list = ST.files.filter(x => !q || x.name.toLowerCase().includes(q));
   const LIM = 500;
   const listHtml = list.slice(0, LIM).map(x => {
     const n = x.results.length, avg = n ? x.results.reduce((s, y) => s + y.score.total, 0) / n : null;
-    const meta = x.type === "SPA" ? `${n}세대${avg != null ? ` · ${fx(avg, 0)}` : ""}` : x.type === "STR" ? `겹침 ${x.issues.length}` : "";
-    const units = x.id === ST.fileId && x.results.length ? x.results.map((y, ui) => `<div class="urow${ui === ST.unitIdx ? " is-sel" : ""}" data-u="${ui}"><span class="nm">#${ui} ${esc(y.type)}</span><span class="sc" style="color:${gradeFill(y.score.grade)}">${fx(y.score.total, 0)}</span></div>`).join("") : "";
-    return `<div class="frow${x.id === ST.fileId ? " is-sel" : ""}" data-f="${x.id}" title="${esc(x.name)}"><span class="tag">${x.type}</span><span class="nm">${esc(short(x.name))}</span><span class="meta">${meta}</span><button class="x" data-close="${x.id}" title="목록에서 빼기" aria-label="${esc(short(x.name))} 목록에서 빼기">${ico("x")}</button></div>${units}`;
+    const meta = x.type === "SPA" ? `${n}세대${avg != null ? ` · ${fx(avg, 0)}` : ""}` : x.type === "STR" ? `겹침 ${(x.sum.issues || []).length}` : "";
+    const units = x.id === ST.fileId && n ? x.results.map((y, ui) => `<div class="urow${ui === ST.unitIdx ? " is-sel" : ""}" data-u="${ui}"><span class="nm">#${ui} ${esc(y.type)}</span><span class="sc" style="color:${gradeFill(y.score.grade)}">${fx(y.score.total, 0)}</span></div>`).join("") : "";
+    return `<div class="frow${x.id === ST.fileId ? " is-sel" : ""}" data-f="${x.id}" title="${esc(x.name)} · ${esc(SOURCES[x.source] || "")}"><span class="tag">${x.type}</span><span class="nm">${esc(short(x.name))}</span><span class="meta">${meta}</span><button class="x" data-close="${x.id}" title="삭제" aria-label="${esc(short(x.name))} 삭제">${ico("x")}</button></div>${units}`;
   }).join("") + (list.length > LIM ? `<div class="field-hint" style="padding:8px 10px">… ${int(list.length - LIM)}개 더 — 검색으로 좁혀 주세요.</div>` : "");
+  const loading = f && !f.full;
   c.innerHTML = `<div class="ws">
     <aside class="ws-list" aria-label="파일 목록">
       <div class="ws-list-head">
-        <button class="btn btn-primary" data-act="openMenu" style="width:100%">${ico("upload")}도면 불러오기</button>
+        <a class="btn btn-primary" href="#/data/aihub" style="width:100%">${ico("inbox")}데이터 가져오기</a>
         <label class="input-search">${ico("search")}<input id="fileQ" placeholder="파일 이름 검색" value="${esc(ST.fileQuery)}" aria-label="파일 이름 검색"></label>
-        <div style="display:flex;align-items:center;justify-content:space-between"><span class="field-hint">파일 ${int(ST.files.length)}개${q ? ` 중 ${int(list.length)}개` : ""}</span><button class="btn btn-ghost btn-sm" data-act="closeAll">모두 빼기</button></div>
+        <div class="field-hint">파일 ${int(ST.files.length)}개${q ? ` 중 ${int(list.length)}개` : ""}</div>
       </div>
       <div class="ws-list-body" id="fileList">${listHtml || `<div class="field-hint" style="padding:10px">검색 결과가 없습니다.</div>`}</div>
     </aside>
     <section class="canvas" aria-label="도면">
       <svg id="plan" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${f ? esc(f.name) + " 도면" : "도면"}"></svg>
+      ${loading ? `<div class="loading">도면을 읽는 중</div>` : ""}
       <div class="cv-tools">${[["fill", "실 색"], ["names", "실 이름"], ["doors", "추정 문"], ["graph", "연결 그래프"], ["flags", "문제 표시"], ["dim", "선택 세대 강조"]].map(([k, l]) => `<button class="chip${ST.layers[k] ? " is-active" : ""}" data-l="${k}" aria-pressed="${ST.layers[k]}">${l}</button>`).join("")}</div>
       <div class="cv-zoom"><button id="zIn" title="확대" aria-label="확대">${ico("plus")}</button><button id="zOut" title="축소" aria-label="축소">${ico("minus")}</button><button id="zFit" title="화면에 맞추기" aria-label="화면에 맞추기">${ico("fit")}</button></div>
-      <div class="cv-legend" id="legend"></div>
+      <div class="cv-legend" id="legend" hidden></div>
     </section>
-    <aside class="ws-side" aria-label="세대 결과">${sidePanel(f, r)}</aside>
+    <aside class="ws-side" aria-label="세대 결과">${loading ? `<div class="ws-side-sec"><div class="field-hint">읽는 중입니다.</div></div>` : sidePanel(f, curResult())}</aside>
   </div>`;
   $("#fileList").scrollTop = listScroll;
+  if (loading) { const id = f.id; ensureFull(f).then(() => { if (ST.fileId === id && ST.route.page === "plans") render(); }).catch(e => toast(`${f.name}: ${e.message}`, true)); return; }
   drawPlan(); wireCanvas();
 }
 function sidePanel(f, r) {
   if (!f) return `<div class="ws-side-sec"><div class="field-hint">왼쪽에서 파일을 고르세요.</div></div>`;
   if (f.type === "STR") {
-    const s = f.sheetScore;
+    const s = f.sheetScore, iss = f.sum.issues || [], cnt = f.sum.counts || {};
     return `<div class="ws-side-sec"><h3>구조 시트</h3><div class="score-row"><span class="score-val">${fx(s.total)}점</span><span class="badge ${GRADE_BADGE(s.grade)}">${s.grade}</span></div>
       <div class="score-sub">세대가 없어 <code>@door_window_overlaps</code> 조건만 적용합니다.</div></div>
-      <div class="ws-side-sec"><h3>문·창 겹침 <span class="badge ${f.issues.length ? "badge-error" : "badge-neutral"}">${f.issues.length}건</span></h3>
-        ${f.issues.map(i => `<div class="iss"><span class="badge badge-error">F8</span><span>${esc(i.message)}</span></div>`).join("") || `<div class="field-hint">겹친 곳이 없습니다.</div>`}
-        <div class="kv" style="margin-top:8px"><span>문 · 창 · 벽</span><span class="num">${int(f.struct.door.length)} · ${int(f.struct.window.length)} · ${int(f.struct.wall.length)}</span></div></div>`;
+      <div class="ws-side-sec"><h3>문·창 겹침 <span class="badge ${iss.length ? "badge-error" : "badge-neutral"}">${iss.length}건</span></h3>
+        ${iss.map(i => `<div class="iss"><span class="badge badge-error">F8</span><span>${esc(i.message)}</span></div>`).join("") || `<div class="field-hint">겹친 곳이 없습니다.</div>`}
+        <div class="kv" style="margin-top:8px"><span>문 · 창 · 벽</span><span class="num">${int(cnt.door)} · ${int(cnt.window)} · ${int(cnt.wall)}</span></div></div>`;
   }
   if (!r) return `<div class="ws-side-sec"><h3>${f.type} 라벨</h3><div class="field-hint">${f.type === "SPA" ? "이 시트에서 나눌 수 있는 세대가 없습니다." : "그림만 그립니다. 채점은 SPA(공간) 라벨로 합니다."}</div></div>`;
-  const s = r.score, u = f.units[ST.unitIdx];
+  const s = r.score, u = f.full.units[ST.unitIdx];
   const critRows = s.rows.map(row => {
     const c = row.criterion, t = c.scope === "room" ? `${c.room}.${c.measure}` : `@${c.measure}`;
     const eff = c.effect === "weight" ? `w ${fmt(c.weight)}` : c.effect === "penalty" ? (row.deduct ? `<span class="eff-gate">−${fx(row.deduct)}</span>` : "0") : (row.gated ? `<span class="eff-gate">탈락</span>` : "통과");
@@ -742,9 +951,9 @@ function sidePanel(f, r) {
       ${r.typicality ? `<details class="more" style="margin-top:8px"><summary>${ico("chevR")}정답지 근접도 (${esc(r.typicality.reference)})</summary><div class="tw"><table class="t compact"><thead><tr><th>특징</th><th class="n">값</th><th class="n">중앙값</th><th class="n">z</th></tr></thead><tbody>
         ${Object.entries(r.typicality.features).map(([k, t]) => `<tr><td>${esc(E.FEATURES[k])}</td><td class="n">${fmt(t.value)}</td><td class="n">${fmt(t.median)}</td><td class="n" style="${Math.abs(t.z) > 2 ? "color:#C42B3A;font-weight:600" : ""}">${t.z.toFixed(1)}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</div>`;
 }
-function extentOf(f) {
+function extentOf(data) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const a of f.data.annotations) {
+  for (const a of data.annotations) {
     if (a.category_id === 12 || !a.bbox) continue;
     const [x, y, w, h] = a.bbox;
     x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h);
@@ -756,20 +965,21 @@ function extentOf(f) {
 const P = (poly) => poly.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
 function drawPlan() {
   const svg = $("#plan"), f = curFile(); if (!svg) return;
-  if (!f) { svg.innerHTML = ""; $("#legend").hidden = true; return; }
-  if (ST.extentFor !== f.id || !ST.extent) { ST.extent = extentOf(f); ST.extentFor = f.id; ST.view = ST.extent.slice(); }
+  if (!f || !f.full) { svg.innerHTML = ""; return; }
+  const full = f.full, data = full.data;
+  if (ST.extentFor !== f.id || !ST.extent) { ST.extent = extentOf(data); ST.extentFor = f.id; ST.view = ST.extent.slice(); }
   const [ex, ey, ew, eh] = ST.extent, fs = Math.max(ew, eh) / 110, sw = Math.max(ew, eh) / 900;
   const L = ST.layers, out = [`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" fill="#FFFFFF"/>`];
   const RED = "#DC3545", TEAL = "#004F59", DOOR = "#F47D30";
   if (f.type === "SPA") {
-    const inUnit = new Set(); f.units.forEach(u => Object.values(u.spaces).forEach(s => inUnit.add(s.ann)));
-    for (const a of f.data.annotations) {
+    const inUnit = new Set(); full.units.forEach(u => Object.values(u.spaces).forEach(s => inUnit.add(s.ann)));
+    for (const a of data.annotations) {
       if (!a.segmentation || !a.segmentation[0] || !a.segmentation[0].length || a.category_id === 12 || inUnit.has(a.id)) continue;
       const core = E.CORE_CATS[a.category_id], sp = E.SPACE_CATS[a.category_id]; if (!core && !sp) continue;
       out.push(`<polygon points="${P(E.pts(a.segmentation[0]))}" fill="${core ? "#E0E0E0" : "#F2F0EC"}" stroke="#A4A4A4" stroke-width="${sw}" stroke-dasharray="${sw * 4} ${sw * 3}"><title>${esc(core || sp[1])} (세대 밖 · 제외)</title></polygon>`);
     }
-    f.units.forEach((u, ui) => {
-      const r = f.results[ui], dim = L.dim && ui !== ST.unitIdx, flagged = new Set();
+    full.units.forEach((u, ui) => {
+      const r = full.results[ui], dim = L.dim && ui !== ST.unitIdx, flagged = new Set();
       if (r && L.flags) {
         r.issues.forEach(i => { if (i.level !== "info") i.rooms.forEach(k => flagged.add(k)); });
         r.score.rows.forEach(row => { if (row.room && row.score != null && row.score < 1 && row.criterion.effect !== "weight") flagged.add(row.room); });
@@ -802,8 +1012,8 @@ function drawPlan() {
     $("#legend").innerHTML = Object.entries(KIND_COLOR).map(([k, c]) => `<span><i style="background:${c}"></i>${E.KIND_NAME[k]}</span>`).join("")
       + `<span><i style="background:${DOOR}"></i>추정 문</span><span><i style="background:none;border:2px solid ${RED}"></i>문제</span>`;
   } else if (f.type === "STR") {
-    const bad = new Set(f.issues.flatMap(i => [i.door, i.window])), order = { 11: 0, 10: 1, 9: 2 };
-    for (const a of f.data.annotations.filter(a => E.STR_CATS[a.category_id] && a.segmentation && a.segmentation[0] && a.segmentation[0].length).sort((a, b) => order[a.category_id] - order[b.category_id])) {
+    const bad = new Set((full.issues || []).flatMap(i => [i.door, i.window])), order = { 11: 0, 10: 1, 9: 2 };
+    for (const a of data.annotations.filter(a => E.STR_CATS[a.category_id] && a.segmentation && a.segmentation[0] && a.segmentation[0].length).sort((a, b) => order[a.category_id] - order[b.category_id])) {
       const kind = E.STR_CATS[a.category_id], hit = bad.has(a.id), poly = P(E.pts(a.segmentation[0]));
       const attr = Object.entries(a.attributes || {}).filter(([k]) => k !== "occluded" && k !== "rotation").map(([, v]) => v).join(" ");
       if (kind === "wall") out.push(`<polygon points="${poly}" fill="#4A5565"><title>벽 ${esc(attr)}</title></polygon>`);
@@ -811,7 +1021,7 @@ function drawPlan() {
     }
     $("#legend").innerHTML = `<span><i style="background:#4A5565"></i>벽</span><span><i style="background:${DOOR}"></i>문</span><span><i style="background:#62B2FD"></i>창</span><span><i style="background:${RED}"></i>문·창 겹침</span>`;
   } else {
-    for (const a of f.data.annotations) {
+    for (const a of data.annotations) {
       if (!a.bbox || a.category_id === 12) continue;
       const [x, y, w, h] = a.bbox;
       if (f.type === "OBJ") out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#F5F7F8" stroke="#666666" stroke-width="${sw}"/><text x="${x + w / 2}" y="${y + h / 2}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" fill="#222222">${esc(E.OBJ_CATS[a.category_id] || "?")}</text>`);
@@ -856,6 +1066,95 @@ function wireCanvas() {
   });
 }
 
+/* ── 데이터 가져오기 ── */
+function pageData() {
+  const tab = ST.route.tab;
+  renderHeader("데이터 가져오기", ["데이터"], PAGES.data.tabs.map(([k, l]) => [k, l, `#/data/${k}`, k === "stored" ? ST.files.length || null : null]));
+  const c = $("#content");
+  if (tab === "aihub") return void (c.innerHTML = dataAihub());
+  if (tab === "upload") return void (c.innerHTML = `
+    <div class="callout">${ico("info")}<div>AI 허브 라벨 JSON(SPA·STR·OBJ·OCR)이나 같은 형식(COCO)의 JSON을 가져옵니다. 여러 개를 한꺼번에, 폴더째로도 됩니다. zip을 고르면 AI 허브 탭에서 고를 항목을 정합니다.</div></div>
+    <div class="card"><div class="card-body">
+      <div class="drop-area" data-drop="upload"><b>JSON 파일이나 폴더를 여기에 끌어다 놓으세요</b>화면 어디에 놓아도 됩니다.
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"><button class="btn btn-secondary" data-act="pickFiles">${ico("file")}파일 선택</button><button class="btn btn-secondary" data-act="pickDir">${ico("folder")}폴더 선택</button></div></div>
+    </div></div>`);
+  if (tab === "manual") return void (c.innerHTML = `
+    <div class="callout">${ico("info")}<div>JSON을 직접 입력하거나 붙여 넣습니다. 형식은 AI 허브 라벨과 같은 COCO입니다 — <code>annotations</code> 배열에 실마다 <code>category_id</code>(13 거실 · 14 침실 · 15 주방 · 16 현관 · 17 발코니 · 18 화장실 …), <code>segmentation</code>(꼭짓점 좌표), <code>bbox</code>, <code>area</code>를 넣습니다. 생성 모델이 만든 도면을 이 형식으로 넣으면 같은 기준으로 채점됩니다.</div></div>
+    <div class="card"><div class="card-body">
+      <div class="field"><label class="field-label" for="manName">이름</label><input class="input" id="manName" placeholder="예: QUBO_생성_001.json" value="직접입력_${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}.json"></div>
+      <div class="field"><label class="field-label" for="manJson">JSON</label><textarea class="input code" id="manJson" spellcheck="false" placeholder='{"annotations":[{"id":0,"category_id":13,"segmentation":[[...]],"bbox":[x,y,w,h],"area":...}]}'></textarea>
+        <div class="field-hint" id="manInfo"></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-act="manTemplate">예시 넣기</button><button class="btn btn-ghost" data-act="manCheck">형식 확인</button><span class="spacer" style="flex:1"></span><button class="btn btn-primary" data-act="manAdd">추가</button></div>
+    </div></div>`);
+  // 보유 데이터
+  const groups = {};
+  for (const f of ST.files) { const g = groups[f.source] = groups[f.source] || { files: 0, units: 0, spa: 0, str: 0, last: "" }; g.files++; g.units += f.results.length; if (f.type === "SPA") g.spa++; if (f.type === "STR") g.str++; if ((f.added || "") > g.last) g.last = f.added; }
+  c.innerHTML = `<div class="toolbar"><span class="field-hint" id="quota">${DB.ok ? "이 브라우저 저장 공간에 보관 중" : "브라우저 저장소를 쓸 수 없어 이 창에서만 유지됩니다"}</span><span class="spacer"></span>
+      ${ST.files.length ? `<button class="btn btn-ghost" data-act="reprocess">다시 계산</button><button class="btn btn-secondary" data-act="delAll">${ico("trash")}전체 삭제</button>` : ""}</div>
+    <div class="card">${ST.files.length ? `<div class="card-body flush tw"><table class="t"><thead><tr><th>출처</th><th class="n">파일</th><th class="n">공간(SPA)</th><th class="n">구조(STR)</th><th class="n">세대</th><th>마지막 가져온 시각</th><th></th></tr></thead><tbody>
+      ${Object.entries(groups).map(([s, g]) => `<tr><td><span class="src">${esc(SOURCES[s] || s)}</span></td><td class="n">${int(g.files)}</td><td class="n">${int(g.spa)}</td><td class="n">${int(g.str)}</td><td class="n">${int(g.units)}</td><td class="num">${dt(g.last)}</td>
+        <td style="text-align:right"><button class="btn btn-ghost btn-sm" data-act="delSource" data-source="${esc(s)}">${ico("trash")}삭제</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty-state"><h3>보유한 데이터가 없습니다</h3><p>AI 허브 · 파일 업로드 · 직접 입력 탭에서 가져오세요.</p></div>`}</div>`;
+  if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(q => { const el = $("#quota"); if (el && DB.ok) el.textContent = `이 브라우저 저장 공간 사용 ${mb(q.usage)} / 여유 ${mb(q.quota)}`; }).catch(() => {});
+}
+function dataAihub() {
+  const o = ST.zipOpt, sel = ST.zips.length ? zipSelection() : null;
+  const chk = (group, v, l) => `<label class="chk"><input type="checkbox" data-zopt="${group}" value="${v}"${o[group].includes(v) ? " checked" : ""}>${l}</label>`;
+  return `<div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아 아래에 놓으면, 브라우저 안에서 풀어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
+    <div class="grid2">
+      <div class="card"><div class="card-header"><h2 class="card-title">AI 허브에서 받을 파일</h2><a class="btn btn-ghost btn-sm" href="${AIHUB_PAGE}" target="_blank" rel="noopener">${ico("ext")}데이터셋 화면</a></div>
+        <div class="card-body flush tw"><table class="t compact"><thead><tr><th>파일</th><th class="n">용량</th><th class="n">파일키</th><th>쓰임</th></tr></thead><tbody>
+        ${AIHUB_LABEL_ZIPS.map(([n, s, k, d, need]) => `<tr><td><b>${n}</b>${need ? ` <span class="badge badge-info">필수</span>` : ""}</td><td class="n">${s}</td><td class="n">${k}</td><td class="field-hint" style="font-size:12px">${d}</td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="card-body" style="border-top:1px solid var(--color-divider)"><div class="field-hint" style="font-size:12px;line-height:18px">로그인 → 데이터셋 화면에서 다운로드 승인(내국인) → 파일 목록의 [다운로드]로 받습니다. aihubshell로 받을 때는 파일키를 꼭 지정하세요(지정하지 않으면 26GB 전체를 받습니다).<br>
+          <code>aihubshell -mode d -datasetkey 71465 -filekey 497461,497469 -aihubapikey '키'</code></div></div></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">라벨 zip 가져오기</h2></div><div class="card-body">
+        <div class="drop-area" data-drop="zip"><b>TL_SPA.zip · VL_SPA.zip 등을 끌어다 놓으세요</b>여러 개를 한꺼번에 놓아도 됩니다.
+          <div style="margin-top:14px"><button class="btn btn-secondary" data-act="pickZip">${ico("file")}zip 선택</button></div></div>
+        ${ST.zips.length ? `<div style="margin-top:16px">${ST.zips.map(z => `<div class="kv"><span><b style="color:var(--color-text-primary)">${esc(z.name)}</b> · ${mb(z.size)}</span><span class="num">JSON ${int(z.entries.length)}개 <button class="btn btn-ghost btn-sm btn-icon" data-act="zipRemove" data-zip="${esc(z.name)}" title="빼기" aria-label="${esc(z.name)} 빼기">${ico("x")}</button></span></div>`).join("")}</div>` : ""}
+      </div></div>
+    </div>
+    ${ST.zips.length ? `<div class="section-gap"></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">가져올 범위</h2></div><div class="card-body">
+      <div class="opt-grid">
+        <div class="l">라벨 종류</div><div class="c">${chk("labels", "SPA", "공간 SPA")}${chk("labels", "STR", "구조 STR")}${chk("labels", "OBJ", "객체 OBJ")}${chk("labels", "OCR", "글자 OCR")}</div>
+        <div class="l">주택 유형</div><div class="c">${chk("houses", "APT", "아파트")}${chk("houses", "ROW", "연립다세대")}${chk("houses", "DEH", "단독주택")}</div>
+        <div class="l">도면 종류</div><div class="c">${chk("drawings", "FP", "평면도")}${chk("drawings", "EP", "입면도")}${chk("drawings", "CS", "단면도")}${chk("drawings", "SD", "구조도")}</div>
+        <div class="l">개수</div><div class="c"><select class="select input-sm" data-zopt="limit" style="width:auto">${[["all", "전부"], ["first", "앞에서부터"], ["random", "무작위로"]].map(([v, l]) => `<option value="${v}"${o.limit === v ? " selected" : ""}>${l}</option>`).join("")}</select>
+          ${o.limit !== "all" ? `<input class="input input-sm num-in" type="number" min="1" step="1" data-zopt="n" value="${o.n}" aria-label="개수"><span class="field-hint">개</span>` : ""}</div>
+        <div class="l">이름에 포함</div><div class="c"><input class="input input-sm" data-zopt="q" value="${esc(o.q)}" placeholder="예: 0001 (비워 두면 전부)" style="width:220px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap;border-top:1px solid var(--color-divider);padding-top:16px">
+        <div class="zip-sum"><span>조건에 맞는 JSON <b>${int(sel.all.length)}</b>개</span><span>가져올 JSON <b>${int(sel.pick.length)}</b>개</span></div>
+        <span style="flex:1"></span><button class="btn btn-primary" data-act="zipImport"${sel.pick.length ? "" : " disabled"}>${int(sel.pick.length)}개 가져오기</button>
+      </div>
+    </div></div>` : ""}
+    <div class="section-gap"></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">AI 허브 API 자동 가져오기</h2><span class="badge badge-neutral">서버 설정 필요</span></div><div class="card-body" style="font-size:13px;color:var(--color-text-secondary)">
+      AI 허브 API는 브라우저에서 바로 부를 수 없고(다른 사이트 호출 차단), API 키를 웹 페이지에 넣으면 누구나 볼 수 있습니다. 서버가 API 키로 라벨 zip을 받아 두고, 팀원만 열 수 있는 주소로 이 화면에 넘겨 주는 방식으로 붙일 수 있습니다.
+    </div></div>`;
+}
+const MANUAL_TEMPLATE = () => {
+  const M = 100, W = 20; let id = 0;
+  const rect = (cid, x, y, w, h) => { const x0 = x * M + W / 2, y0 = y * M + W / 2, x1 = (x + w) * M - W / 2, y1 = (y + h) * M - W / 2;
+    return { id: id++, category_id: cid, segmentation: [[x0, y0, x1, y0, x1, y1, x0, y1]], bbox: [x0, y0, x1 - x0, y1 - y0], area: (x1 - x0) * (y1 - y0) }; };
+  return JSON.stringify({ images: [{ id: 1, width: 1400, height: 1200 }], annotations: [rect(16, 0, 4, 2, 2), rect(13, 2, 0, 6, 6), rect(15, 8, 0, 3, 3), rect(18, 8, 3, 3, 3),
+    rect(14, 2, 6, 3.4, 3.4), rect(14, 5.4, 6, 2.6, 3), rect(14, -3, 3, 3, 3), rect(17, 2, 9.4, 6, 1.4), rect(18, -3, 0, 3, 3)] }, null, 1);
+};
+function manualParse() {
+  const txt = $("#manJson").value.trim(), info = $("#manInfo");
+  if (!txt) { info.textContent = "JSON을 입력하세요."; info.style.color = "#C42B3A"; return null; }
+  try {
+    const data = JSON.parse(txt);
+    if (!Array.isArray(data.annotations)) throw new Error("annotations 배열이 없습니다");
+    const name = ($("#manName").value.trim() || "직접입력.json").replace(/(\.json)?$/i, ".json");
+    const type = E.labelType(data, name), units = type === "SPA" ? E.loadUnits(data, name, ST.params) : [];
+    info.style.color = ""; info.textContent = `${type} 라벨 · 항목 ${int(data.annotations.length)}개${type === "SPA" ? ` · 세대 ${units.length}개로 나뉩니다` : ""}`;
+    if (type === "SPA" && !units.length) { info.style.color = "#C42B3A"; info.textContent += " — 현관(16)이 있는 세대가 없어 채점할 수 없습니다"; }
+    return { name, data };
+  } catch (e) { info.style.color = "#C42B3A"; info.textContent = "형식 오류 — " + e.message; return null; }
+}
+
 /* ── 평가 구조 ── */
 const opt = (v, label, cur) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(label)}</option>`;
 const numIn = (field, v, title) => `<input class="input input-sm num-in" type="number" step="any" data-f="${field}" value="${v ?? ""}" title="${title}" aria-label="${title}">`;
@@ -875,7 +1174,7 @@ function pageCriteria() {
   let k = 0;
   const rows = ST.criteria.map((cr, i) => critRow(cr, i, cr.enabled && agg ? agg[k++] : null)).join("");
   c.innerHTML = `<div class="callout">${ico("info")}<div><b>총점 = 기본점 − 감점</b>입니다. 기본점은 가중 평균 조건의 Σ(가중치 × 조건점수) ÷ Σ가중치 × 100이고, 감점은 감점 조건마다 최대 감점 × (1 − 조건점수)입니다.
-      필수 조건을 하나라도 맞추지 못하면 총점은 0점입니다. 조건을 바꾸면 모든 세대를 바로 다시 채점합니다.</div></div>
+      필수 조건을 하나라도 맞추지 못하면 총점은 0점입니다. 조건을 바꾸면 보유한 모든 세대를 바로 다시 채점합니다.</div></div>
     <div class="toolbar">
       <select class="select" id="presetSel" style="width:auto" aria-label="조건 세트">${Object.keys(E.PRESETS).map(p => opt(p, p)).join("")}</select>
       <button class="btn btn-secondary" data-act="preset">세트 적용</button>
@@ -944,7 +1243,7 @@ function pageParams() {
   const isChg = (k, m) => ST.params[k] !== m.def && !(ST.params[k] == null && m.def == null);
   const changed = Object.entries(E.PARAMS).filter(([k, m]) => isChg(k, m)).length;
   const OPT = { leaf: "한 실에만 (leaf)", all: "맞닿은 실 모두 (all)", none: "제외 (none)" };
-  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>바꾸면 불러온 모든 도면을 다시 읽고 다시 채점합니다. 평가 구조 화면의 ‘설정 내보내기’ 파일에 조건과 함께 이 변수가 들어갑니다.</div></div>
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>바꾸면 보유한 모든 도면을 원본에서 다시 읽고 다시 채점합니다. 평가 구조 화면의 ‘설정 내보내기’ 파일에 조건과 함께 이 변수가 들어갑니다.</div></div>
     <div class="toolbar"><span class="field-hint">기본값에서 바뀐 변수 ${changed}개</span><span class="spacer"></span><button class="btn btn-secondary" data-act="paramReset"${changed ? "" : " disabled"}>기본값으로</button></div>
     <div class="card">${Object.entries(groups).map(([g, items]) => `<div class="psec">${g}</div>` + items.map(([k, m]) => {
       const v = ST.params[k];
@@ -970,15 +1269,15 @@ function pageBaseline() {
   const b = ST.baseline;
   const typeRows = b ? Object.entries(b.type_counts).map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="n">${int(n)}</td><td>${b.types && b.types[t] ? `<span class="badge badge-neutral">유형 분포 사용</span>` : `<span class="field-hint">5세대 미만 — 전체 분포 사용</span>`}</td></tr>`).join("") : "";
   $("#content").innerHTML = `<div class="callout">${ico("info")}<div>실제 지어진 아파트(AI 허브)의 특징 분포를 정답지로 씁니다. 세대의 면적비·깊이·거실 통합도 순위 등이 같은 유형의 분포에서 얼마나 벗어나는지로 <code>@typicality</code>(정답지 근접도)를 0~100점으로 계산합니다.</div></div>
-    ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 불러온 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 전체 데이터로 만든 baseline.json(CLI <code>aihub_eval.py baseline</code>)을 불러오세요.</div></div>` : ""}
-    <div class="toolbar"><button class="btn btn-secondary" data-act="baseAuto">불러온 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
+    ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 보유한 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 전체 데이터로 만든 baseline.json(CLI <code>aihub_eval.py baseline</code>)을 불러오세요.</div></div>` : ""}
+    <div class="toolbar"><button class="btn btn-secondary" data-act="baseAuto">보유 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
     ${b ? `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">현재 정답지</h2></div><div class="card-body">
-        <div class="kv"><span>출처</span><span>${ST.baseSource === "auto" ? "불러온 세대에서 자동 생성" : "baseline.json 파일"}</span></div>
+        <div class="kv"><span>출처</span><span>${ST.baseSource === "auto" ? "보유 세대에서 자동 생성" : "baseline.json 파일"}</span></div>
         <div class="kv"><span>세대 수</span><span class="num">${int(b.n_units)}</span></div>
         <div class="kv"><span>유형 수</span><span class="num">${int(Object.keys(b.type_counts).length)}</span></div>
         <div class="kv"><span>최다 유형</span><span>${esc(Object.keys(b.type_counts)[0] || "—")}</span></div></div></div>
       <div class="card"><div class="card-header"><h2 class="card-title">유형별 세대 수</h2></div><div class="card-body flush tw"><table class="t"><thead><tr><th>유형</th><th class="n">세대</th><th>비교 기준</th></tr></thead><tbody>${typeRows}</tbody></table></div></div></div>`
-    : `<div class="card"><div class="empty-state"><h3>정답지가 없습니다</h3><p>세대가 3개 이상이면 불러온 세대로 자동으로 만듭니다. 정답지가 없으면 <code>@typicality</code> 조건은 건너뜁니다.</p></div></div>`}`;
+    : `<div class="card"><div class="empty-state"><h3>정답지가 없습니다</h3><p>세대가 3개 이상이면 보유한 세대로 자동으로 만듭니다. 정답지가 없으면 <code>@typicality</code> 조건은 건너뜁니다.</p></div></div>`}`;
 }
 
 /* ── 보관 기록 ── */
@@ -1011,37 +1310,19 @@ function pageArchive() {
     ${DB.ok ? "" : `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div>이 브라우저는 저장소를 쓸 수 없어 창을 닫으면 기록이 사라집니다. JSON으로 내려받아 두세요.</div></div>`}`;
 }
 
-/* ═════════════════════════════════════ 보관 (IndexedDB, 안 되면 이 창에만) */
-const DB = { name: "aihub-studio", store: "snapshots", db: null, ok: true };
-function dbOpen() {
-  return new Promise((res) => {
-    try {
-      const rq = indexedDB.open(DB.name, 1);
-      rq.onupgradeneeded = () => rq.result.createObjectStore(DB.store, { keyPath: "id" });
-      rq.onsuccess = () => { DB.db = rq.result; res(true); };
-      rq.onerror = () => { DB.ok = false; res(false); };
-    } catch { DB.ok = false; res(false); }
-  });
-}
-function dbDo(mode, fn) {
-  return new Promise((res, rej) => {
-    if (!DB.db) return rej(new Error("no db"));
-    const tx = DB.db.transaction(DB.store, mode), rq = fn(tx.objectStore(DB.store));
-    tx.oncomplete = () => res(rq && rq.result); tx.onerror = () => rej(tx.error);
-  });
-}
+/* ═════════════════════════════════════ 보관 기록 */
 async function loadSnaps() {
-  if (DB.db) { try { ST.snaps = (await dbDo("readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
+  if (DB.db) { try { ST.snaps = (await dbDo("snapshots", "readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
   ST.snaps.sort((a, b) => (b.created || "").localeCompare(a.created || ""));
 }
 async function saveSnap(s) {
   s.id = s.id || "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  if (DB.db) { try { await dbDo("readwrite", st => st.put(s)); } catch { DB.ok = false; toast("브라우저 저장소에 쓰지 못했습니다. 이 창에서만 보관됩니다.", true); } }
+  if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.put(s)); } catch { DB.ok = false; toast("브라우저 저장소에 쓰지 못했습니다. 이 창에서만 보관됩니다.", true); } }
   ST.snaps = ST.snaps.filter(x => x.id !== s.id).concat([s]);
   await loadSnaps(); return s;
 }
 async function delSnap(id) {
-  if (DB.db) { try { await dbDo("readwrite", st => st.delete(id)); } catch {} }
+  if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.delete(id)); } catch {} }
   ST.snaps = ST.snaps.filter(x => x.id !== id);
 }
 const snapFile = (s) => `aihub_stats_${(s.name || "기록").replace(/[\\/:*?"<>|\s]+/g, "_")}_${(s.created || "").slice(0, 10)}.json`;
@@ -1057,7 +1338,7 @@ async function loadStatFile(file) {
   } catch (e) { toast("통계를 불러오지 못했습니다 — " + e.message, true); }
 }
 
-/* ═════════════════════════════════════ 모달 · 토스트 · 메뉴 */
+/* ═════════════════════════════════════ 모달 · 토스트 */
 function modal({ title, body, ok = "확인", danger = false, onOk }) {
   const el = document.createElement("div");
   el.className = "modal-overlay";
@@ -1076,23 +1357,7 @@ function modal({ title, body, ok = "확인", danger = false, onOk }) {
 }
 function toast(msg, err) {
   const t = document.createElement("div"); t.className = "toast" + (err ? " is-error" : ""); t.textContent = msg;
-  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 5000 : 3000);
-}
-function openMenu(anchor) {
-  document.querySelectorAll(".menu").forEach(m => m.remove());
-  const r = anchor.getBoundingClientRect(), m = document.createElement("div");
-  m.className = "menu"; m.setAttribute("role", "menu");
-  m.innerHTML = `<button role="menuitem" data-m="files">${ico("file")}<span>파일 선택<small>JSON 여러 개를 한꺼번에</small></span></button>
-    <button role="menuitem" data-m="dir">${ico("folder")}<span>폴더 선택<small>하위 폴더의 JSON까지 전부</small></span></button>
-    <button role="menuitem" data-m="sample">${ico("plan")}<span>예시 도면<small>합성 도면 4장 (AI 허브 원본 아님)</small></span></button>`;
-  document.body.appendChild(m);
-  const w = Math.max(240, r.width);
-  m.style.minWidth = w + "px";
-  m.style.left = Math.min(r.left + window.scrollX, innerWidth - w - 8) + "px"; m.style.top = (r.bottom + window.scrollY + 4) + "px";
-  const off = (e) => { if (!m.contains(e.target)) { m.remove(); document.removeEventListener("pointerdown", off, true); } };
-  setTimeout(() => document.addEventListener("pointerdown", off, true));
-  m.querySelector("button").focus();
-  m.onclick = (e) => { const b = e.target.closest("[data-m]"); if (!b) return; m.remove(); ({ files: () => $("#fileIn").click(), dir: () => $("#dirIn").click(), sample: () => ingest(sampleItems()) })[b.dataset.m](); };
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 5000 : 3200);
 }
 
 /* ═════════════════════════════════════ 내려받기 · 설정 */
@@ -1107,9 +1372,11 @@ function configJSON() {
 async function applyConfig(d, msg) {
   if (d.criteria && d.criteria.length) ST.criteria = d.criteria.map(c => Object.assign({ agg: "worst", enabled: true, weight: 1, penalty: 0, why: "" }, c));
   else if (d.dsl) { const p = E.parseDSL(d.dsl); if (p.errors.length) throw new Error(p.errors.join("\n")); ST.criteria = p.criteria; }
+  const oldKey = pkey();
   ST.params = Object.assign(E.defaultParams(), d.params || {});
   store.set("aihub.criteria", JSON.stringify(ST.criteria)); store.set("aihub.params", JSON.stringify(ST.params));
-  await reprocessAll(); if (msg) toast(msg);
+  if (pkey() !== oldKey) await reprocessAll(); else rescore();
+  if (msg) toast(msg);
 }
 async function loadConfig(file) {
   const text = await file.text();
@@ -1120,15 +1387,16 @@ async function loadConfig(file) {
 }
 function csv() {
   const gk = Object.keys(E.MEASURES).filter(k => E.MEASURES[k].scope === "global");
-  const lines = [["unit", "type", "total", "grade", "base", "penalty", "gated", ...gk.map(k => "@" + k)].join(",")];
-  for (const { r } of allUnits()) lines.push([r.unit, r.type, r.score.total.toFixed(2), r.score.grade, r.score.base.toFixed(2), r.score.penalty.toFixed(2), r.score.gated,
-    ...gk.map(k => r.measures.global[k] == null || !isFinite(r.measures.global[k]) ? "" : +(+r.measures.global[k]).toPrecision(6))].join(","));
-  download("aihub_scores.csv", "﻿" + lines.join("\n"), "text/csv");
+  const q = (v) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const lines = [["unit", "file", "source", "type", "total", "grade", "base", "penalty", "gated", "pass", ...gk.map(k => "@" + k)].join(",")];
+  for (const { f, r } of allUnits()) lines.push([r.unit, f.name, SOURCES[f.source] || f.source, r.type, r.score.total.toFixed(2), r.score.grade, r.score.base.toFixed(2), r.score.penalty.toFixed(2), r.score.gated, r.feasibility.pass,
+    ...gk.map(k => r.measures.global[k] == null || !isFinite(r.measures.global[k]) ? "" : +(+r.measures.global[k]).toPrecision(6))].map(q).join(","));
+  download("평가_점수표.csv", "﻿" + lines.join("\n"), "text/csv");
 }
 function saveSnapModal() {
   if (!allUnits().length) return;
   modal({ title: "현재 통계 보관", ok: "보관",
-    body: `<p style="margin:0 0 16px">지금의 점수·지표와 조건·변수를 한 기록으로 이 브라우저에 남깁니다.${ST.statType ? ` 유형 필터(${esc(ST.statType)})와 관계없이 전체 세대가 들어갑니다.` : ""}</p>
+    body: `<p style="margin:0 0 16px">지금의 점수·지표와 조건·변수를 한 기록으로 이 브라우저에 남깁니다.${ST.statType || ST.statSource ? " 출처·유형 필터와 관계없이 보유한 전체 세대가 들어갑니다." : ""}</p>
       <div class="field"><label class="field-label" for="snapName">이름</label><input class="input" id="snapName" placeholder="예: 3R2B 시공성 v1" value="기록 ${ST.snaps.length + 1}"></div>
       <div class="field" style="margin:0"><label class="field-label" for="snapMemo">메모</label><textarea class="input" id="snapMemo" rows="3" placeholder="이 조건을 쓴 이유, 근거 논문 등"></textarea></div>`,
     onOk: async (el) => {
@@ -1171,23 +1439,39 @@ async function onClick(e) {
     const act = a.dataset.act, sid = a.dataset.sid;
     const snap = sid ? ST.snaps.find(s => s.id === sid) : null;
     switch (act) {
-      case "openMenu": return openMenu(a);
-      case "sample": return ingest(sampleItems());
+      case "sample": return ingest(sampleItems(), "sample");
+      case "pickFiles": return $("#fileIn").click();
+      case "pickDir": return $("#dirIn").click();
+      case "pickZip": return $("#zipIn").click();
+      case "zipRemove": ST.zips = ST.zips.filter(z => z.name !== a.dataset.zip); return render();
+      case "zipImport": {
+        const { pick } = zipSelection();
+        if (!pick.length) return;
+        return ingest(pick.map(({ z, e }) => ({ name: e.base, load: async () => JSON.parse(await zipReadText(z.file, e)) })), "aihub");
+      }
+      case "manTemplate": $("#manJson").value = MANUAL_TEMPLATE(); return manualParse();
+      case "manCheck": return manualParse();
+      case "manAdd": { const r = manualParse(); if (r) ingest([{ name: r.name, data: r.data }], "manual"); return; }
+      case "reprocess": return reprocessAll();
+      case "delSource": { const src = a.dataset.source, ids = ST.files.filter(f => f.source === src).map(f => f.id);
+        return modal({ title: `${SOURCES[src] || src} 데이터 삭제`, ok: "삭제", danger: true,
+          body: `<p style="margin:0">‘${esc(SOURCES[src] || src)}’로 가져온 파일 ${int(ids.length)}개를 이 브라우저에서 지웁니다. 통계에서도 빠지며 되돌릴 수 없습니다. 보관 기록은 그대로입니다.</p>`,
+          onOk: async () => { await removeFiles(ids); toast("삭제했습니다"); } }); }
+      case "delAll": return modal({ title: "보유 데이터 전체 삭제", ok: "전체 삭제", danger: true,
+        body: `<p style="margin:0">가져온 파일 ${int(ST.files.length)}개를 모두 이 브라우저에서 지웁니다. 통계가 비며 되돌릴 수 없습니다. 보관 기록과 평가 구조는 그대로입니다.</p>`,
+        onOk: async () => { await removeFiles(ST.files.map(f => f.id)); toast("모두 삭제했습니다"); } });
       case "csv": return csv();
-      case "dlLive": { const s = liveStats(ST.statType); s.name = ST.statType ? `유형 ${ST.statType}` : "현재"; return download(snapFile(s), JSON.stringify(s, null, 1), "application/json"); }
+      case "dlLive": { const s = liveStats(ST.statType, ST.statSource); s.name = [ST.statSource && SOURCES[ST.statSource], ST.statType].filter(Boolean).join("_") || "현재"; return download(snapFile(s), JSON.stringify(s, null, 1), "application/json"); }
       case "saveSnap": return saveSnapModal();
       case "loadStat": return $("#statIn").click();
       case "dlAll": return download(`aihub_stats_archive_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ kind: "aihub-stats-archive", version: 1, records: ST.snaps }, null, 1), "application/json");
       case "dlSnap": return snap && download(snapFile(snap), JSON.stringify(snap, null, 1), "application/json");
       case "applySnap": return snap && modal({ title: "보관 기록의 조건·변수 적용", ok: "적용",
-        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int((snap.config.criteria || []).length)}개와 판정 변수로 지금 설정을 바꾸고, 불러온 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
+        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int((snap.config.criteria || []).length)}개와 판정 변수로 지금 설정을 바꾸고, 보유한 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
         onOk: async () => { await applyConfig(snap.config, `‘${snap.name}’의 조건·변수를 적용했습니다`); go("#/stats"); } });
       case "delSnap": return snap && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
         body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 이 브라우저에서 지웁니다. 지운 기록은 되돌릴 수 없습니다. 필요하면 먼저 JSON으로 내려받아 두세요.</p>`,
         onOk: async () => { await delSnap(snap.id); toast("기록을 지웠습니다"); if (ST.route.id) go("#/archive"); else render(); } });
-      case "closeAll": return modal({ title: "도면 모두 빼기", ok: "모두 빼기", danger: true,
-        body: `<p style="margin:0">불러온 도면 ${int(ST.files.length)}개를 목록에서 뺍니다. 원본 파일과 보관 기록은 그대로입니다. 다시 보려면 다시 불러와야 합니다.</p>`,
-        onOk: () => { ST.files = []; ST.fileId = null; ST.unitIdx = -1; if (ST.baseSource === "auto") ST.baseline = null; rescore(); } });
       case "unroom": ST.room = null; return render();
       case "preset": ST.criteria = E.parseDSL(E.PRESETS[$("#presetSel").value]).criteria; commitCrit(); return toast(`‘${$("#presetSel").value}’ 세트를 적용했습니다`);
       case "addCrit": {
@@ -1204,9 +1488,9 @@ async function onClick(e) {
         return;
       }
       case "cfgIn": return $("#cfgIn").click();
-      case "cfgOut": return download("aihub_config.json", configJSON(), "application/json");
+      case "cfgOut": return download("평가구조_설정.json", configJSON(), "application/json");
       case "paramReset": ST.params = E.defaultParams(); store.set("aihub.params", JSON.stringify(ST.params)); return reprocessAll();
-      case "baseAuto": ST.baseSource = "auto"; rebuildBaseline(); rescore(); return toast(ST.baseline ? "불러온 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
+      case "baseAuto": ST.baseSource = "auto"; rebuildBaseline(); rescore(); return toast(ST.baseline ? "보유 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
       case "baseLoad": return $("#baseIn").click();
     }
     return;
@@ -1215,11 +1499,9 @@ async function onClick(e) {
   if (lay) { const k = lay.dataset.l; ST.layers[k] = !ST.layers[k]; lay.classList.toggle("is-active", ST.layers[k]); lay.setAttribute("aria-pressed", ST.layers[k]); return drawPlan(); }
   const cl = e.target.closest("[data-close]");
   if (cl) {
-    const i = ST.files.findIndex(f => f.id === cl.dataset.close); if (i < 0) return;
-    ST.files.splice(i, 1);
-    if (ST.fileId === cl.dataset.close) { const nx = ST.files[i] || ST.files[i - 1]; ST.fileId = null; if (nx) { selectFile(nx.id); history.replaceState(null, "", `#/plans/${nx.id}`); } }
-    if (ST.baseSource === "auto") rebuildBaseline();
-    return rescore();
+    const f = ST.files.find(x => x.id === cl.dataset.close); if (!f) return;
+    return modal({ title: "도면 삭제", ok: "삭제", danger: true, body: `<p style="margin:0">‘${esc(f.name)}’을(를) 이 브라우저에서 지웁니다. 통계에서도 빠집니다.</p>`,
+      onOk: async () => { const i = ST.files.indexOf(f), nx = ST.files[i + 1] || ST.files[i - 1]; await removeFiles([f.id]); if (nx && !curFile()) { selectFile(nx.id); history.replaceState(null, "", `#/plans/${nx.id}`); render(); } } });
   }
   const fr = e.target.closest(".frow");
   if (fr) { if (fr.dataset.f !== ST.fileId) { selectFile(fr.dataset.f); history.replaceState(null, "", `#/plans/${fr.dataset.f}`); } return render(); }
@@ -1229,8 +1511,8 @@ async function onClick(e) {
   if (rr) { ST.room = rr.dataset.room === ST.room ? null : rr.dataset.room; return render(); }
   const ut = e.target.closest("tr.click[data-unit]");
   if (ut) {
-    for (const f of ST.files) { const i = f.results.findIndex(r => r.unit === ut.dataset.unit); if (i >= 0) { selectFile(f.id); ST.unitIdx = i; return go(`#/plans/${f.id}`); } }
-    return toast("이 세대의 도면 파일이 목록에 없습니다", true);
+    for (const f of ST.files) { const i = (f.results || []).findIndex(r => r.unit === ut.dataset.unit); if (i >= 0) { selectFile(f.id); ST.unitIdx = i; return go(`#/plans/${f.id}`); } }
+    return toast("이 세대의 도면 파일이 없습니다", true);
   }
   const op = e.target.closest("[data-open]");
   if (op) return go(`#/archive/${encodeURIComponent(op.dataset.open)}`);
@@ -1238,20 +1520,30 @@ async function onClick(e) {
 (function wire() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", (e) => {
-    if (e.target.closest("#critList")) return onCritEdit(e);
-    if (e.target.dataset.p) return onParam(e);
-    if (e.target.id === "statType") { ST.statType = e.target.value; return render(); }
-    if (e.target.id === "unitSort") { ST.unitSort = e.target.value; return render(); }
+    const t = e.target;
+    if (t.closest("#critList")) return onCritEdit(e);
+    if (t.dataset.p) return onParam(e);
+    if (t.dataset.zopt) {
+      const k = t.dataset.zopt, o = ST.zipOpt;
+      if (t.type === "checkbox") { const set = new Set(o[k]); t.checked ? set.add(t.value) : set.delete(t.value); o[k] = [...set]; }
+      else if (k === "n") o.n = Math.max(1, Math.floor(+t.value || 1));
+      else o[k] = t.value;
+      return render();
+    }
+    if (t.id === "statType") { ST.statType = t.value; return render(); }
+    if (t.id === "statSource") { ST.statSource = t.value; return render(); }
+    if (t.id === "unitSort") { ST.unitSort = t.value; return render(); }
   });
   let qT;
   document.addEventListener("input", (e) => {
-    if (e.target.id !== "fileQ" && e.target.id !== "archQ") return;
-    const id = e.target.id, key = id === "fileQ" ? "fileQuery" : "archQuery";
-    ST[key] = e.target.value; clearTimeout(qT);
+    const id = e.target.id;
+    if (id !== "fileQ" && id !== "archQ") return;
+    ST[id === "fileQ" ? "fileQuery" : "archQuery"] = e.target.value; clearTimeout(qT);
     qT = setTimeout(() => { const pos = document.getElementById(id)?.selectionStart; render(); const el = document.getElementById(id); if (el) { el.focus(); if (pos != null) el.setSelectionRange(pos, pos); } }, 150);
   });
   $("#fileIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
   $("#dirIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
+  $("#zipIn").onchange = (e) => { addZips([...e.target.files]); e.target.value = ""; };
   $("#cfgIn").onchange = (e) => { if (e.target.files[0]) loadConfig(e.target.files[0]); e.target.value = ""; };
   $("#statIn").onchange = (e) => { if (e.target.files[0]) loadStatFile(e.target.files[0]); e.target.value = ""; };
   $("#baseIn").onchange = async (e) => {
@@ -1285,7 +1577,19 @@ async function onClick(e) {
 (async function init() {
   try { const c = JSON.parse(store.get("aihub.criteria") || "null"); if (Array.isArray(c) && c.length) ST.criteria = c; } catch {}
   try { const p = JSON.parse(store.get("aihub.params") || "null"); if (p) ST.params = Object.assign(E.defaultParams(), p); } catch {}
+  ST.route = parseHash(); render();
+  await dbOpen();
+  await loadSnaps();
+  if (DB.db) {
+    try {
+      const metas = (await dbDo("meta", "readonly", s => s.getAll())) || [];
+      metas.sort((a, b) => (a.added || "").localeCompare(b.added || "") || a.name.localeCompare(b.name));
+      ST.files = metas.map(m => ({ ...m, results: [], full: null, data: null }));
+    } catch (e) { console.error(e); }
+  }
+  const stale = ST.files.some(f => f.pkey !== pkey());
+  if (stale) await reprocessAll("판정 변수가 바뀌어 다시 계산하는 중");
+  else { if (ST.baseSource === "auto") rebuildBaseline(); rescore(false); }
   onRoute();
-  await dbOpen(); await loadSnaps(); render();
 })();
 </script>
