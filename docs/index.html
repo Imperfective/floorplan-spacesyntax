@@ -370,13 +370,13 @@ details.more[open]>summary svg{transform:rotate(90deg)}
 </div>
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" hidden></div>
-<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 데이터(JSON · AI 허브 download.tar · zip · 도면 이미지)를 가져옵니다</div></div>
+<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 데이터(tar · zip · JSON · 엑셀 · CSV · 도면 이미지)를 가져옵니다</div></div>
 <div class="progress" id="progress" hidden>
   <div style="display:flex;align-items:center;gap:8px"><b id="progText" style="flex:1;font-size:13px">가져오는 중</b><button class="btn btn-ghost btn-sm" id="progCancel">멈춤</button></div>
   <div class="bar"><b id="progBar" style="width:0%"></b></div>
   <div class="field-hint" id="progSub"></div>
 </div>
-<input type="file" id="fileIn" multiple hidden>
+<input type="file" id="fileIn" accept=".tar,.zip,.json,.xlsx,.csv,.tsv,.png,.jpg,.jpeg" multiple hidden>
 <input type="file" id="dirIn" webkitdirectory directory multiple hidden>
 <input type="file" id="zipIn" multiple hidden>
 <input type="file" id="pngIn" accept="image/png,image/jpeg" multiple hidden>
@@ -432,14 +432,6 @@ const GRADE_BADGE = (g) => ({ A: "badge-success", B: "badge-info", C: "badge-war
 const gradeFill = (g) => ({ A: "#00804F", B: "#11798A", C: "#8B6914" }[g[0]] || "#C42B3A");
 const SOURCES = { aihub: "AI 허브", upload: "파일 업로드", manual: "직접 입력", sample: "예시" };
 
-/* AI 허브 '건축 도면 데이터'(datasetkey 71465) 라벨 묶음 — 원천 이미지(TS_/VS_, 약 26GB)는 받지 않는다 */
-const AIHUB_LABEL_ZIPS = [
-  ["TL_SPA.zip", "37.81 MB", 497461, "공간 — 채점에 필요", true], ["VL_SPA.zip", "4.92 MB", 497469, "공간 — 채점에 필요", true],
-  ["TL_STR.zip", "91.44 MB", 497462, "구조(벽·문·창) — 문·창 겹침 검사", false], ["VL_STR.zip", "11.74 MB", 497470, "구조(벽·문·창) — 문·창 겹침 검사", false],
-  ["TL_OBJ.zip", "9.03 MB", 497459, "객체(위생·주방 기구) — 그림만", false], ["VL_OBJ.zip", "1.13 MB", 497467, "객체 — 그림만", false],
-  ["TL_OCR.zip", "15.10 MB", 497460, "도면 글자 — 그림만", false], ["VL_OCR.zip", "1.91 MB", 497468, "도면 글자 — 그림만", false],
-];
-const AIHUB_PAGE = "https://aihub.or.kr/aihubdata/data/view.do?dataSetSn=71465";
 
 /* ═════════════════════════════════════ 상태
    파일 기록 f = { id, name, type, source, added, pkey, sum, results, sheetScore, full }
@@ -745,21 +737,23 @@ function zipSelection() {
 }
 
 /* ═════════════════════════════════════ 파일 고르기 · 끌어놓기(폴더 포함) */
-const isImg = (n) => /\.(png|jpe?g)$/i.test(n), isJson = (n) => /\.json$/i.test(n), isZip = (n) => /\.(zip|tar)$|\.zip\.part\d+$/i.test(n);
+const isImg = (n) => /\.(png|jpe?g)$/i.test(n), isJson = (n) => /\.json$/i.test(n), isZip = (n) => /\.(zip|tar)$|\.zip\.part\d+$/i.test(n), isTable = (n) => /\.(csv|tsv|xlsx|xls)$/i.test(n);
 function pickFiles(list, source = "upload") {
   const arr = [...list];
   const zips = arr.filter(f => isZip(f.name));
   const items = arr.filter(f => isJson(f.name)).map(f => ({ name: f.name, file: f }));
   const imgs = arr.filter(f => isImg(f.name));
+  const tables = arr.filter(f => isTable(f.name));
   if (imgs.length) pngOpen(imgs);
+  if (tables.length) tableOpen(tables);
   if (zips.length) addZips(zips);
-  if (items.length) ingest(items, source);
-  if (!zips.length && !items.length && !imgs.length) toast("JSON · zip · tar · 이미지 파일이 없습니다", true);
+  if (items.length) ingest(items, source, tables.length ? { stay: true } : undefined);
+  if (!zips.length && !items.length && !imgs.length && !tables.length) toast("tar · zip · JSON · 엑셀 · CSV · 이미지 파일이 없습니다", true);
 }
 async function entriesToFiles(entries) {
   const out = [];
   const walk = async (en) => {
-    if (en.isFile) { if (isJson(en.name) || isZip(en.name) || isImg(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
+    if (en.isFile) { if (isJson(en.name) || isZip(en.name) || isImg(en.name) || isTable(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
     else if (en.isDirectory) {
       const rd = en.createReader();
       for (;;) { const b = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!b.length) break; for (const x of b) await walk(x); }
@@ -855,7 +849,7 @@ function pageStats() {
   const S = liveStats(ST.statType, ST.statSource);
   renderHeader("통계", ["분석"], PAGES.stats.tabs.map(([k, l]) => [k, l, `#/stats/${k}`, k === "units" ? S.summary.n_units : null]));
   const c = $("#content");
-  if (!allUnits().length) { c.innerHTML = emptyData("보유한 도면이 없습니다", "AI 허브 라벨 zip, JSON 파일, 직접 입력한 JSON으로 도면을 가져오면 세대마다 채점한 결과가 이 화면에 쌓입니다. 화면 어디에나 끌어다 놓아도 됩니다."); return; }
+  if (!allUnits().length) { c.innerHTML = emptyData("보유한 도면이 없습니다", "tar · zip · JSON · 엑셀 · CSV 파일이나 직접 입력한 JSON으로 도면을 가져오면 세대마다 채점한 결과가 이 화면에 쌓입니다. 화면 어디에나 끌어다 놓아도 됩니다."); return; }
   c.innerHTML = `<div class="toolbar">
       <select class="select" id="statSource" style="width:auto" aria-label="출처">${[["", "전체 출처"], ...sources.map(s => [s, SOURCES[s] || s])].map(([v, l]) => `<option value="${v}"${v === ST.statSource ? " selected" : ""}>${l}</option>`).join("")}</select>
       <select class="select" id="statType" style="width:auto" aria-label="유형">${[["", "전체 유형"], ...types.map(t => [t, t])].map(([v, l]) => `<option value="${v}"${v === ST.statType ? " selected" : ""}>${l}</option>`).join("")}</select>
@@ -1132,10 +1126,29 @@ function pageData() {
   if (tab === "aihub") return void (c.innerHTML = dataAihub());
   if (tab === "png") { c.innerHTML = dataPng(); return pngDraw(); }
   if (tab === "upload") return void (c.innerHTML = `
-    <div class="callout">${ico("info")}<div>AI 허브 라벨 JSON(SPA·STR·OBJ·OCR)이나 같은 형식(COCO)의 JSON을 가져옵니다. 여러 개를 한꺼번에, 폴더째로도 됩니다. zip · download.tar를 고르면 AI 허브 탭에서 가져올 범위를 정하고, PNG·JPG 도면 이미지는 이미지 변환 탭에서 JSON으로 바꿉니다.</div></div>
     <div class="card"><div class="card-body">
-      <div class="drop-area" data-drop="upload"><b>JSON 파일이나 폴더를 여기에 끌어다 놓으세요</b>화면 어디에 놓아도 됩니다.
+      <div class="drop-area" data-drop="upload"><b>tar · zip · JSON · 엑셀 · CSV 파일로 올려 주세요</b>여러 개를 한꺼번에, 폴더째로 놓아도 됩니다. 화면 어디에 놓아도 됩니다.
         <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"><button class="btn btn-secondary" data-act="pickFiles">${ico("file")}파일 선택</button><button class="btn btn-secondary" data-act="pickDir">${ico("folder")}폴더 선택</button></div></div>
+      <div class="tw" style="margin-top:16px"><table class="t compact"><thead><tr><th>파일</th><th>가져오는 방식</th></tr></thead><tbody>
+        <tr><td class="num">.json</td><td>AI 허브 라벨(SPA·STR·OBJ·OCR)이나 같은 형식(COCO) — 바로 채점해 통계에 쌓습니다</td></tr>
+        <tr><td class="num">.tar · .zip</td><td>AI 허브에서 받은 download.tar · 라벨 zip — <a href="#/data/aihub">AI 허브</a> 탭에서 가져올 범위를 고릅니다</td></tr>
+        <tr><td class="num">.xlsx · .csv</td><td>한 행에 실 하나를 적은 표 — 아래에서 JSON으로 바꾼 뒤 추가합니다</td></tr>
+        <tr><td class="num">.png · .jpg</td><td>도면 이미지 — <a href="#/data/png">이미지 변환</a> 탭에서 JSON으로 바꿉니다</td></tr>
+      </tbody></table></div>
+    </div></div>
+    ${tableCard()}
+    <div class="section-gap"></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">엑셀 · CSV 표 양식</h2><button class="btn btn-ghost btn-sm" data-act="tblTemplate">${ico("download")}양식 내려받기(CSV)</button></div><div class="card-body" style="font-size:13px;color:var(--color-text-secondary)">
+      첫 행은 머리글, 그 아래 한 행이 실 하나입니다. <b style="color:var(--color-text-primary)">도면</b> 값이 같은 행끼리 도면 JSON 하나가 됩니다(비워 두면 파일 이름).
+      <div class="tw" style="margin-top:12px"><table class="t compact"><thead><tr><th>열</th><th>내용</th></tr></thead><tbody>
+        <tr><td>도면</td><td>도면 이름 — JSON 파일 이름이 됩니다</td></tr>
+        <tr><td>용도 <span class="badge badge-neutral">필수</span></td><td>거실 · 침실(안방) · 주방 · 현관 · 화장실(욕실) · 발코니 · 드레스룸 · 실외기실 · 다목적공간 · 기타, 또는 AI 허브 번호(13 거실 · 14 침실 …)</td></tr>
+        <tr><td>x · y · 너비 · 깊이</td><td>사각형 실 — 왼쪽 위 꼭짓점과 크기</td></tr>
+        <tr><td>좌표</td><td>사각형이 아닌 실 — <code>x1 y1, x2 y2, x3 y3, …</code> (있으면 x · y · 너비 · 깊이보다 먼저 씁니다)</td></tr>
+        <tr><td>단위</td><td>m 또는 px. 비우면 좌표가 300보다 작을 때 m로 봅니다. m는 1m = 100px로 바꾸고 실마다 벽 자리(0.1m)를 남깁니다</td></tr>
+        <tr><td>이름</td><td>실 이름(선택) — 예: 안방, 공용욕실</td></tr>
+      </tbody></table></div>
+      <div class="field-hint" style="margin-top:8px">엑셀은 .xlsx의 첫 시트만 읽습니다. 예전 형식(.xls)은 .xlsx나 .csv로 저장해 올려 주세요. 세대는 현관에서 맞닿은 실을 따라 나누므로 실끼리 벽 두께만큼 붙어 있어야 합니다.</div>
     </div></div>`);
   if (tab === "manual") return void (c.innerHTML = `
     <div class="callout">${ico("info")}<div>JSON을 직접 입력하거나 붙여 넣습니다. 형식은 AI 허브 라벨과 같은 COCO입니다 — <code>annotations</code> 배열에 실마다 <code>category_id</code>(13 거실 · 14 침실 · 15 주방 · 16 현관 · 17 발코니 · 18 화장실 …), <code>segmentation</code>(꼭짓점 좌표), <code>bbox</code>, <code>area</code>를 넣습니다. 생성 모델이 만든 도면을 이 형식으로 넣으면 같은 기준으로 채점됩니다.</div></div>
@@ -1160,19 +1173,11 @@ function dataAihub() {
   const o = ST.zipOpt, sel = ST.zips.length ? zipSelection() : null;
   const chk = (group, v, l) => `<label class="chk"><input type="checkbox" data-zopt="${group}" value="${v}"${o[group].includes(v) ? " checked" : ""}>${l}</label>`;
   const DS = ST.defaults.stats;
-  return `${DS ? `<div class="callout">${ico("check")}<div><b>AI 허브 아파트 평면도 ${int(DS.summary.n_files)}장(${int(DS.summary.n_units)}세대)의 정답지와 전체 통계가 기본으로 들어 있습니다.</b>
-      별도로 받지 않아도 <a href="#/archive/${encodeURIComponent(DS.id)}">전체 통계</a>와 정답지 근접도를 쓸 수 있습니다. 기본 데이터는 계산 결과(분포·점수)만이고 원본 도면은 들어 있지 않습니다 — AI 허브 이용정책상 원본은 재배포할 수 없습니다.
-      <b>도면을 직접 보고 조건을 바꿔 다시 채점하려면</b> 아래 파일을 각자 받아 넣어 주세요.</div></div>` : ""}
-    <div class="callout">${ico("info")}<div><b>원천 이미지(PNG, 약 26GB)는 받지 않습니다.</b> AI 허브 ‘건축 도면 데이터’ 화면의 파일 목록에서 <b>02.라벨링데이터</b>의 zip만 받아, 내려받은 <b>download.tar를 풀지 말고 그대로</b> 아래에 놓으면 브라우저 안에서 열어 고른 JSON만 가져옵니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</div></div>
-    <div class="grid2">
-      <div class="card"><div class="card-header"><h2 class="card-title">도면을 직접 보려면 받을 파일</h2><a class="btn btn-ghost btn-sm" href="${AIHUB_PAGE}" target="_blank" rel="noopener">${ico("ext")}데이터셋 화면</a></div>
-        <div class="card-body flush tw"><table class="t compact"><thead><tr><th>파일</th><th class="n">용량</th><th class="n">파일키</th><th>쓰임</th></tr></thead><tbody>
-        ${AIHUB_LABEL_ZIPS.map(([n, s, k, d, need]) => `<tr><td><b>${n}</b>${need ? ` <span class="badge badge-info">필수</span>` : ""}</td><td class="n">${s}</td><td class="n">${k}</td><td class="field-hint" style="font-size:12px">${d}</td></tr>`).join("")}
-        </tbody></table></div>
-        <div class="card-body" style="border-top:1px solid var(--color-divider)"><div class="field-hint" style="font-size:12px;line-height:18px">로그인 → 데이터셋 화면에서 다운로드 승인(내국인) → 파일 목록의 [다운로드]로 받습니다. 받으면 <b>download.tar</b> 안에 <code>TL_SPA.zip.part0</code>처럼 들어 있는데, 풀거나 합치지 않고 그대로 놓으면 됩니다. aihubshell로 받을 때는 파일키를 꼭 지정하세요(지정하지 않으면 26GB 전체를 받습니다).<br>
-          <code>aihubshell -mode d -datasetkey 71465 -filekey 497461,497469 -aihubapikey '키'</code></div></div></div>
-      <div class="card"><div class="card-header"><h2 class="card-title">라벨 zip 가져오기</h2></div><div class="card-body">
-        <div class="drop-area" data-drop="zip"><b>download.tar를 그대로 끌어다 놓으세요</b>zip · 조각 파일(.zip.part0 …)도 됩니다. 여러 개를 한꺼번에 놓아도 됩니다.
+  return `${DS ? `<div class="callout">${ico("check")}<div><b>AI 허브 아파트 평면도 ${int(DS.summary.n_files)}장(${int(DS.summary.n_units)}세대)의 정답지와 <a href="#/archive/${encodeURIComponent(DS.id)}">전체 통계</a>가 기본으로 들어 있습니다.</b>
+      도면을 직접 보고 다시 채점하려면 AI 허브 라벨을 아래에 올려 주세요. 브라우저 안에서 열어 고른 JSON만 가져옵니다.</div></div>` : ""}
+    <div>
+      <div class="card"><div class="card-header"><h2 class="card-title">AI 허브 라벨 가져오기</h2></div><div class="card-body">
+        <div class="drop-area" data-drop="zip"><b>tar · zip · JSON · 엑셀 · CSV 파일로 올려 주세요</b>AI 허브에서 받은 download.tar를 그대로 놓으면 됩니다. zip · 조각 파일(.zip.part0 …)도 되고, 여러 개를 한꺼번에 놓아도 됩니다.
           <div style="margin-top:14px"><button class="btn btn-secondary" data-act="pickZip">${ico("file")}파일 선택</button></div></div>
         ${ST.zips.length ? `<div style="margin-top:16px">${ST.zips.map(z => `<div class="kv"><span><b style="color:var(--color-text-primary)">${esc(z.name)}</b> · ${mb(z.size)}</span><span class="num">JSON ${int(z.entries.length)}개 <button class="btn btn-ghost btn-sm btn-icon" data-act="zipRemove" data-zip="${esc(z.name)}" title="빼기" aria-label="${esc(z.name)} 빼기">${ico("x")}</button></span></div>`).join("")}</div>` : ""}
       </div></div>
@@ -1216,6 +1221,173 @@ function manualParse() {
     if (type === "SPA" && !units.length) { info.style.color = "#C42B3A"; info.textContent += " — 현관(16)이 있는 세대가 없어 채점할 수 없습니다"; }
     return { name, data };
   } catch (e) { info.style.color = "#C42B3A"; info.textContent = "형식 오류 — " + e.message; return null; }
+}
+
+/* ═════════════════════════════════════ 표(CSV · 엑셀 xlsx) → JSON
+   한 행 = 실 하나. 같은 '도면' 값끼리 한 도면(COCO JSON)이 된다.
+   열(한글·영문 아무거나): 도면 · 용도 · x · y · 너비 · 깊이 (사각형)  또는  좌표 "x1 y1, x2 y2, …" (다각형) · [단위 m|px] · [이름]
+   단위가 없으면 좌표 최댓값이 300 미만이면 m로 보고 1m = 100px로 바꾼다(AI 허브 라벨과 비슷한 크기). */
+const TBL = { cur: null };
+const TCOL = {
+  plan: ["도면", "도면명", "plan", "file", "파일", "sheet"], kind: ["용도", "실", "실용도", "kind", "type", "room", "category", "category_id"],
+  name: ["이름", "실명", "name", "label"], x: ["x", "x좌표", "left"], y: ["y", "y좌표", "top"], w: ["너비", "폭", "가로", "w", "width"],
+  h: ["깊이", "세로", "높이", "h", "height", "depth"], poly: ["좌표", "다각형", "polygon", "points", "segmentation"], unit: ["단위", "unit"],
+};
+const TKIND = { 거실: "living", 침실: "bed", 안방: "bed", 작은방: "bed", 방: "bed", 주방: "kitchen", 식당: "kitchen", "주방/식당": "kitchen", 현관: "entry", 복도: "etc",
+  화장실: "bath", 욕실: "bath", 발코니: "balcony", 베란다: "balcony", 드레스룸: "dress", 실외기실: "ac", 다목적공간: "multi", 기타: "etc", 다용도실: "etc", 팬트리: "etc", 알파룸: "multi",
+  living: "living", bed: "bed", bedroom: "bed", master: "bed", kitchen: "kitchen", entry: "entry", hall: "entry", bath: "bath", bathroom: "bath",
+  balcony: "balcony", dress: "dress", ac: "ac", multi: "multi", etc: "etc" };
+const KIND_CAT = { living: 13, bed: 14, kitchen: 15, entry: 16, balcony: 17, bath: 18, ac: 19, dress: 20, etc: 22, multi: 1 };
+const CAT_KIND = Object.fromEntries(Object.entries(KIND_CAT).map(([k, v]) => [v, k]));
+function decodeText(buf) {
+  const u8 = new Uint8Array(buf);
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(u8).replace(/^﻿/, ""); }
+  catch { return new TextDecoder("euc-kr").decode(u8); }           // 엑셀에서 'CSV'로 저장하면 CP949인 경우가 많다
+}
+function parseCSV(text) {
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  const delim = [",", "\t", ";"].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+    if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+/* xlsx = zip 안의 XML — 첫 시트만 읽는다(공유 문자열·인라인 문자열·숫자) */
+async function parseXLSX(file) {
+  const entries = await zipList(file), get = async (n) => { const e = entries.find(x => x.name === n); return e ? zipReadText(file, e) : null; };
+  const xml = (s) => new DOMParser().parseFromString(s, "application/xml");
+  let sheetPath = "xl/worksheets/sheet1.xml";
+  const wb = await get("xl/workbook.xml"), rels = await get("xl/_rels/workbook.xml.rels");
+  if (wb && rels) {
+    const first = xml(wb).getElementsByTagName("sheet")[0], rid = first && (first.getAttribute("r:id") || first.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id"));
+    const rel = rid && [...xml(rels).getElementsByTagName("Relationship")].find(r => r.getAttribute("Id") === rid);
+    if (rel) { const t = rel.getAttribute("Target"); sheetPath = t.startsWith("/") ? t.slice(1) : "xl/" + t.replace(/^\.\//, ""); }
+  }
+  const ssx = await get("xl/sharedStrings.xml");
+  const shared = ssx ? [...xml(ssx).getElementsByTagName("si")].map(si => [...si.getElementsByTagName("t")].map(t => t.textContent).join("")) : [];
+  const sx = await get(sheetPath); if (!sx) throw new Error("첫 시트를 찾지 못했습니다");
+  const col = (ref) => { let n = 0; for (const ch of ref.replace(/\d+/g, "")) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+  const rows = [];
+  for (const r of xml(sx).getElementsByTagName("row")) {
+    const row = [];
+    for (const c of r.getElementsByTagName("c")) {
+      const t = c.getAttribute("t"), v = c.getElementsByTagName("v")[0], idx = col(c.getAttribute("r") || "A");
+      let val = t === "s" ? shared[+(v && v.textContent)] : t === "inlineStr" ? [...c.getElementsByTagName("t")].map(x => x.textContent).join("") : v ? v.textContent : "";
+      row[idx] = val ?? "";
+    }
+    rows.push(Array.from(row, x => x ?? ""));
+  }
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+function tableToPlans(rows, fileName) {
+  if (rows.length < 2) throw new Error("머리글과 데이터 행이 필요합니다");
+  const head = rows[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, ""));
+  const ci = {}; for (const [k, names] of Object.entries(TCOL)) ci[k] = head.findIndex(h => names.includes(h));
+  if (ci.kind < 0) throw new Error("‘용도’ 열이 없습니다");
+  if (ci.poly < 0 && (ci.x < 0 || ci.y < 0 || ci.w < 0 || ci.h < 0)) throw new Error("‘x · y · 너비 · 깊이’ 열이나 ‘좌표’ 열이 필요합니다");
+  const base = fileName.replace(/\.[^.]+$/, ""), groups = new Map(), errors = [];
+  rows.slice(1).forEach((r, i) => {
+    const line = i + 2, cell = (k) => ci[k] >= 0 ? String(r[ci[k]] ?? "").trim() : "";
+    const rawKind = cell("kind"), kind = /^\d+$/.test(rawKind) ? CAT_KIND[+rawKind] : TKIND[rawKind] || TKIND[rawKind.toLowerCase()];
+    if (!kind) { errors.push(`${line}행: 용도 ‘${rawKind}’를 알 수 없습니다`); return; }
+    let pts;
+    if (ci.poly >= 0 && cell("poly")) {
+      const nums = cell("poly").match(/-?\d+(\.\d+)?/g) || [];
+      if (nums.length < 6 || nums.length % 2) { errors.push(`${line}행: 좌표는 x y 쌍이 3개 이상이어야 합니다`); return; }
+      pts = []; for (let k = 0; k < nums.length; k += 2) pts.push([+nums[k], +nums[k + 1]]);
+    } else {
+      const [x, y, w, h] = ["x", "y", "w", "h"].map(k => parseFloat(cell(k)));
+      if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) { errors.push(`${line}행: x · y · 너비 · 깊이가 숫자가 아닙니다`); return; }
+      pts = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    }
+    const plan = cell("plan") || base;
+    if (!groups.has(plan)) groups.set(plan, { rooms: [], unit: "" });
+    const g = groups.get(plan); g.rooms.push({ kind, name: cell("name"), pts, line }); if (cell("unit")) g.unit = cell("unit").toLowerCase();
+  });
+  const plans = [];
+  for (const [plan, g] of groups) {
+    const maxC = Math.max(...g.rooms.flatMap(r => r.pts.flat().map(Math.abs)));
+    const meter = g.unit ? g.unit.startsWith("m") : maxC < 300, k = meter ? 100 : 1;
+    // 벽 두께: m 단위 사각형은 맞닿게 그리는 경우가 많아 실마다 안쪽으로 10px(=0.1m) 줄여 벽 자리를 만든다
+    const inset = meter ? 10 : 0;
+    const anns = g.rooms.map((r, id) => {
+      let P = r.pts.map(([x, y]) => [x * k, y * k]);
+      if (inset && P.length === 4) { const xs = P.map(p => p[0]), ys = P.map(p => p[1]), x0 = Math.min(...xs) + inset, y0 = Math.min(...ys) + inset, x1 = Math.max(...xs) - inset, y1 = Math.max(...ys) - inset;
+        if (x1 > x0 && y1 > y0) P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
+      const xs = P.map(p => p[0]), ys = P.map(p => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys);
+      let area = 0; for (let i = 0; i < P.length; i++) { const [a, b] = P[i], [c, d] = P[(i + 1) % P.length]; area += a * d - c * b; }
+      return { id, image_id: 1, category_id: KIND_CAT[r.kind], segmentation: [P.flat().map(v => +v.toFixed(1))], area: +Math.abs(area / 2).toFixed(1),
+        bbox: [+x0.toFixed(1), +y0.toFixed(1), +(Math.max(...xs) - x0).toFixed(1), +(Math.max(...ys) - y0).toFixed(1)], iscrowd: 0, attributes: { occluded: false, ...(r.name ? { name: r.name } : {}) } };
+    });
+    const name = (plan.replace(/[\\/:*?"<>|]+/g, "_").replace(/\.json$/i, "")) + ".json";
+    const data = { info: { description: "표에서 변환", source_table: fileName, unit: meter ? "m(1m=100px)" : "px", converted: new Date().toISOString() },
+      images: [{ id: 1 }], categories: Object.entries(KIND_CAT).map(([kk, id]) => ({ id, name: kk })), annotations: anns };
+    const units = E.loadUnits(data, name, ST.params);
+    plans.push({ name, data, rooms: anns.length, units: units.length, meter, entries: g.rooms.filter(r => r.kind === "entry").length });
+  }
+  return { plans, errors };
+}
+async function tableOpen(files) {
+  for (const file of files) {
+    try {
+      if (/\.xls$/i.test(file.name)) throw new Error("예전 엑셀(.xls)은 읽지 못합니다 — .xlsx나 .csv로 저장해 올려 주세요");
+      const rows = /\.xlsx$/i.test(file.name) ? await parseXLSX(file) : parseCSV(decodeText(await file.arrayBuffer()));
+      const { plans, errors } = tableToPlans(rows, file.name);
+      TBL.cur = { file: file.name, rows: rows.length - 1, plans, errors };
+    } catch (e) { TBL.cur = { file: file.name, rows: 0, plans: [], errors: [e.message] }; }
+  }
+  go("#/data/upload");
+}
+const TABLE_TEMPLATE = () => {
+  const rows = [["도면", "용도", "이름", "x", "y", "너비", "깊이"],
+    ["예시_84형", "현관", "", 0, 4, 2, 2], ["예시_84형", "거실", "", 2, 0, 6, 6], ["예시_84형", "주방", "", 8, 0, 3, 3], ["예시_84형", "화장실", "공용욕실", 8, 3, 3, 3],
+    ["예시_84형", "침실", "안방", 2, 6, 3.4, 3.4], ["예시_84형", "침실", "", 5.4, 6, 2.6, 3], ["예시_84형", "침실", "", -3, 3, 3, 3], ["예시_84형", "발코니", "", 2, 9.4, 6, 1.4], ["예시_84형", "화장실", "", -3, 0, 3, 3]];
+  return "﻿" + rows.map(r => r.join(",")).join("\r\n");
+};
+/* 변환한 JSON 여러 개를 압축 없는(stored) zip 하나로 — 내려받기가 한 번에 끝나게 */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], dir = []; let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = enc.encode(f.text);
+    let crc = 0xFFFFFFFF; for (const b of data) crc = CRC_T[(crc ^ b) & 255] ^ (crc >>> 8); crc = (crc ^ 0xFFFFFFFF) >>> 0;
+    const h = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, name.length, 2]].forEach(([o, v, n]) => n === 4 ? h.setUint32(o, v, true) : h.setUint16(o, v, true));
+    const c = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [16, crc, 4], [20, data.length, 4], [24, data.length, 4], [28, name.length, 2], [42, off, 4]].forEach(([o, v, n]) => n === 4 ? c.setUint32(o, v, true) : c.setUint16(o, v, true));
+    parts.push(h, name, data); dir.push(c, name); off += 30 + name.length + data.length;
+  }
+  const size = dir.reduce((s, x) => s + x.byteLength, 0), end = new DataView(new ArrayBuffer(22));
+  [[0, 0x06054b50, 4], [8, files.length, 2], [10, files.length, 2], [12, size, 4], [16, off, 4]].forEach(([o, v, n]) => n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true));
+  return new Blob([...parts, ...dir, end], { type: "application/zip" });
+}
+function tableDownload() {
+  const T = TBL.cur; if (!T || !T.plans.length) return;
+  if (T.plans.length === 1) return download(T.plans[0].name, JSON.stringify(T.plans[0].data), "application/json");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(zipStore(T.plans.map(p => ({ name: p.name, text: JSON.stringify(p.data) }))));
+  a.download = T.file.replace(/\.[^.]+$/, "") + "_json.zip"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function tableCard() {
+  const T = TBL.cur; if (!T) return "";
+  const ok = T.plans.filter(p => p.units > 0);
+  return `<div class="section-gap"></div><div class="card"><div class="card-header"><h2 class="card-title">표 → JSON 변환 · ${esc(T.file)}</h2><button class="btn btn-ghost btn-sm" data-act="tblClose">닫기</button></div>
+    <div class="card-body">
+      <div class="zip-sum" style="margin-bottom:12px"><span>데이터 행 <b>${int(T.rows)}</b></span><span>도면 <b>${int(T.plans.length)}</b>개</span><span>실 <b>${int(T.plans.reduce((s, p) => s + p.rooms, 0))}</b>개</span><span>채점 가능한 도면 <b>${int(ok.length)}</b>개</span>${T.errors.length ? `<span style="color:#C42B3A">건너뛴 행 <b style="color:inherit">${int(T.errors.length)}</b></span>` : ""}</div>
+      ${T.plans.length ? `<div class="tw"><table class="t compact"><thead><tr><th>도면 → JSON</th><th class="n">실</th><th class="n">세대</th><th>단위</th><th>확인</th></tr></thead><tbody>
+        ${T.plans.map(p => `<tr><td class="num">${esc(p.name)}</td><td class="n">${p.rooms}</td><td class="n">${p.units}</td><td>${p.meter ? "m → px(×100)" : "px"}</td><td>${p.units ? `<span class="badge badge-neutral">채점 가능</span>` : `<span class="badge badge-warning">${p.entries ? "실이 서로 맞닿지 않음" : "현관 없음"}</span>`}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      ${T.errors.length ? `<details class="more" style="margin-top:10px"><summary>${ico("chevR")}건너뛴 행 ${T.errors.length}개</summary><div class="field-hint" style="white-space:pre-wrap;font-size:12px">${esc(T.errors.slice(0, 50).join("\n"))}${T.errors.length > 50 ? "\n…" : ""}</div></details>` : ""}
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-secondary" data-act="tblDownload"${T.plans.length ? "" : " disabled"}>${ico("download")}JSON 내려받기</button>
+        <button class="btn btn-primary" data-act="tblAdd"${T.plans.length ? "" : " disabled"}>업로드 데이터로 추가 (${int(T.plans.length)}개)</button>
+      </div>
+    </div></div>`;
 }
 
 /* ═════════════════════════════════════ 도면 이미지(PNG) → JSON
@@ -1790,6 +1962,11 @@ async function onClick(e) {
         if (!pick.length) return;
         return ingest(pick.map(({ z, e }) => ({ name: e.base, load: async () => JSON.parse(await zipReadText(z.file, e)) })), "aihub");
       }
+      case "tblTemplate": return download("도면표_양식.csv", TABLE_TEMPLATE(), "text/csv");
+      case "tblClose": TBL.cur = null; return render();
+      case "tblDownload": return tableDownload();
+      case "tblAdd": { const T = TBL.cur; if (!T || !T.plans.length) return; TBL.cur = null;
+        return ingest(T.plans.map(p => ({ name: p.name, data: p.data })), "upload"); }
       case "manTemplate": $("#manJson").value = MANUAL_TEMPLATE(); return manualParse();
       case "manCheck": return manualParse();
       case "manAdd": { const r = manualParse(); if (r) ingest([{ name: r.name, data: r.data }], "manual"); return; }
@@ -1897,7 +2074,7 @@ async function onClick(e) {
   });
   $("#fileIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
   $("#dirIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
-  $("#zipIn").onchange = (e) => { addZips([...e.target.files]); e.target.value = ""; };
+  $("#zipIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
   $("#pngIn").onchange = (e) => { pngOpen([...e.target.files]); e.target.value = ""; };
   $("#cfgIn").onchange = (e) => { if (e.target.files[0]) loadConfig(e.target.files[0]); e.target.value = ""; };
   $("#statIn").onchange = (e) => { if (e.target.files[0]) loadStatFile(e.target.files[0]); e.target.value = ""; };
