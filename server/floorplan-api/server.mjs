@@ -22,6 +22,11 @@ const CFG = {
   dbPath: process.env.DB_PATH || "/data/floorplan-api.db",
   port: +process.env.PORT || 8790,
 };
+// 클라이언트 ID는 로그인 주소에 그대로 실리므로 형식이 다르면(예: 보안 비밀번호를 ID 칸에 넣음) 쓰지 않는다 — 비밀이 공개되는 것을 막는다
+if (CFG.clientId && !/^[\w-]+\.apps\.googleusercontent\.com$/.test(CFG.clientId)) {
+  console.error("GOOGLE_CLIENT_ID 형식이 아닙니다(…apps.googleusercontent.com) — 로그인을 끈 채로 시작합니다");
+  CFG.clientId = ""; CFG.clientSecret = "";
+}
 CFG.devLogin = process.env.DEV_LOGIN === "1" && !CFG.origin.startsWith("https://");
 CFG.secure = CFG.origin.startsWith("https://");
 const SID = CFG.secure ? "__Host-fp_sid" : "fp_sid", STATE = CFG.secure ? "__Host-fp_state" : "fp_state";

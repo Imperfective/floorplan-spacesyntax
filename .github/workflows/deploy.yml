@@ -81,6 +81,12 @@ jobs:
           SSH="ssh -p $SSH_PORT -i $HOME/.ssh/deploy_key -o BatchMode=yes"
           $SSH "$TARGET" "mkdir -p '$API_DIR/app'"
           rsync -az --delete --chmod=D755,F644 -e "$SSH" server/floorplan-api/ "$TARGET:$API_DIR/app/"
+          if [ -n "$GID" ] && ! printf '%s' "$GID" | grep -Eq '^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$'; then
+            # ID는 로그인 주소에 공개되므로, 보안 비밀번호를 ID에 잘못 넣은 경우 등을 막는다(값은 출력하지 않음)
+            echo "::warning::GOOGLE_CLIENT_ID 가 클라이언트 ID 형식(…apps.googleusercontent.com)이 아니라 로그인을 끈 채로 배포합니다"
+            GID=""; GSECRET=""
+            $SSH "$TARGET" ": > '$API_DIR/google.env'"
+          fi
           if [ -n "$GID" ] && [ -n "$GSECRET" ]; then
             # 보안 비밀은 명령줄이 아니라 표준 입력으로만 넘긴다
             printf 'GOOGLE_CLIENT_ID=%s\nGOOGLE_CLIENT_SECRET=%s\n' "$GID" "$GSECRET" | $SSH "$TARGET" "umask 077; cat > '$API_DIR/google.env.new' && mv '$API_DIR/google.env.new' '$API_DIR/google.env'"
