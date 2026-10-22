@@ -1,0 +1,34 @@
+sapcesyntax.com {
+	encode zstd gzip
+	root * /data/floorplan
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'"
+	}
+
+	# 로그인·활동 기록 API — 컨테이너 floorplan-api (저장소 server/floorplan-api, deploy/api-up.sh)
+	handle /api/* {
+		reverse_proxy floorplan-api:8790
+	}
+
+	handle {
+		# 로그인 안 된 요청은 구글 로그인으로 — 판정은 API가 한다(API가 멈추면 사이트도 닫힌다). 글꼴은 로그인 화면용으로 연다.
+		# 구글 OAuth 설정 전에는 #GATE 줄을 주석으로 둔다(설정 뒤 README의 ‘로그인 · 활동 기록’ 순서로 켠다).
+		#GATE @gated not path /fonts/*
+		#GATE forward_auth @gated floorplan-api:8790 {
+		#GATE 	uri /api/auth/check
+		#GATE }
+		@html path / *.html
+		header @html Cache-Control "no-cache, must-revalidate"
+		@assets path *.css *.js *.woff2 *.png *.jpg *.svg *.ico
+		header @assets Cache-Control "private, max-age=31536000, immutable"
+
+		redir /grid      /grid-editor.html
+		redir /syntax    /syntax-report.html
+		redir /benchmark /benchmark-report.html
+		file_server
+	}
+}

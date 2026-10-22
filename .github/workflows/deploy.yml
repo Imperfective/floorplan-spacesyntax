@@ -1,23 +1,30 @@
-# main 에 docs/ 변경을 푸시하면 sapcesyntax.com 으로 자동 배포한다.
+# main 에 docs/ · server/ 변경을 푸시하면 sapcesyntax.com 으로 자동 배포한다(정적 사이트 + 로그인·기록 API).
 #
 # 서버 구성 (2026-10 기준): 사이트는 호스트 Caddy가 아니라 Docker 컨테이너 deepvoice-caddy 가
 # 서빙하고, 그 컨테이너의 /data/floorplan 이 호스트의 DEPLOY_PATH(아래 기본값)에 마운트돼 있다.
 # 같은 컨테이너가 다른 사이트도 서빙하므로 이 워크플로는 그 폴더 하나만 바꾸고 Caddy는 건드리지 않는다.
 # 정적 파일이라 Caddy 재시작 없이 바로 반영된다.
 #
+# 로그인·활동 기록 API(server/floorplan-api)는 같은 deepvoice-net 의 컨테이너 floorplan-api 로 띄운다(deploy/api-up.sh).
+# Caddy의 sapcesyntax.com 블록이 /api/* 를 그 컨테이너로 넘기고, 로그인 안 된 요청을 forward_auth 로 막는다(README 참고).
+#
 # 저장소 Settings → Secrets and variables → Actions
 #   Secrets   SSH_HOST          서버 주소 (152.53.208.67)
 #             SSH_USER          접속 계정 (minkyu — DEPLOY_PATH에 쓰기 권한, root 불필요)
 #             SSH_PRIVATE_KEY   배포용 개인키 전문
 #             SSH_PORT          (선택) 기본 22
+#             GOOGLE_CLIENT_ID      구글 OAuth 클라이언트 ID (웹 애플리케이션)
+#             GOOGLE_CLIENT_SECRET  구글 OAuth 클라이언트 보안 비밀 — 둘 다 없으면 로그인 없이 동작
 #   Variables DEPLOY_PATH       (선택) 기본 /home/minkyu/deepvoice/caddy/data/floorplan
 #             SITE_URL          (선택) 배포 확인 주소, 기본 https://sapcesyntax.com
+#             API_DIR           (선택) 기본 /home/minkyu/deepvoice/floorplan-api
+#             ADMIN_EMAILS      (선택) 관리자 이메일(쉼표로 여럿), 기본 newofbest2@gmail.com
 name: Deploy to VPS
 
 on:
   push:
     branches: [main]
-    paths: ["docs/**", ".github/workflows/deploy.yml"]
+    paths: ["docs/**", "server/**", "deploy/api-up.sh", ".github/workflows/deploy.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -27,6 +34,8 @@ concurrency:
 env:
   DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/home/minkyu/deepvoice/caddy/data/floorplan' }}
   SITE_URL: ${{ vars.SITE_URL || 'https://sapcesyntax.com' }}
+  API_DIR: ${{ vars.API_DIR || '/home/minkyu/deepvoice/floorplan-api' }}
+  ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS || 'newofbest2@gmail.com' }}
   SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
 
 jobs:
@@ -63,6 +72,23 @@ jobs:
           printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "$SSH_PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: 로그인·기록 API 배포
+        env:
+          TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+          GID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GSECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          SSH="ssh -p $SSH_PORT -i $HOME/.ssh/deploy_key -o BatchMode=yes"
+          $SSH "$TARGET" "mkdir -p '$API_DIR/app'"
+          rsync -az --delete --chmod=D755,F644 -e "$SSH" server/floorplan-api/ "$TARGET:$API_DIR/app/"
+          if [ -n "$GID" ] && [ -n "$GSECRET" ]; then
+            # 보안 비밀은 명령줄이 아니라 표준 입력으로만 넘긴다
+            printf 'GOOGLE_CLIENT_ID=%s\nGOOGLE_CLIENT_SECRET=%s\n' "$GID" "$GSECRET" | $SSH "$TARGET" "umask 077; cat > '$API_DIR/google.env.new' && mv '$API_DIR/google.env.new' '$API_DIR/google.env'"
+          else
+            echo "::notice::GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET 시크릿이 없어 로그인 없이 동작합니다"
+          fi
+          $SSH "$TARGET" "API_DIR='$API_DIR' ADMIN_EMAILS='$ADMIN_EMAILS' PUBLIC_ORIGIN='$SITE_URL' bash -s" < deploy/api-up.sh
+
       - name: rsync 배포
         env:
           TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
@@ -87,3 +113,5 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL/$eng")
           [ "$code" = 200 ] || { echo "::error::$eng → $code"; exit 1; }
           echo "✓ $eng"
+          cfg=$(curl -fsS "$SITE_URL/api/auth/config") || { echo "::error::$SITE_URL/api/auth/config 응답 없음"; exit 1; }
+          echo "✓ /api/auth/config $cfg"

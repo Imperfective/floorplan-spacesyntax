@@ -124,6 +124,10 @@ textarea.code{font-feature-settings:"tnum" 1;font-size:12.5px;line-height:22px;m
 .dataset{display:flex;align-items:center;gap:var(--space-3);font-size:12px;color:var(--color-text-secondary);background:var(--color-bg-2);border-radius:var(--radius-pill);padding:5px 12px;white-space:nowrap}
 .dataset b{color:var(--color-text-primary);font-weight:700;font-feature-settings:"tnum" 1}
 .dataset i{width:1px;height:12px;background:var(--color-gray-100)}
+.userbox{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);white-space:nowrap}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--color-primary-100);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.log-detail{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:720px){.user-mail{display:none}}
 .topbar-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;justify-content:center;color:var(--color-text-secondary);text-decoration:none}
 .topbar-icon:hover{background:var(--color-bg-2);color:var(--color-text-primary)}
 
@@ -139,7 +143,6 @@ textarea.code{font-feature-settings:"tnum" 1;font-size:12.5px;line-height:22px;m
 .nav-link.is-active{background:var(--color-primary-100);color:#fff}
 .nav-link.is-active svg{color:#fff}
 .nav-link.is-active .cnt{background:rgba(255,255,255,.16);border-color:transparent;color:#fff}
-.nav-foot{margin-top:auto;padding:var(--space-4) var(--space-4) 0;font-size:11px;color:var(--color-text-disabled);line-height:16px}
 
 .main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .page-header{background:var(--color-bg-0);border-bottom:1px solid var(--color-divider);padding:var(--space-5) var(--space-7) 0;flex-shrink:0}
@@ -272,6 +275,11 @@ details.more[open]>summary svg{transform:rotate(90deg)}
 .prow .t{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
 .prow .h{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
 .prow .ctl{display:flex;justify-content:flex-end}
+.ref-line{font-size:12px;color:var(--color-text-secondary);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;line-height:18px}
+.ref-line a{color:var(--color-primary-100)}
+.t tr.grp td{background:var(--color-bg-1);padding-top:10px}
+.idx{font-size:10.5px;color:var(--color-text-disabled);margin-left:3px}
+.grade-b{font-variant-numeric:tabular-nums;white-space:nowrap}
 .prow .ctl .input,.prow .ctl .select{width:180px}
 .psec{padding:var(--space-3) var(--space-6);font-size:12px;font-weight:700;color:var(--color-text-secondary);border-bottom:1px solid var(--color-divider);background:var(--color-bg-1)}
 .psec:first-child{border-radius:var(--radius-md) var(--radius-md) 0 0}
@@ -357,6 +365,7 @@ details.more[open]>summary svg{transform:rotate(90deg)}
     </a>
     <div class="topbar-spacer"></div>
     <div class="dataset" id="dataset" title="보유 데이터"></div>
+    <div class="userbox" id="userBox" hidden></div>
     <a class="topbar-icon" href="https://github.com/Imperfective/floorplan-spacesyntax#d-ai-허브-라벨json-평가-모델" target="_blank" rel="noopener" title="사용 설명서(README)" aria-label="사용 설명서">
       <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 2-2.5 3.5"/><path d="M12 17.5v.01"/></svg></a>
   </header>
@@ -419,6 +428,7 @@ const ICON = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',
   alert: '<path d="M10.3 4 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17v.01"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>',
   chevR: '<path d="m9 18 6-6-6-6"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
@@ -451,11 +461,14 @@ const ST = {
   statType: "", statSource: "", fileQuery: "", archQuery: "", unitSort: "name",
   zips: [], zipOpt: { labels: ["SPA", "STR"], houses: ["APT"], drawings: ["FP"], limit: "all", n: 200, q: "" },
 };
-const pkey = () => JSON.stringify(Object.keys(ST.params).sort().map(k => [k, ST.params[k]]));
+const pkey = () => JSON.stringify(["engine-2", ...Object.keys(ST.params).filter(k => !E.PARAMS[k].rescore).sort().map(k => [k, ST.params[k]])]);
+/* 알려진 변수만 — 예전 판의 변수 이름(min_contact_m 등)은 버린다 */
+const knownParams = (p) => Object.assign(E.defaultParams(), Object.fromEntries(Object.entries(p || {}).filter(([k]) => E.PARAMS[k])));
 const curFile = () => ST.files.find(f => f.id === ST.fileId) || null;
 const curResult = () => { const f = curFile(); return f && f.full && f.full.results ? f.full.results[ST.unitIdx] || null : null; };
 const allUnits = () => ST.files.flatMap(f => (f.results || []).map((r, ui) => ({ f, ui, r })));
 const cleanParams = () => Object.fromEntries(Object.entries(ST.params).filter(([, v]) => v != null));
+const sparams = () => E.scoringParams(ST.params);
 
 /* ═════════════════════════════════════ 저장소 (IndexedDB: 기록·원본·요약) */
 const DB = { name: "aihub-studio", db: null, ok: true };
@@ -536,7 +549,7 @@ async function ensureFull(f) {
 }
 function scoreFull(f) {
   const full = f.full; if (!full) return;
-  if (full.units) full.results = full.units.map((u, i) => E.scoreUnit(u, full.analyses[i], ST.criteria, ST.baseline));
+  if (full.units) full.results = full.units.map((u, i) => E.scoreUnit(u, full.analyses[i], ST.criteria, ST.baseline, sparams()));
 }
 async function runJobs(label, jobs) {
   ST.busy = true; ST.cancel = false;
@@ -572,6 +585,7 @@ async function ingest(items, source, opt = {}) {
     await persistFile(f, data);
   } }));
   const { done, failed } = await runJobs("가져오는 중", jobs);
+  logEvent("import", { source, files: done - failed, failed, names: namesOf(items.map(it => it.name)) });
   rebuildBaseline();
   rescore(false);
   if (!opt.quiet) toast(`${SOURCES[source] || source} — 파일 ${int(done - failed)}개를 가져왔습니다${failed ? ` · 실패 ${failed}개` : ""}${ST.cancel ? " (중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`, failed > 0 && done === failed);
@@ -581,6 +595,7 @@ async function ingest(items, source, opt = {}) {
   else go("#/stats");
 }
 async function reprocessAll(label = "다시 계산하는 중") {
+  logEvent("reprocess", { files: ST.files.length, reason: label });
   const { failed } = await runJobs(label, ST.files.map(f => ({ name: f.name, fn: async () => {
     const data = await rawOf(f); f.full = null; summarize(f, data);
     if (DB.db) await dbDo("meta", "readwrite", s => s.put(metaOf(f))).catch(() => {});
@@ -600,7 +615,7 @@ function rebuildBaseline() {
 }
 function rescore(draw = true) {
   for (const f of ST.files) {
-    f.results = (f.sum && f.sum.units || []).map(s => E.scoreCached(s, ST.criteria, ST.baseline));
+    f.results = (f.sum && f.sum.units || []).map(s => E.scoreCached(s, ST.criteria, ST.baseline, sparams()));
     f.sheetScore = f.type === "STR" ? E.scoreAll(ST.criteria, { global: { door_window_overlaps: (f.sum.issues || []).length }, rooms: {} }) : null;
     scoreFull(f);
   }
@@ -608,6 +623,7 @@ function rescore(draw = true) {
 }
 async function removeFiles(ids) {
   const set = new Set(ids);
+  logEvent("delete", { files: ids.length, names: namesOf(ST.files.filter(f => set.has(f.id)).map(f => f.name)) });
   ST.files = ST.files.filter(f => !set.has(f.id));
   if (set.has(ST.fileId)) { ST.fileId = null; ST.unitIdx = -1; }
   await unpersist(ids);
@@ -772,6 +788,7 @@ const PAGES = {
   params:   { title: "판정 변수", icon: "settings" },
   baseline: { title: "정답지", icon: "check" },
   archive:  { title: "보관 기록", icon: "folder" },
+  admin:    { title: "관리", icon: "users", tabs: [["users", "허용 계정"], ["logs", "활동 기록"]] },
 };
 function parseHash() {
   const p = (location.hash || "#/stats").replace(/^#\/?/, "").split("/").map(s => { try { return decodeURIComponent(s); } catch { return s; } });
@@ -790,6 +807,7 @@ function onRoute() {
     if (want && want !== ST.fileId) selectFile(want);
   }
   $("#sidebar").classList.remove("open");
+  if (ST.route.page === "admin" && AUTH.user && AUTH.user.admin && AUTH.admin.users) adminLoad();
   render();
   $("#content").scrollTop = 0;
 }
@@ -812,8 +830,9 @@ function renderShell() {
     <div class="nav-section">평가 설정</div>
     ${nav("criteria", "평가 구조", ST.criteria.filter(c => c.enabled).length)}${nav("params", "판정 변수")}${nav("baseline", "정답지")}
     <div class="nav-section">기록</div>
-    ${nav("archive", "보관 기록", ST.snaps.length)}
-    <div class="nav-foot">가져온 도면과 보관 기록은 이 브라우저에만 저장되고 밖으로 나가지 않습니다.<br>기본 정답지·통계 출처: AI 허브 「건축 도면 데이터」(aihub.or.kr)</div>`;
+    ${nav("archive", "보관 기록", ST.snaps.length)}${AUTH.user && AUTH.user.admin ? `
+    <div class="nav-section">관리</div>
+    ${nav("admin", "허용 계정 · 활동 기록")}` : ""}`;
 }
 function renderHeader(title, crumbs, tabs, extra = "") {
   const crumb = crumbs.map(c => Array.isArray(c) ? `<a href="${c[1]}">${esc(c[0])}</a>` : `<span>${esc(c)}</span>`).join(`<span>/</span>`);
@@ -826,7 +845,7 @@ function render() {
   renderShell();
   const r = ST.route, c = $("#content");
   c.className = "main-content" + (r.page === "plans" && ST.files.length ? " full" : "");
-  ({ stats: pageStats, plans: pagePlans, data: pageData, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive })[r.page]();
+  ({ stats: pageStats, plans: pagePlans, data: pageData, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive, admin: pageAdmin })[r.page]();
 }
 
 /* ── 통계 ── */
@@ -1000,8 +1019,10 @@ function sidePanel(f, r) {
     <div class="ws-side-sec"><h3>실별 지표</h3><div class="field-hint" style="margin:-6px 0 8px">행이나 도면의 실을 누르면 선택합니다.</div><div class="tw"><table class="t compact"><thead><tr><th>실</th>${RM.map(([k, l]) => `<th class="n" title="${esc(E.MEASURES[k].label)}">${l}</th>`).join("")}</tr></thead><tbody>
       ${Object.keys(r.measures.rooms).map(k => `<tr class="click${k === ST.room ? " is-sel" : ""}" data-room="${k}"><td>${esc(r.measures.rooms[k].name)}</td>${RM.map(([m]) => `<td class="n">${fmt(r.measures.rooms[k][m], 2)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>
     <div class="ws-side-sec"><details class="more"><summary>${ico("chevR")}전역 지표</summary>${Object.entries(r.measures.global).map(([k, v]) => `<div class="kv"><span>${esc(E.MEASURES[k].label)}</span><span class="num">${fmt(v)}</span></div>`).join("")}</details>
-      ${r.typicality ? `<details class="more" style="margin-top:8px"><summary>${ico("chevR")}정답지 근접도 (${esc(r.typicality.reference)})</summary><div class="tw"><table class="t compact"><thead><tr><th>특징</th><th class="n">값</th><th class="n">중앙값</th><th class="n">z</th></tr></thead><tbody>
-        ${Object.entries(r.typicality.features).map(([k, t]) => `<tr><td>${esc(E.FEATURES[k])}</td><td class="n">${fmt(t.value)}</td><td class="n">${fmt(t.median)}</td><td class="n" style="${Math.abs(t.z) > 2 ? "color:#C42B3A;font-weight:600" : ""}">${t.z.toFixed(1)}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</div>`;
+      ${r.typicality ? `<details class="more" style="margin-top:8px"><summary>${ico("chevR")}정답지 근접도 ${fmt(r.typicality.score, 3)} · ${esc(r.typicality.reference)}</summary>
+        ${Object.entries(r.typicality.domains).map(([d, x]) => `<div class="kv"><span>${esc(E.DOMAINS[d].label)} <span class="field-hint">× ${fmt(x.weight)}</span></span><span class="num">${fmt(x.score, 3)}</span></div>`).join("")}
+        <div class="tw" style="margin-top:6px"><table class="t compact"><thead><tr><th>지표</th><th class="n">값</th><th class="n">중앙값</th><th class="n">z · 백분위</th><th class="n">점수</th></tr></thead><tbody>
+        ${Object.entries(r.typicality.features).map(([k, t]) => `<tr><td title="${esc(E.FEATURES[k].def)}">${esc(E.FEATURES[k].label)}</td><td class="n">${fmt(t.value, 3)}</td><td class="n">${fmt(t.median, 3)}</td><td class="n">${t.z != null ? t.z.toFixed(1) : Math.round(t.F * 100) + "%"}</td><td class="n" style="${t.score < 34 ? "color:#C42B3A;font-weight:600" : ""}">${t.w ? Math.round(t.score) : "참고"}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</div>`;
 }
 function extentOf(data) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -1196,11 +1217,7 @@ function dataAihub() {
         <div class="zip-sum"><span>조건에 맞는 JSON <b>${int(sel.all.length)}</b>개</span><span>가져올 JSON <b>${int(sel.pick.length)}</b>개</span></div>
         <span style="flex:1"></span><button class="btn btn-primary" data-act="zipImport"${sel.pick.length ? "" : " disabled"}>${int(sel.pick.length)}개 가져오기</button>
       </div>
-    </div></div>` : ""}
-    <div class="section-gap"></div>
-    <div class="card"><div class="card-header"><h2 class="card-title">AI 허브 API 자동 가져오기</h2><span class="badge badge-neutral">서버 설정 필요</span></div><div class="card-body" style="font-size:13px;color:var(--color-text-secondary)">
-      AI 허브 API는 브라우저에서 바로 부를 수 없고(다른 사이트 호출 차단), API 키를 웹 페이지에 넣으면 누구나 볼 수 있습니다. 서버가 API 키로 라벨 zip을 받아 두고, 팀원만 열 수 있는 주소로 이 화면에 넘겨 주는 방식으로 붙일 수 있습니다.
-    </div></div>`;
+    </div></div>` : ""}`;
 }
 const MANUAL_TEMPLATE = () => {
   const M = 100, W = 20; let id = 0;
@@ -1723,7 +1740,13 @@ function onCritEdit(e) {
   else c[fld] = v;
   commitCrit(fld === "why");
 }
-function commitCrit(quiet) { store.set("aihub.criteria", JSON.stringify(ST.criteria)); rescore(!quiet); }
+function commitCrit(quiet) { store.set("aihub.criteria", JSON.stringify(ST.criteria)); logCriteria(); rescore(!quiet); }
+
+/* ── 근거 표시: 근거 문서(평면 평가 랩 v0.3.0 evidence)의 문헌·등급 ── */
+const EVIDENCE_URL = "https://github.com/hyeondata/drawing-library/tree/main/evidence";
+const citeLinks = (cites) => (cites || []).map(c => { const R = E.REFERENCES[c]; return R ? `<span><a href="https://doi.org/${R.doi}" target="_blank" rel="noopener" title="${esc(R.full)}">${esc(R.short)}</a><span class="idx">${esc(R.idx)}</span></span>` : esc(c); }).join("");
+const gradeBadge = (g) => g ? `<span class="badge badge-neutral grade-b" data-tip="근거 ${esc(g)} — ${esc(g.split("·").map(x => E.GRADES_EVIDENCE[x]).filter(Boolean).join(" / "))}">근거 ${esc(g)}</span>` : "";
+const refLine = (ref) => ref ? `<div class="ref-line">${gradeBadge(ref.grade)}${citeLinks(ref.cites)}${ref.note ? `<span>${esc(ref.note)}</span>` : ""}</div>` : "";
 
 /* ── 판정 변수 ── */
 function pageParams() {
@@ -1732,15 +1755,15 @@ function pageParams() {
   for (const [k, m] of Object.entries(E.PARAMS)) (groups[m.group] = groups[m.group] || []).push([k, m]);
   const isChg = (k, m) => ST.params[k] !== m.def && !(ST.params[k] == null && m.def == null);
   const changed = Object.entries(E.PARAMS).filter(([k, m]) => isChg(k, m)).length;
-  const OPT = { leaf: "한 실에만 (leaf)", all: "맞닿은 실 모두 (all)", none: "제외 (none)" };
-  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>바꾸면 보유한 모든 도면을 원본에서 다시 읽고 다시 채점합니다. 평가 구조 화면의 ‘설정 내보내기’ 파일에 조건과 함께 이 변수가 들어갑니다.</div></div>
+  const OPT = { leaf: "한 실에만 (leaf)", all: "맞닿은 실 모두 (all)", none: "제외 (none)", door: "문 추정 (door)", adjacency: "벽 인접 (adjacency)" };
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>기준값은 <a href="${EVIDENCE_URL}" target="_blank" rel="noopener">평가 지표 근거 문서</a>(평면 평가 랩 v0.3.0)를 따르고, 변수마다 근거 문헌과 근거 등급(A 한국 아파트 SCIE·SSCI 실증 ~ D 표본 실측)을 적었습니다. 픽셀 기준은 축척 배율 s(시트 침실 한 변 중앙값 ÷ 305px)로 보정합니다.<br>읽기·문 추정·판정 변수를 바꾸면 보유한 모든 도면을 원본에서 다시 읽고, <b>정답지 채점</b> 변수는 원본을 다시 읽지 않고 바로 다시 채점합니다. ‘설정 내보내기’ 파일에 조건과 함께 이 변수가 들어갑니다.</div></div>
     <div class="toolbar"><span class="field-hint">기본값에서 바뀐 변수 ${changed}개</span><span class="spacer"></span><button class="btn btn-secondary" data-act="paramReset"${changed ? "" : " disabled"}>기본값으로</button></div>
     <div class="card">${Object.entries(groups).map(([g, items]) => `<div class="psec">${g}</div>` + items.map(([k, m]) => {
       const v = ST.params[k];
       const ctl = typeof m.def === "boolean" ? `<label class="toggle"><input type="checkbox" data-p="${k}"${v ? " checked" : ""} aria-label="${esc(m.label)}"></label>`
         : m.options ? `<select class="select" data-p="${k}" aria-label="${esc(m.label)}">${m.options.map(o => opt(o, OPT[o] || o, v)).join("")}</select>`
         : `<input class="input num-in" style="width:180px" type="number" step="any" data-p="${k}" value="${v ?? ""}" placeholder="${k === "px_per_m" ? "자동" : ""}" aria-label="${esc(m.label)}">`;
-      return `<div class="prow"><div><div class="t">${esc(m.label)}${isChg(k, m) ? `<span class="badge badge-info">변경됨</span>` : ""}</div><div class="h">${esc(m.hint)}${m.hint ? " · " : ""}기본 ${m.def ?? "자동"} · <span class="num">${k}</span></div></div><div class="ctl">${ctl}</div></div>`;
+      return `<div class="prow"><div><div class="t">${esc(m.label)}${isChg(k, m) ? `<span class="badge badge-info">변경됨</span>` : ""}</div><div class="h">${esc(m.hint)}${m.hint ? " · " : ""}기본 ${m.def ?? "자동"} · <span class="num">${k}</span></div>${refLine(m.ref)}</div><div class="ctl">${ctl}</div></div>`;
     }).join("")).join("")}</div>`;
 }
 function onParam(e) {
@@ -1749,27 +1772,54 @@ function onParam(e) {
   let v = typeof m.def === "boolean" ? e.target.checked : m.options ? e.target.value : e.target.value === "" ? null : +e.target.value;
   if (typeof v === "number" && !isFinite(v)) return;
   if (k !== "px_per_m" && v == null) v = m.def;
+  logEvent("param", { key: k, label: m.label, from: ST.params[k], to: v });
   ST.params[k] = v; store.set("aihub.params", JSON.stringify(ST.params));
+  if (m.rescore) return rescore();   // 정답지 채점 변수 — 원본을 다시 읽지 않는다
   reprocessAll();
 }
 
 /* ── 정답지 ── */
 function pageBaseline() {
   renderHeader("정답지", ["평가 설정"], null);
-  const b = ST.baseline;
-  const typeRows = b ? Object.entries(b.type_counts).map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="n">${int(n)}</td><td>${b.types && b.types[t] ? `<span class="badge badge-neutral">유형 분포 사용</span>` : `<span class="field-hint">5세대 미만 — 전체 분포 사용</span>`}</td></tr>`).join("") : "";
-  const D = ST.defaults.baseline;
-  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>실제 지어진 아파트(AI 허브)의 특징 분포를 정답지로 씁니다. 세대의 면적비·깊이·거실 통합도 순위 등이 같은 유형의 분포에서 얼마나 벗어나는지로 <code>@typicality</code>(정답지 근접도)를 0~100점으로 계산합니다.
+  const b = ST.baseline, D = ST.defaults.baseline, sp = sparams(), ref = b && b.all;
+  const readChanged = Object.entries(E.PARAMS).filter(([k, m]) => !m.rescore && ST.params[k] !== m.def && !(ST.params[k] == null && m.def == null)).length;
+  const DIR = { two: "양측", up: "↑ 높을수록 유리", down: "↓ 낮을수록 유리" };
+  const METHOD = { z: "Qn 강건 z", pct: "백분위", resid: "log K 잔차 · Qn z" };
+  const stratRows = b ? Object.entries(b.strata || {}).sort((x, y) => +x[0] - +y[0]).map(([nb, st]) => `<tr><td>침실 ${esc(nb)}개</td><td class="n">${int(st.n)}</td><td>${st.n >= sp.strata_min ? `<span class="badge badge-neutral">이 층 분포로 채점</span>` : `<span class="field-hint">${int(sp.strata_min)}세대 미만 — 전체 분포로</span>`}</td></tr>`).join("") : "";
+  const featRows = Object.keys(E.DOMAINS).map(d => {
+    const ks = E.SCORED.filter(k => E.FEATURES[k].domain === d);
+    return `<tr class="grp"><td colspan="8"><b>${esc(E.DOMAINS[d].label)}</b> <span class="field-hint">영역 가중치 ${fmt(sp[E.DOMAINS[d].param])}</span></td></tr>` + ks.map(k => {
+      const F = E.FEATURES[k], st = ref && ref[k];
+      return `<tr><td><b>${esc(F.label)}</b><div class="field-hint">${esc(F.def)}</div></td><td>${DIR[F.dir]}</td><td>${METHOD[F.method]}</td><td class="n">${F.w ? fmt(F.w) : "참고"}</td>
+        <td class="n">${st ? fmt(st.median, 3) : "—"}</td><td class="n">${st ? (st.qn > 0 ? fmt(st.qn, 3) : "0 → 백분위") : "—"}</td><td>${gradeBadge(F.grade)}</td><td><div class="ref-line" style="margin:0">${citeLinks(F.cites)}</div></td></tr>`;
+    }).join("");
+  }).join("");
+  const used = new Set([...Object.values(E.FEATURES).flatMap(F => F.cites || []), ...Object.values(E.PARAMS).flatMap(m => (m.ref && m.ref.cites) || [])]);
+  const refs = Object.entries(E.REFERENCES).filter(([k]) => used.has(k));
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>정답지는 <b>실제 지어진 아파트(AI 허브)의 지표 분포</b>입니다. 세대마다 지표 ${E.SCORED.length}개가 이 분포에서 얼마나 벗어나는지 재서 <code>@typicality</code>(정답지 근접도)를 0~100점으로 냅니다 —
+      영역(공간구문 · 면적 구성 · 형태 · 외기 접면) 안에서 가중 평균하고 영역 가중치로 합칩니다. 같은 침실 수 세대가 ${int(sp.strata_min)}개 이상이면 그 층의 분포와 비교합니다.
+      <br>점수가 높다고 ‘살기 좋은 평면’이라는 뜻은 아닙니다. <b>한국 실거주 아파트 평면 유형(거실 중심 유전형)에 얼마나 가까운가</b>를 잽니다 — 공간구문 값이 거주 만족도를 예측한다는 SCI·SCIE 근거는 찾지 못했기 때문입니다(<a href="${EVIDENCE_URL}" target="_blank" rel="noopener">평가 지표 근거 문서</a>, 평면 평가 랩 v0.3.0).
       ${D ? `<br>기본 정답지는 AI 허브 아파트 평면도 ${int(D.meta && D.meta.files)}장(${int(D.n_units)}세대)에서 계산한 분포입니다 — 원본 도면은 들어 있지 않습니다. ${esc(D.meta && D.meta.source || "")}` : ""}</div></div>
     ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 보유한 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 기본 정답지(AI 허브 전체)를 쓰세요.</div></div>` : ""}
+    ${b && ST.baseSource === "default" && readChanged ? `<div class="callout is-warning">${ico("alert")}<div><b>판정 변수가 기본값과 달라 기본 정답지와 계산 규약이 다릅니다.</b> 기본 정답지는 기본 변수로 계산했습니다. 같은 규약으로 비교하려면 <a href="#/params">판정 변수</a>를 기본값으로 되돌리거나, 보유 세대로 정답지를 만드세요(${int(readChanged)}개 바뀜).</div></div>` : ""}
     <div class="toolbar">${D && ST.baseSource !== "default" ? `<button class="btn btn-secondary" data-act="baseDefault">기본 정답지(AI 허브 전체)로</button>` : ""}<button class="btn btn-ghost" data-act="baseAuto">보유 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
     ${b ? `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">현재 정답지</h2></div><div class="card-body">
         <div class="kv"><span>출처</span><span>${{ default: "기본 — AI 허브 전체", auto: "보유 세대에서 자동 생성", file: "baseline.json 파일" }[ST.baseSource]}</span></div>
         <div class="kv"><span>세대 수</span><span class="num">${int(b.n_units)}</span></div>
-        <div class="kv"><span>유형 수</span><span class="num">${int(Object.keys(b.type_counts).length)}</span></div>
-        <div class="kv"><span>최다 유형</span><span>${esc(Object.keys(b.type_counts)[0] || "—")}</span></div></div></div>
-      <div class="card"><div class="card-header"><h2 class="card-title">유형별 세대 수</h2></div><div class="card-body flush tw"><table class="t"><thead><tr><th>유형</th><th class="n">세대</th><th>비교 기준</th></tr></thead><tbody>${typeRows}</tbody></table></div></div></div>`
-    : `<div class="card"><div class="empty-state"><h3>정답지가 없습니다</h3><p>세대가 3개 이상이면 보유한 세대로 자동으로 만듭니다. 정답지가 없으면 <code>@typicality</code> 조건은 건너뜁니다.</p></div></div>`}`;
+        <div class="kv"><span>영역 가중치</span><span>${Object.values(E.DOMAINS).map(x => `${esc(x.label)} ${fmt(sp[x.param])}`).join(" · ")} <a href="#/params">바꾸기</a></span></div>
+        <div class="kv"><span>z 절단값</span><span class="num">${fmt(sp.z_cut)} <span class="field-hint">(|z| ≥ 이 값이면 0점)</span></span></div>
+        <div class="kv"><span>최다 유형</span><span>${esc(Object.keys(b.type_counts || {})[0] || "—")}</span></div></div></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">층화 — 침실 수</h2></div><div class="card-body flush tw"><table class="t"><thead><tr><th>층</th><th class="n">세대</th><th>비교 기준</th></tr></thead><tbody>${stratRows}</tbody></table></div></div></div>
+      <div class="section-gap"></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">지표 ${E.SCORED.length}개 — 정의 · 채점 · 근거</h2><span class="field-hint">중앙값·Qn은 전체 분포 기준</span></div><div class="card-body flush tw"><table class="t compact">
+        <thead><tr><th>지표</th><th>방향</th><th>채점</th><th class="n">가중치</th><th class="n">중앙값</th><th class="n">Qn</th><th>등급</th><th>근거 문헌</th></tr></thead><tbody>${featRows}</tbody></table></div></div>`
+    : `<div class="card"><div class="empty-state"><h3>정답지가 없습니다</h3><p>세대가 3개 이상이면 보유한 세대로 자동으로 만듭니다. 정답지가 없으면 <code>@typicality</code> 조건은 건너뜁니다.</p></div></div>`}
+    <div class="section-gap"></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">근거 등급 · 참고 문헌</h2></div><div class="card-body" style="font-size:13px">
+      ${Object.entries(E.GRADES_EVIDENCE).map(([g, t]) => `<div class="kv"><span>${gradeBadge(g)}</span><span>${esc(t)}</span></div>`).join("")}
+      <ol style="margin:16px 0 0;padding-left:20px;color:var(--color-text-secondary);line-height:20px">${refs.map(([, R]) => `<li>${esc(R.full)} <a href="https://doi.org/${R.doi}" target="_blank" rel="noopener">doi:${esc(R.doi)}</a> <span class="idx">${esc(R.idx)}</span></li>`).join("")}</ol>
+      <div class="field-hint" style="margin-top:12px">등재 상태는 근거 문서 조사 시점의 판단입니다. 논문에 쓰기 전에 Clarivate Master Journal List로 다시 확인하세요. 평가하는 도면을 정답지에서 빼는(도면 단위 leave-one-out) 처리는 하지 않습니다 — 기본 정답지(2만여 세대)에서는 영향이 작습니다.</div>
+    </div></div>`;
 }
 
 /* ── 보관 기록 ── */
@@ -1812,7 +1862,7 @@ async function loadSnaps() {
 async function loadDefaults() {
   const get = (u) => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
   const [b, s] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json")]);
-  ST.defaults.baseline = b && b.all ? b : null;
+  ST.defaults.baseline = b && b.version === 2 && b.all ? b : null;
   ST.defaults.stats = s && s.kind === "aihub-stats" ? Object.assign(s, { builtin: true, id: s.id || "builtin-aihub" }) : null;
 }
 async function saveSnap(s) {
@@ -1822,11 +1872,13 @@ async function saveSnap(s) {
   await loadSnaps(); return s;
 }
 async function delSnap(id) {
+  logEvent("archive.delete", { name: (ST.snaps.find(x => x.id === id) || {}).name });
   if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.delete(id)); } catch {} }
   ST.snaps = ST.snaps.filter(x => x.id !== id);
 }
 const snapFile = (s) => `aihub_stats_${(s.name || "기록").replace(/[\\/:*?"<>|\s]+/g, "_")}_${(s.created || "").slice(0, 10)}.json`;
 async function loadStatFile(file) {
+  logEvent("archive.load", { name: file.name });
   try {
     const d = JSON.parse(await file.text());
     const recs = d.kind === "aihub-stats-archive" ? d.records : d.kind === "aihub-stats" ? [d] : null;
@@ -1862,6 +1914,7 @@ function toast(msg, err) {
 
 /* ═════════════════════════════════════ 내려받기 · 설정 */
 function download(name, text, type) {
+  logEvent("download", { name });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -1870,10 +1923,11 @@ function configJSON() {
   return JSON.stringify({ version: 1, params: cleanParams(), criteria: ST.criteria.map(c => Object.fromEntries(Object.entries(c).filter(([, v]) => v != null))), dsl: E.toDSL(ST.criteria) }, null, 2);
 }
 async function applyConfig(d, msg) {
+  logEvent("config.apply", { what: msg, criteria: (d.criteria || []).length });
   if (d.criteria && d.criteria.length) ST.criteria = d.criteria.map(c => Object.assign({ agg: "worst", enabled: true, weight: 1, penalty: 0, why: "" }, c));
   else if (d.dsl) { const p = E.parseDSL(d.dsl); if (p.errors.length) throw new Error(p.errors.join("\n")); ST.criteria = p.criteria; }
   const oldKey = pkey();
-  ST.params = Object.assign(E.defaultParams(), d.params || {});
+  ST.params = knownParams(d.params);
   store.set("aihub.criteria", JSON.stringify(ST.criteria)); store.set("aihub.params", JSON.stringify(ST.params));
   if (pkey() !== oldKey) await reprocessAll(); else rescore();
   if (msg) toast(msg);
@@ -1901,7 +1955,7 @@ function saveSnapModal() {
       <div class="field" style="margin:0"><label class="field-label" for="snapMemo">메모</label><textarea class="input" id="snapMemo" rows="3" placeholder="이 조건을 쓴 이유, 근거 논문 등"></textarea></div>`,
     onOk: async (el) => {
       const s = liveStats(); s.name = el.querySelector("#snapName").value.trim() || `기록 ${ST.snaps.length + 1}`; s.memo = el.querySelector("#snapMemo").value.trim();
-      await saveSnap(s); toast(`‘${s.name}’을(를) 보관했습니다`); render();
+      await saveSnap(s); logEvent("archive.save", { name: s.name, units: s.summary && s.summary.n_units }); toast(`‘${s.name}’을(를) 보관했습니다`); render();
     } });
 }
 
@@ -1932,6 +1986,124 @@ function sampleItems() {
   return [{ name: "예시_SPA_합성_1.json", data: a }, { name: "예시_SPA_합성_2.json", data: b }, { name: "예시_SPA_합성_3.json", data: c }, { name: "예시_STR_합성.json", data: str }];
 }
 
+/* ═════════════════════════════════════ 로그인 · 활동 기록 (server/floorplan-api)
+   사이트 앞단(Caddy)이 로그인 안 된 요청을 구글 로그인으로 보낸다. 여기서는 누가 로그인했는지 보여 주고, 작업마다 기록을 남긴다.
+   서버가 없으면(로컬 정적 서버 등) 조용히 꺼진다 — 기록 없이 그대로 쓸 수 있다. */
+const AUTH = { user: null, on: false, admin: { users: null, admins: [], logs: [], next: null, actions: [], f: { email: "", action: "", q: "" } } };
+const toSignin = () => { location.href = "/api/auth/signin?next=" + encodeURIComponent(location.pathname || "/"); };
+async function authInit() {
+  try {
+    const json = (r) => r.ok && String(r.headers.get("content-type") || "").includes("json") ? r.json() : null;
+    const cfg = await fetch("api/auth/config", { headers: { Accept: "application/json" } }).then(json);
+    if (!cfg || !cfg.login) return true;   // 서버가 없거나 로그인이 아직 설정되지 않음 — 기록 없이 쓴다
+    const r = await fetch("api/me", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    if (r.status === 401) { toSignin(); return false; }
+    if (!r.ok || !String(r.headers.get("content-type") || "").includes("json")) return true;
+    AUTH.user = await r.json(); AUTH.on = true;
+  } catch {}
+  return true;
+}
+async function api(path, opt = {}) {
+  const r = await fetch(path, { credentials: "same-origin", ...opt, headers: { Accept: "application/json", ...(opt.body ? { "Content-Type": "application/json" } : {}), ...(opt.headers || {}) } });
+  if (r.status === 401) { toSignin(); throw new Error("로그인이 필요합니다"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `요청 실패 (${r.status})`);
+  return j;
+}
+/* 작업 기록 — 실패해도 작업은 막지 않는다 */
+function logEvent(action, detail) {
+  if (!AUTH.on) return;
+  fetch("api/log", { method: "POST", credentials: "same-origin", keepalive: true, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, detail: detail ?? null, page: location.hash || "#/" }) })
+    .then(r => { if (r.status === 401) { toast("로그인이 만료되었습니다. 다시 로그인해 주세요.", true); setTimeout(toSignin, 1500); } }).catch(() => {});
+}
+const namesOf = (xs, n = 20) => xs.length > n ? xs.slice(0, n).concat([`… 외 ${xs.length - n}개`]) : xs;
+let critTimer = null;
+const logCriteria = () => { clearTimeout(critTimer); critTimer = setTimeout(() => logEvent("criteria", { n: ST.criteria.filter(c => c.enabled).length, dsl: E.toDSL(ST.criteria).slice(0, 4000) }), 2000); };
+async function logout() {
+  try { await api("api/auth/logout", { method: "POST", body: "{}" }); } catch {}
+  location.href = "/api/auth/bye";
+}
+function renderUser() {
+  const el = $("#userBox"); if (!el) return;
+  if (!AUTH.user) { el.hidden = true; return; }
+  const u = AUTH.user, ini = (u.name || u.email).trim().slice(0, 1).toUpperCase();
+  el.hidden = false;
+  el.innerHTML = `<span class="avatar" aria-hidden="true">${esc(ini)}</span><span class="user-mail">${esc(u.email)}${u.admin ? ` <span class="badge badge-info">관리자</span>` : ""}</span>
+    <button class="btn btn-ghost btn-sm" data-act="logout">로그아웃</button>`;
+}
+
+/* ── 관리: 허용 계정 · 활동 기록 (관리자만) ── */
+const ACTION_NAME = { login: "로그인", logout: "로그아웃", login_denied: "로그인 거부", import: "데이터 가져오기", delete: "데이터 삭제", reprocess: "다시 계산",
+  param: "판정 변수 변경", "param.reset": "판정 변수 초기화", criteria: "평가 구조 변경", "config.apply": "설정 적용", baseline: "정답지 변경",
+  "archive.save": "통계 보관", "archive.delete": "보관 기록 삭제", "archive.load": "통계 불러오기", download: "내려받기",
+  "admin.allow": "계정 허용", "admin.revoke": "계정 허용 해제", "admin.export_logs": "기록 내려받기" };
+async function adminLoad(more) {
+  const A = AUTH.admin;
+  try {
+    if (!more) { const u = await api("api/admin/users"); A.users = u.users; A.admins = u.admins; }
+    if (ST.route.tab === "logs") {
+      const q = new URLSearchParams(Object.entries(A.f).filter(([, v]) => v));
+      if (more && A.next) q.set("before", A.next);
+      const j = await api("api/admin/logs?" + q);
+      A.logs = more ? A.logs.concat(j.rows) : j.rows; A.next = j.next; A.actions = j.actions;
+    }
+  } catch (e) { toast(e.message, true); }
+  if (ST.route.page === "admin") render();
+}
+function pageAdmin() {
+  renderHeader("관리", ["관리"], PAGES.admin.tabs.map(([k, l]) => [k, l, `#/admin/${k}`, null]));
+  const c = $("#content"), A = AUTH.admin;
+  if (!AUTH.user || !AUTH.user.admin) { c.innerHTML = `<div class="card"><div class="empty-state"><h3>관리자만 볼 수 있습니다</h3><p>허용 계정과 활동 기록은 관리자 계정으로 로그인해야 열립니다.</p></div></div>`; return; }
+  if (!A.users) { c.innerHTML = `<div class="card"><div class="empty-state"><p>불러오는 중…</p></div></div>`; adminLoad(); return; }
+  const dt2 = (s) => s ? dt(s) : "—";
+  if (ST.route.tab === "users") {
+    c.innerHTML = `<div class="callout">${ico("info")}<div>회원가입은 없습니다. 여기에 넣은 구글 계정 이메일과 관리자만 로그인할 수 있습니다. 허용을 해제하면 그 계정은 바로 로그아웃됩니다.</div></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">계정 허용</h2></div><div class="card-body">
+        <form id="allowForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="flex:1 1 240px;margin:0"><label class="field-label" for="allowEmail">구글 계정 이메일</label><input class="input" id="allowEmail" type="email" required placeholder="name@gmail.com" autocomplete="off"></div>
+          <div class="field" style="flex:1 1 200px;margin:0"><label class="field-label" for="allowNote">메모</label><input class="input" id="allowNote" placeholder="예: 연구팀 · 소속" maxlength="200"></div>
+          <button class="btn btn-primary" type="submit">${ico("plus")}허용</button></form></div></div>
+      <div class="section-gap"></div>
+      <div class="card"><div class="card-body flush tw"><table class="t"><thead><tr><th>이메일</th><th>메모</th><th>허용한 사람 · 시각</th><th>마지막 로그인</th><th class="n">기록</th><th></th></tr></thead><tbody>
+        ${A.admins.map(e => `<tr><td><b>${esc(e)}</b> <span class="badge badge-info">관리자</span></td><td class="field-hint">항상 허용 — 서버 설정(ADMIN_EMAILS)</td><td>—</td><td>—</td><td class="n">—</td><td></td></tr>`).join("")}
+        ${A.users.filter(u => !A.admins.includes(u.email)).map(u => `<tr><td><b>${esc(u.email)}</b>${u.name ? `<div class="field-hint">${esc(u.name)}</div>` : ""}</td><td>${esc(u.note || "")}</td><td>${esc(u.added_by || "")}<div class="field-hint">${dt2(u.added_at)}</div></td>
+          <td class="num">${dt2(u.last_login)}</td><td class="n"><a href="#/admin/logs" data-act="logsOf" data-email="${esc(u.email)}">${int(u.n_events)}</a></td>
+          <td style="text-align:right"><button class="btn btn-ghost btn-sm" data-act="revoke" data-email="${esc(u.email)}">${ico("x")}허용 해제</button></td></tr>`).join("")}
+      </tbody></table></div></div>`;
+    $("#allowForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const email = $("#allowEmail").value.trim(), note = $("#allowNote").value.trim();
+      try { await api("api/admin/users", { method: "POST", body: JSON.stringify({ email, note }) }); toast(`${email} 계정을 허용했습니다`); adminLoad(); }
+      catch (e) { toast(e.message, true); }
+    });
+    return;
+  }
+  const f = A.f, emails = [...new Set([...A.admins, ...A.users.map(u => u.email)])];
+  const opt2 = (v, l, cur) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(l)}</option>`;
+  c.innerHTML = `<div class="toolbar">
+      <select class="select" id="logEmail" style="width:auto" aria-label="사용자">${opt2("", "모든 사용자", f.email)}${emails.map(e => opt2(e, e, f.email)).join("")}</select>
+      <select class="select" id="logAction" style="width:auto" aria-label="작업">${opt2("", "모든 작업", f.action)}${A.actions.map(x => opt2(x.action, `${ACTION_NAME[x.action] || x.action} (${int(x.n)})`, f.action)).join("")}</select>
+      <input class="input" id="logQ" placeholder="내용 검색 (파일 이름 등)" value="${esc(f.q)}" style="width:220px" aria-label="내용 검색">
+      <span class="spacer"></span><button class="btn btn-secondary" data-act="logsCsv">${ico("download")}CSV 내려받기</button></div>
+    <div class="card"><div class="card-body flush tw"><table class="t compact"><thead><tr><th>시각</th><th>사용자</th><th>작업</th><th>내용</th><th>화면</th></tr></thead><tbody>
+      ${A.logs.map(r => `<tr><td class="num" style="white-space:nowrap">${dt(r.ts)}</td><td>${esc(r.email || "")}</td><td style="white-space:nowrap">${esc(ACTION_NAME[r.action] || r.action)}</td>
+        <td><div class="log-detail" title="${esc(r.detail || "")}">${esc(logText(r.detail))}</div></td><td class="field-hint">${esc(r.page || "")}</td></tr>`).join("") || `<tr><td colspan="5"><div class="empty-state"><p>기록이 없습니다.</p></div></td></tr>`}
+    </tbody></table></div></div>
+    ${A.next ? `<div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" data-act="logsMore">더 보기</button></div>` : ""}`;
+  const refilter = () => { A.f = { email: $("#logEmail").value, action: $("#logAction").value, q: $("#logQ").value.trim() }; adminLoad(); };
+  $("#logEmail").onchange = refilter; $("#logAction").onchange = refilter;
+  $("#logQ").onkeydown = (ev) => { if (ev.key === "Enter") refilter(); };
+}
+function logText(detail) {
+  if (!detail) return "";
+  try {
+    const d = JSON.parse(detail);
+    if (typeof d !== "object" || !d) return String(d);
+    return Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ").slice(0, 300);
+  } catch { return detail.slice(0, 300); }
+}
+
 /* ═════════════════════════════════════ 이벤트 (위임) */
 async function onClick(e) {
   const a = e.target.closest("[data-act]");
@@ -1940,6 +2112,13 @@ async function onClick(e) {
     const snap = sid ? ST.snaps.find(s => s.id === sid) : null;
     switch (act) {
       case "sample": return ingest(sampleItems(), "sample");
+      case "logout": return logout();
+      case "logsMore": return adminLoad(true);
+      case "logsCsv": { const q = new URLSearchParams(Object.entries(AUTH.admin.f).filter(([, v]) => v)); location.href = "api/admin/logs.csv?" + q; return; }
+      case "logsOf": e.preventDefault(); AUTH.admin.f = { email: a.dataset.email, action: "", q: "" }; return go("#/admin/logs");
+      case "revoke": { const em = a.dataset.email; return modal({ title: "계정 허용 해제", ok: "허용 해제", danger: true,
+        body: `<p style="margin:0">‘${esc(em)}’ 계정은 더 이상 로그인할 수 없고, 로그인 중이면 바로 로그아웃됩니다. 그동안의 활동 기록은 남습니다.</p>`,
+        onOk: async () => { try { await api("api/admin/users?email=" + encodeURIComponent(em), { method: "DELETE", body: "{}" }); toast(`${em} 계정의 허용을 해제했습니다`); adminLoad(); } catch (err) { toast(err.message, true); } } }); }
       case "pickFiles": return $("#fileIn").click();
       case "pickDir": return $("#dirIn").click();
       case "pickZip": return $("#zipIn").click();
@@ -2007,9 +2186,9 @@ async function onClick(e) {
       }
       case "cfgIn": return $("#cfgIn").click();
       case "cfgOut": return download("평가구조_설정.json", configJSON(), "application/json");
-      case "paramReset": ST.params = E.defaultParams(); store.set("aihub.params", JSON.stringify(ST.params)); return reprocessAll();
-      case "baseAuto": ST.baseSource = "auto"; store.set("aihub.baseSource", "auto"); rebuildBaseline(); rescore(); return toast(ST.baseline ? "보유 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
-      case "baseDefault": ST.baseSource = "default"; store.set("aihub.baseSource", "default"); rebuildBaseline(); rescore(); return toast("기본 정답지(AI 허브 전체)로 바꿨습니다");
+      case "paramReset": logEvent("param.reset"); ST.params = E.defaultParams(); store.set("aihub.params", JSON.stringify(ST.params)); return reprocessAll();
+      case "baseAuto": logEvent("baseline", { source: "auto" }); ST.baseSource = "auto"; store.set("aihub.baseSource", "auto"); rebuildBaseline(); rescore(); return toast(ST.baseline ? "보유 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
+      case "baseDefault": logEvent("baseline", { source: "default" }); ST.baseSource = "default"; store.set("aihub.baseSource", "default"); rebuildBaseline(); rescore(); return toast("기본 정답지(AI 허브 전체)로 바꿨습니다");
       case "baseLoad": return $("#baseIn").click();
     }
     return;
@@ -2081,7 +2260,8 @@ async function onClick(e) {
   $("#baseIn").onchange = async (e) => {
     const file = e.target.files[0]; e.target.value = ""; if (!file) return;
     try { const b = JSON.parse(await file.text()); if (!b.all) throw new Error("baseline 형식이 아닙니다");
-      ST.baseline = b; ST.baseSource = "file"; rescore(); toast(`정답지 ${int(b.n_units)}세대를 불러왔습니다`); }
+      if (b.version !== 2) throw new Error("이전 형식의 정답지입니다 — 지금 판의 CLI(aihub_eval.py baseline)로 다시 만들어 주세요");
+      ST.baseline = b; ST.baseSource = "file"; logEvent("baseline", { source: "file", name: file.name, units: b.n_units }); rescore(); toast(`정답지 ${int(b.n_units)}세대를 불러왔습니다`); }
     catch (err) { toast("정답지를 불러오지 못했습니다 — " + err.message, true); }
   };
   $("#progCancel").onclick = () => { ST.cancel = true; };
@@ -2107,8 +2287,10 @@ async function onClick(e) {
 })();
 
 (async function init() {
+  if (!(await authInit())) return;
+  renderUser();
   try { const c = JSON.parse(store.get("aihub.criteria") || "null"); if (Array.isArray(c) && c.length) ST.criteria = c; } catch {}
-  try { const p = JSON.parse(store.get("aihub.params") || "null"); if (p) ST.params = Object.assign(E.defaultParams(), p); } catch {}
+  try { const p = JSON.parse(store.get("aihub.params") || "null"); if (p) ST.params = knownParams(p); } catch {}
   ST.route = parseHash(); render();
   await Promise.all([dbOpen(), loadDefaults()]);
   await loadSnaps();

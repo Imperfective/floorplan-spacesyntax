@@ -144,12 +144,12 @@ PNG 인식 없이 AI 허브 '건축 도면 데이터'의 라벨 JSON(COCO 폴리
 도면을 여러 방식으로 가져옵니다 — **AI 허브 라벨**(받은 `download.tar` 그대로 또는 zip, 전부 또는 일부) · **JSON 파일·폴더 업로드** ·
 **엑셀(.xlsx)·CSV 표 → JSON 변환** · **도면 이미지(PNG·JPG) → JSON 변환** · **JSON 직접 입력**(생성 모델이 만든 도면 등) · 예시.
 가져온 도면은 **이 브라우저(IndexedDB)에 쌓여** 다시 열어도 통계·점수표가 그대로 남고, 출처별로 거르거나 지울 수 있습니다.
-파일은 브라우저 밖으로 나가지 않습니다.
+도면 파일은 브라우저 밖으로 나가지 않고, **누가 언제 무엇을 했는지(작업 종류·파일 이름 등)만 서버 활동 기록에 남습니다**(아래 ‘로그인 · 활동 기록’).
 
 **기본 데이터(결과물만)** — 사이트에는 AI 허브 TL_SPA 아파트 평면도 **7,275장(21,383세대)** 에서 계산한 결과가 기본으로 들어 있습니다:
-`docs/data/aihub-baseline.json`(유형별 특징 분포 = 기본 정답지)과 `docs/data/aihub-default-stats.json`(기본 평가 구조로 채점한 전체 통계 ·
+`docs/data/aihub-baseline.json`(침실 수로 층화한 지표 분포 = 기본 정답지)과 `docs/data/aihub-default-stats.json`(기본 평가 구조로 채점한 전체 통계 ·
 세대별 점수, 보관 기록 맨 위 ‘AI 허브 전체’). 폴리곤·좌표 같은 원본 내용은 넣지 않습니다 — AI 허브 이용정책상 원본 재배포는 금지이고
-2차 저작물(분석 결과)은 출처 표기 후 배포할 수 있기 때문입니다. 전체 결과: 평균 78.5점 · 시공 가능 88.2% · 최다 유형 **3R2B(9,924세대)**.
+2차 저작물(분석 결과)은 출처 표기 후 배포할 수 있기 때문입니다. 전체 결과: 평균 75.7점 · 시공 가능 88.4% · 정답지 근접도 중앙값 75.5 · 최다 유형 **3R2B(9,924세대)**.
 다시 만들려면 `node tools/build_default_data.js <APT_FP_SPA JSON 폴더>`(원본은 각자 받은 것 사용, 약 4분).
 정답지는 기본으로 이 전체 분포를 쓰고, ‘보유 세대로’ 또는 `baseline.json` 파일로 바꿀 수 있습니다.
 
@@ -161,7 +161,7 @@ PNG 인식 없이 AI 허브 '건축 도면 데이터'의 라벨 JSON(COCO 폴리
 deep teal 주색, 캔버스 배경 위 흰 카드 1겹, 화면당 주 액션 1개, 색은 상태(통과·주의·오류)에만.
 폰트 파일은 `docs/fonts/`에서 직접 서빙합니다(서버 CSP가 외부 폰트 CDN을 막기 때문).
 
-**GNB(상단)** — 로고·이름(도면 평가 프로그램) · 보유 데이터 요약(도면 수·세대 수·평균 점수) · 사용 설명서(README).
+**GNB(상단)** — 로고·이름(도면 평가 프로그램) · 보유 데이터 요약(도면 수·세대 수·평균 점수) · 로그인한 계정·로그아웃 · 사용 설명서(README).
 **SNB(좌측)** — 기능별로 묶은 메뉴. 페이지마다 주소(`#/stats/summary` 등)가 있어 새로고침·뒤로가기·공유가 됩니다.
 
 | 메뉴 | 헤더 탭 | 하는 일 |
@@ -170,8 +170,9 @@ deep teal 주색, 캔버스 배경 위 흰 카드 1겹, 화면당 주 액션 1�
 | 데이터 › **데이터 가져오기** | AI 허브 · 파일 업로드 · 이미지 변환 · 직접 입력 · 보유 데이터 | **AI 허브**: 받은 `download.tar`(안에 `TL_SPA.zip.part0` 등 조각)나 zip을 그대로 놓으면 브라우저 안에서 열어 라벨 종류(SPA·STR·OBJ·OCR)·주택 유형·도면 종류·개수(전부/앞에서 N/무작위 N)·이름으로 골라 가져옴. **파일 업로드**: tar · zip · JSON · 엑셀 · CSV(여러 개·폴더째) — 확장자에 따라 알아서 나눔. **엑셀·CSV**는 한 행 = 실 하나(열: 도면 · 용도 · x · y · 너비 · 깊이 또는 좌표 `x1 y1, x2 y2, …` · 단위 m/px · 이름; 한글·영문 머리글 모두)인 표를 도면별 AI 허브 SPA 형식 JSON으로 바꿔 미리 보고(실·세대 수, 건너뛴 행과 이유) **파일 업로드 데이터에 추가**하거나 JSON 내려받기(여러 도면이면 zip 하나). m 단위는 1m = 100px로 바꾸고 실마다 벽 자리를 남김. .xlsx는 첫 시트, CSV는 UTF-8·CP949(엑셀 저장) 모두 읽음. 양식 CSV 내려받기. **이미지 변환**: 평면도 PNG·JPG의 벽·방을 인식(벽 색/어두운 선, 문 틈 막기 자동 보정)해 방 윤곽을 다각형으로 따고 용도를 자동 추정 → 확인·수정 후 AI 허브 SPA 형식 JSON으로 **파일 업로드 데이터에 추가**(또는 JSON 내려받기), 여러 장은 차례로 또는 일괄 자동 변환. 벽이 굵고 단순한 평면도용이며 치수선·글자가 많은 CAD 원본은 잘 나뉘지 않음. **직접 입력**: JSON 붙여넣기·형식 확인·예시. **보유 데이터**: 출처별 파일·세대 수, 다시 계산, 출처별·전체 삭제, 저장 공간 사용량 |
 | 분석 › **도면** | — | 왼쪽 파일 목록(검색, 파일 아래 세대, 삭제) · 가운데 도면(실 색·실 이름·추정 문·연결 그래프·문제 표시·선택 세대 강조, 확대·이동) · 오른쪽 세대 결과(총점·등급, 시공 점검, 조건별, 실별 지표, 정답지 근접도). STR은 벽·문·창과 겹친 문·창 |
 | 평가 설정 › **평가 구조** | 조건 · 문법 편집 | 조건을 **추가·삭제·켜고 끄기**. 대상(전역/실 용도)·지표·판정(범위/목표값/합격선)·**반영 방식**(가중 평균/감점/필수)·가중치·감점 크기, 근거 메모. 행마다 전체 세대 평균 조건점수·만점 비율. 세트 적용 · 설정 가져오기/내보내기 |
-| 평가 설정 › **판정 변수** | — | 벽 두께 허용치·최소 접면·샤프트 기준·발코니 연결·겹침/채광 임계값 등. 바꾸면 모든 도면을 다시 읽고 재채점, 바뀐 변수는 ‘변경됨’ 표시 |
-| 평가 설정 › **정답지** | — | 정답지 출처·유형별 세대 수. 기본 = AI 허브 전체(7,275장), 보유 세대로 만들기, CLI가 만든 `baseline.json` 불러오기 |
+| 평가 설정 › **판정 변수** | — | 축척 배율 기준·실 사이 간격(내벽/외벽)·최소 접촉 길이·덕트 면적·그래프 규약(문 추정/벽 인접)·발코니 연결·겹침/채광/문·창 임계값, **정답지 채점**(z 절단값·층화 최소 세대·영역 가중치). 변수마다 **근거 문헌·근거 등급(A~D)** 표시. 읽기·판정 변수는 모든 도면을 다시 읽고, 정답지 채점 변수는 바로 다시 채점. 바뀐 변수는 ‘변경됨’ |
+| 평가 설정 › **정답지** | — | 지표 18개의 정의·방향·채점 방식·가중치·중앙값·Qn·근거 등급·근거 문헌(DOI), 침실 수 층화, 영역 가중치, 참고 문헌. 기본 = AI 허브 전체(7,275장), 보유 세대로 만들기, CLI가 만든 `baseline.json` 불러오기 |
+| 관리 › **허용 계정 · 활동 기록** (관리자만) | 허용 계정 · 활동 기록 | 로그인할 수 있는 구글 계정 이메일 허용·해제(해제하면 바로 로그아웃), 사용자별 마지막 로그인·기록 수. 활동 기록: 사용자·작업·내용 검색, 더 보기, CSV 내려받기 |
 | 기록 › **보관 기록** | (상세) 요약 · 조건·점검 · 지표 · 점수표 | 보관한 통계 목록(검색). 기록을 열면 그때의 통계를 같은 화면으로 다시 보고, **그 조건·변수 적용**, **JSON 내려받기**, 삭제(확인 창). 통계 JSON 불러오기 · 전체 내려받기 |
 
 통계 JSON(`kind: "aihub-stats"`)에는 요약·유형별·조건별·위반·지표 통계와 함께 세대별 점수·전역 지표·조건점수(`units`),
@@ -186,6 +187,53 @@ AI 허브 로그인 → 데이터셋 화면에서 다운로드 승인(내국인)
 **AI 허브 원본은 공개 저장소·사이트에 올리지 않습니다**(재배포 제한).
 
 평가 구조의 **설정 내보내기** JSON은 파이썬 CLI의 `--config`로 그대로 씁니다(같은 엔진을 JS로 옮겼고, `tests/test_engine_parity.py`가 두 쪽 값이 같은지 확인합니다).
+
+### 정답지 · 판정 변수 — 근거 문서
+
+정답지와 판정 변수는 [평가 지표 근거 문서](https://github.com/hyeondata/drawing-library/tree/main/evidence)(평면 평가 랩 v0.3.0)를 따릅니다.
+점수가 높다고 ‘살기 좋은 평면’이라는 뜻이 아니라, **한국 실거주 아파트 평면 유형(거실 중심 유전형)에 얼마나 가까운가**를 잽니다
+— 공간구문 값이 거주 만족도를 예측한다는 SCI·SCIE 근거는 찾지 못했기 때문입니다(근거 문서 1장).
+
+| 영역(가중치) | 지표 | 채점 | 근거(등급) |
+|---|---|---|---|
+| 공간구문 (30) | 거실/침실 · 주방/침실 통합도 비 | Qn z, 양측 | Byun & Choi 2016, Choi et al. 2014 (A) |
+| | 유전형 순위 부합도 τ (거실 > 주방 > 현관 > 침실 > 화장실) | 백분위, ↑ | Hillier et al. 1987, Choi et al. 2014 (A) |
+| | 유전형 프로필 거리 | Qn z, ↓ | 같은 문헌 (A·C) |
+| | 공·사 깊이 차 | 백분위, ↑ | Park et al. 2024, Ham & Lee 2017 (B) |
+| | 기능실 평균 통합도(log K 회귀 잔차, ×0.5) · 거실 통제값(참고) | Qn z | Hillier & Hanson 1984, Ostwald 2011 (C) |
+| 면적 구성 (20) | 거실·주방·침실·화장실·발코니 면적비 · 공용/개인 면적비 · 안방/다른 침실 면적비 | Qn z, 양측 | Sun et al. 2022 (D) · Park et al. 2024 · Zeng et al. 2025 (B) |
+| 형태 (10) | 실 직사각형도(회전 MBR) ↑ · 실 종횡비 ↓ · 가장 좁은 침실의 상대 폭 ↑ | Qn z, 단측 | Rosin 1999, Rodrigues et al. 2013, Upasani et al. 2020 (B) |
+| 외기 접면 (10) | 거주실 외기 접면비 ↑ | Qn z, 단측 | Ju & Oh 2020 (B) |
+
+- 척도는 MAD 대신 **Qn**(Rousseeuw & Croux 1993), 점수 = 100 × max(0, 1 − |z| / 3). Qn이 0이거나 값이 몇 개뿐인 지표는 백분위로 채점합니다.
+- 같은 침실 수 세대가 15개 이상이면 그 층의 분포와 비교합니다(층화). 지표 점수를 영역 안에서 가중 평균하고 영역 가중치로 합친 값이 `@typicality`입니다.
+- 판정 변수: 축척 배율 s = 시트 침실 한 변 중앙값 ÷ 305px. 실 사이 간격 32px(외벽 쪽 50px, 보정 안 함), 최소 접촉 40px × max(1, s), 덕트 12,000px² × s², 채광 81px × s, 문·창 겹침 20% — 근거 문서 4장의 표본 실측(등급 D)과 Seo 2007 · Ju & Oh 2020.
+- 근거 문서와 다른 점: 그래프는 기본으로 **문 추정(투과) 그래프**를 씁니다(근거 문서는 벽 인접 그래프 — 통과형 침실을 잡지 못하는 한계를 스스로 밝힘). 판정 변수의 ‘그래프 규약’을 `adjacency`로 바꾸면 근거 문서와 같은 규약입니다.
+  기준 분포는 근거 문서의 35세대가 아니라 AI 허브 전체 21,383세대입니다. 도면 단위 leave-one-out은 하지 않습니다.
+- 전체 분포에서 나온 값은 근거 문서 표본과 비슷합니다 — 거실/침실 통합도 비 중앙값 2.57(문서 2.62), τ 0.80(0.80), 공·사 깊이 차 0.75(0.75), 직사각형도 0.81(0.80).
+
+### 로그인 · 활동 기록
+
+사이트 전체가 **구글 로그인**을 거칩니다. 회원가입은 없고, **관리자가 허용한 이메일과 관리자만** 들어옵니다(관리자: `newofbest2@gmail.com`, 워크플로 변수 `ADMIN_EMAILS`).
+누가 언제 무엇을 했는지 서버 SQLite에 남깁니다 — 로그인·로그아웃·거부, 데이터 가져오기(출처·파일 이름)·삭제·다시 계산, 판정 변수·평가 구조·정답지 변경,
+통계 보관·삭제·불러오기, 내려받기, 계정 허용·해제. 활동 기록은 관리자만 **관리 › 허용 계정 · 활동 기록**에서 보고 CSV로 내려받습니다.
+
+| 구성 | 내용 |
+|---|---|
+| `server/floorplan-api/server.mjs` | Node 22 내장 모듈만 쓰는 API(구글 OAuth 인가 코드 흐름 · 세션 쿠키 `__Host-fp_sid` · 허용 목록 · 활동 기록). 쓰기 요청은 같은 출처 JSON만 받음(CSRF 차단) |
+| `deploy/api-up.sh` | 서버에서 컨테이너 `floorplan-api`(node:22-slim, deepvoice-net, 읽기 전용·권한 없음·256MB)를 띄움. 데이터 `~/deepvoice/floorplan-api/data` |
+| `deploy/caddy/sapcesyntax.com.caddy` | 공유 Caddyfile의 sapcesyntax.com 블록 — `/api/*` → API, 나머지는 `forward_auth`로 로그인 확인. `apply.py`가 이 블록만 바꿈 |
+
+**처음 켜는 순서**
+
+1. Google Cloud Console → API 및 서비스 → OAuth 동의 화면(외부, 앱 이름 ‘도면 평가 프로그램’, 범위 openid·email·profile, 게시) →
+   사용자 인증 정보 → OAuth 클라이언트 ID(웹 애플리케이션), 승인된 리디렉션 URI `https://sapcesyntax.com/api/auth/callback`.
+2. 저장소 시크릿 `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` 등록(본인 터미널에서 `gh secret set GOOGLE_CLIENT_SECRET -R Imperfective/floorplan-spacesyntax` 후 붙여넣기).
+3. 워크플로를 다시 돌리면(Actions → Deploy to VPS → Run workflow) API가 설정을 읽고, 화면이 로그인을 요구하기 시작합니다.
+4. 서버 앞단 관문 켜기 — `python3 apply.py <Caddyfile> sapcesyntax.com.caddy --gate`(백업 · `caddy validate` 뒤 `caddy reload`). 관문은 API가 판정하므로 API가 멈추면 사이트도 닫힙니다.
+
+구글 설정 전에는 API가 `login: false`를 알려 화면이 로그인 없이 동작합니다(기록도 남지 않음).
+로컬 시험: `DEV_LOGIN=1 PUBLIC_ORIGIN=http://localhost:8765 ADMIN_EMAILS=… DB_PATH=./test.db node server/floorplan-api/server.mjs` — `/api/auth/dev?email=`로 허용된 계정에 바로 로그인(https 주소에서는 꺼짐).
 
 ### 조건 문법 (웹·CLI 공통)
 
@@ -281,6 +329,8 @@ docs/benchmark-report.html   OR-Tools vs D-Wave 비교 리포트
 examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예제
 docs/data/                   기본 데이터(결과물만) — AI 허브 전체 정답지·통계
 tools/build_default_data.js  AI 허브 라벨 → 기본 데이터 만들기
+server/floorplan-api/        구글 로그인 · 허용 계정 · 활동 기록 API (Node 22, 의존성 없음)
+deploy/api-up.sh · deploy/caddy/   API 컨테이너 띄우기 · 공유 Caddyfile의 sapcesyntax.com 블록
 tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파이썬 일치 검사(node 필요)
 ```
 
@@ -305,17 +355,17 @@ tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파�
 
 ## 배포
 
-메인 주소는 **https://sapcesyntax.com** 입니다. GitHub Pages는 같은 `docs/`를 그대로 서빙하는 보조 사본입니다
-→ https://imperfective.github.io/floorplan-spacesyntax/
+주소는 **https://sapcesyntax.com** 하나입니다. 로그인 없이 같은 화면이 열리지 않도록 GitHub Pages 사본은 껐습니다(2026-10-22).
 
 ### sapcesyntax.com (netcup VPS) — 자동 배포
 
-**`main`에 `docs/` 변경을 푸시하면 GitHub Actions가 자동으로 배포합니다** (`.github/workflows/deploy.yml`).
+**`main`에 `docs/` · `server/` 변경을 푸시하면 GitHub Actions가 자동으로 배포합니다** (`.github/workflows/deploy.yml`).
 
 지금 서버에서는 호스트 Caddy가 아니라 Docker 컨테이너 **`deepvoice-caddy`** 가 이 사이트를 서빙합니다.
 컨테이너의 `/data/floorplan`이 호스트의 `/home/minkyu/deepvoice/caddy/data/floorplan`에 마운트돼 있어,
-배포는 그 폴더 하나만 rsync로 바꿉니다. 같은 컨테이너가 다른 사이트도 서빙하므로 Caddy 설정은 건드리지 않고,
-정적 파일이라 재시작 없이 바로 반영됩니다. root SSH 로그인은 막혀 있으므로 `minkyu` 계정으로 배포합니다.
+정적 파일은 그 폴더 하나만 rsync로 바꾸고 재시작 없이 바로 반영됩니다. 로그인·기록 API는 같은 네트워크의 컨테이너 `floorplan-api`로
+배포합니다(`deploy/api-up.sh`, 코드·설정이 바뀔 때만 다시 띄움). 같은 Caddy가 다른 사이트도 서빙하므로 워크플로는 Caddy 설정을 건드리지 않습니다 —
+sapcesyntax.com 블록은 `deploy/caddy/`로 한 번 바꿔 두었습니다(백업 `Caddyfile.bak.sapcesyntax-api.*`). root SSH 로그인은 막혀 있으므로 `minkyu` 계정으로 배포합니다.
 
 | 저장소 설정 (Settings → Secrets and variables → Actions) | 값 |
 |---|---|
@@ -323,6 +373,8 @@ tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파�
 | Secret `SSH_USER` | `minkyu` |
 | Secret `SSH_PRIVATE_KEY` | 배포용 개인키 전문 (공개키는 서버 `minkyu`의 `~/.ssh/authorized_keys`에 등록) |
 | Secret `SSH_PORT` · Variable `DEPLOY_PATH` · `SITE_URL` | 선택 — 기본 22 · 위 폴더 · `https://sapcesyntax.com` |
+| Secret `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | 구글 OAuth 클라이언트(웹) — 없으면 로그인 없이 동작 |
+| Variable `ADMIN_EMAILS` · `API_DIR` | 선택 — 기본 `newofbest2@gmail.com` · `/home/minkyu/deepvoice/floorplan-api` |
 
 워크플로는 배포 전에 `index.html`의 엔진 주소(`aihub-engine.js?v=…`)를 엔진 파일 해시로 바꿉니다
 (서버가 `.js`를 1년 캐시하므로 엔진이 바뀔 때만 새로 받게 하기 위함). 배포 후 사이트의 파일이 배포본과 같은지 확인합니다.
@@ -360,7 +412,7 @@ WEBROOT=/var/www/floorplan DEPLOY_HOST=root@서버 bash deploy/deploy.sh       #
 | `deploy/deploy.sh` | `docs/`를 올림(엔진 해시 적용). root로 호스트 Caddy에 올릴 때만 소유자·Caddy 재적용 |
 | `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
 | `deploy/install.sh` | 서버에서 한 줄로 클론·설정·배포·검증까지. 재실행하면 업데이트 |
-| `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (시크릿 3개 + 선택 1개, 위 표) |
+| `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 — 정적 사이트 + 로그인·기록 API (시크릿·변수는 위 표) |
 
 #### Cloudflare DNS 설정
 
