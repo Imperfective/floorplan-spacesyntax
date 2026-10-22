@@ -440,6 +440,8 @@ const ICON = {
   alert: '<path d="M10.3 4 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17v.01"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  compare: '<path d="M8 3v18M16 3v18"/><path d="M4 8h8M12 16h8"/>',
   chevR: '<path d="m9 18 6-6-6-6"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
@@ -472,7 +474,7 @@ const ST = {
   statType: "", statSource: "", fileQuery: "", archQuery: "", unitSort: "name",
   zips: [], zipOpt: { labels: ["SPA", "STR"], houses: ["APT"], drawings: ["FP"], limit: "all", n: 200, q: "" },
 };
-const pkey = () => JSON.stringify(["engine-2", ...Object.keys(ST.params).filter(k => !E.PARAMS[k].rescore).sort().map(k => [k, ST.params[k]])]);
+const pkey = () => JSON.stringify(["engine-3", ...Object.keys(ST.params).filter(k => !E.PARAMS[k].rescore).sort().map(k => [k, ST.params[k]])]);
 /* 알려진 변수만 — 예전 판의 변수 이름(min_contact_m 등)은 버린다 */
 const knownParams = (p) => Object.assign(E.defaultParams(), Object.fromEntries(Object.entries(p || {}).filter(([k]) => E.PARAMS[k])));
 const curFile = () => ST.files.find(f => f.id === ST.fileId) || null;
@@ -799,6 +801,8 @@ const PAGES = {
   params:   { title: "판정 변수", icon: "settings" },
   baseline: { title: "정답지", icon: "check" },
   archive:  { title: "보관 기록", icon: "folder" },
+  genspec:  { title: "생성 사양", icon: "layers" },
+  compare:  { title: "생성 도면 검증", icon: "compare" },
   admin:    { title: "관리", icon: "users", tabs: [["users", "허용 계정"], ["logs", "활동 기록"]] },
 };
 function parseHash() {
@@ -838,6 +842,8 @@ function renderShell() {
   $("#sidebar").innerHTML = `
     <div class="nav-section">분석</div>
     ${nav("stats", "통계", n)}${nav("plans", "도면", files)}
+    <div class="nav-section">생성 연구</div>
+    ${nav("genspec", "생성 사양")}${nav("compare", "생성 도면 검증")}
     <div class="nav-section">데이터</div>
     ${nav("data", "데이터 가져오기")}
     <div class="nav-section">평가 설정</div>
@@ -858,7 +864,7 @@ function render() {
   renderShell();
   const r = ST.route, c = $("#content");
   c.className = "main-content" + (r.page === "plans" && ST.files.length ? " full" : "");
-  ({ stats: pageStats, plans: pagePlans, data: pageData, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive, admin: pageAdmin })[r.page]();
+  ({ stats: pageStats, plans: pagePlans, data: pageData, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive, admin: pageAdmin, genspec: pageGenspec, compare: pageCompare })[r.page]();
 }
 
 /* ── 통계 ── */
@@ -1286,6 +1292,206 @@ function onStatsControl(t) {
   saveStx(); render(); return true;
 }
 
+/* ═════════════════════════════════════ 생성 연구 — 생성 사양 · 생성 도면 검증
+   연구 흐름: 실제 도면(AI 허브) → 생성 사양(제약·목표) → 생성기(CP-SAT · QUBO · D-Wave CQM) → 생성 도면 → 실제 분포와 비교.
+   생성 사양 JSON은 floorplan_bench/genspec.py 가 BuildingSpec으로 바꾼다(main.py --spec aihub:3R2B). */
+const ROLE_LABEL = { entry: "현관", living: "거실", kitchen: "주방", master: "안방(가장 큰 침실)", bed: "침실(나머지)", bath: "화장실", dress: "드레스룸",
+  balcony: "발코니", ac: "실외기실", multi: "다목적공간", etc: "기타" };
+const pairLabel = (k) => k.split("|").map((r) => ROLE_LABEL[r] || r).join(" – ");
+const pc = (x) => (AS.fin(x) ? (x * 100).toFixed(1) + "%" : "—");
+const liveSummaries = () => ST.files.flatMap((f) => (f.sum && f.sum.units) || []).filter((s) => s.rel);
+
+/* 범위 그림: 역할마다 p05–p95 선, p25–p75 상자, 중앙값 눈금 */
+function rangeSvg(rows, label, fmtV) {
+  const W = 640, row = 28, L = 150, R = 60, T = 8, B = 28, H = T + row * rows.length + B, pw = W - L - R;
+  const hi = Math.max(...rows.map((r) => r.q.p95)), lo = Math.min(0, ...rows.map((r) => r.q.p05)), X = (v) => L + (v - lo) / ((hi - lo) || 1) * pw;
+  let g = axisTicks(lo, hi, 6).filter((v) => v >= lo && v <= hi).map((v) => `<line class="grid" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="ax" x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${fmtV(v)}</text>`).join("");
+  rows.forEach((r, i) => {
+    const cy = T + row * i + row / 2, q = r.q;
+    g += `<text class="glbl" x="${L - 10}" y="${cy + 4}" text-anchor="end">${esc(r.name)}</text>`
+      + `<line class="whisk" x1="${X(q.p05)}" x2="${X(q.p95)}" y1="${cy}" y2="${cy}"/>`
+      + `<rect class="box" x="${X(q.p25)}" y="${cy - 6}" width="${Math.max(1, X(q.p75) - X(q.p25))}" height="12" rx="2"/>`
+      + `<line class="med" x1="${X(q.p50)}" x2="${X(q.p50)}" y1="${cy - 7}" y2="${cy + 7}"/>`
+      + `<text class="lbl" x="${X(q.p95) + 6}" y="${cy + 4}">${fmtV(q.p50)}</text>`
+      + `<rect class="hit" x="${L}" y="${cy - row / 2}" width="${pw}" height="${row}" data-tip="${esc(r.name)} · 중앙값 ${fmtV(q.p50)} · 50% 범위 ${fmtV(q.p25)}–${fmtV(q.p75)} · 90% 범위 ${fmtV(q.p05)}–${fmtV(q.p95)} · n ${int(q.n)}"/>`;
+  });
+  return SVGT(W, H, label, g);
+}
+/* 확률 행렬(대칭) — 순서색 */
+function probHeatSvg(roles, get) {
+  const k = roles.length, cell = 44, L = 150, T = 120, W = L + cell * k + 20, H = T + cell * k + 50;
+  let g = roles.map((r, i) => `<text class="glbl" x="${L - 8}" y="${T + cell * i + cell / 2 + 4}" text-anchor="end">${esc(ROLE_LABEL[r])}</text>`
+    + `<text class="glbl" transform="translate(${L + cell * i + cell / 2 + 4},${T - 8}) rotate(-45)">${esc(ROLE_LABEL[r])}</text>`).join("");
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) {
+    const a = get(roles[i], roles[j]), fill = a ? AS.sequential(a.p) : "#ffffff";
+    g += `<rect x="${L + cell * j + 1}" y="${T + cell * i + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill="${fill}" stroke="${a ? "none" : "#E9ECEF"}"${a ? ` data-tip="${esc(ROLE_LABEL[roles[i]])} – ${esc(ROLE_LABEL[roles[j]])} · ${pc(a.p)} (둘 다 있는 ${int(a.n)}세대 중)"` : ""}/>`;
+    if (a) g += `<text x="${L + cell * j + cell / 2}" y="${T + cell * i + cell / 2 + 4}" text-anchor="middle" class="seg" fill="${AS.inkOn(fill)}">${Math.round(a.p * 100)}</text>`;
+  }
+  const ly = T + cell * k + 20, lw = Math.min(240, cell * k);
+  g += `<defs><linearGradient id="seqg">${[0, 0.5, 1].map((v) => `<stop offset="${v * 100}%" stop-color="${AS.sequential(v)}"/>`).join("")}</linearGradient></defs>`
+    + `<rect x="${L}" y="${ly}" width="${lw}" height="10" rx="2" fill="url(#seqg)"/><text class="ax" x="${L}" y="${ly + 24}">0%</text><text class="ax" x="${L + lw}" y="${ly + 24}" text-anchor="end">100%</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none;margin:0" role="img" aria-label="역할 사이 인접 확률">${g}</svg>`;
+}
+
+/* ── 생성 사양 ── */
+function pageGenspec() {
+  renderHeader("생성 사양", ["생성 연구"], null);
+  const live = liveSummaries();
+  const src = STX.gsSrc === "live" && live.length ? "live" : "default";
+  const GS = src === "live" ? memo(`gs|${live.length}|${live[0] && live[0].uid}|${pkey()}`, () => AS.genSpec(live)) : ST.defaults.genspec;
+  const c = $("#content");
+  if (!GS) { c.innerHTML = `<div class="card"><div class="empty-state"><h3>생성 사양이 없습니다</h3><p>기본 사양 파일(docs/data/aihub-genspec.json)을 읽지 못했고, 보유 데이터도 없습니다.</p></div></div>`; return; }
+  const keys = Object.keys(GS.strata), sk = GS.strata[STX.gsStratum] ? STX.gsStratum : GS.strata["3R2B"] ? "3R2B" : keys[0], st = GS.strata[sk];
+  const grp = { all: "전체", nbed: "침실 수", type: "유형(침실 R · 화장실 B)" };
+  const ctl = `<div class="toolbar">
+    <select class="select" id="gsSrc" style="width:auto" aria-label="자료"><option value="default"${src === "default" ? " selected" : ""}>기본 — AI 허브 전체 ${int(ST.defaults.genspec ? ST.defaults.genspec.n_units : 0)}세대</option>${live.length ? `<option value="live"${src === "live" ? " selected" : ""}>보유 데이터 ${int(live.length)}세대</option>` : ""}</select>
+    <select class="select" id="gsStratum" style="width:auto" aria-label="층">${["all", "nbed", "type"].map((b) => `<optgroup label="${grp[b]}">${keys.filter((k) => GS.strata[k].by === b).map((k) => `<option value="${esc(k)}"${k === sk ? " selected" : ""}>${esc(GS.strata[k].label)} — ${int(GS.strata[k].n)}세대</option>`).join("")}</optgroup>`).join("")}</select>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary" data-act="gsJson">${ico("download")}생성 사양 JSON</button>
+    <button class="btn btn-primary" data-act="gsPy">파이썬 코드 복사</button></div>`;
+  const roles = GS.roles.filter((r) => st.program[r] && st.program[r].present >= 0.3 && st.rooms[r]);
+  const sg = st.suggest;
+  let h = ctl + `<div class="callout">${ico("info")}<div>실제 도면에서 생성기(CP-SAT · QUBO · D-Wave CQM)에 넣을 <b>실 구성 · 면적 · 채광 · 현관에서 깊이 · 인접 선호</b>를 뽑습니다.
+      파이썬에서 <code>spec_from_aihub("${esc(sk)}", 10, 10)</code> 또는 <code>python main.py --spec aihub:${esc(sk)} --grid 10x10</code>로 이 사양 그대로 도면을 생성합니다(floorplan_bench/genspec.py).
+      ${src === "live" ? "지금은 보유 데이터로 계산한 사양입니다 — 파이썬은 기본 사양 파일을 읽으므로, 이 사양을 쓰려면 JSON을 내려받아 경로로 넘기세요." : ""}</div></div>`
+    + kpiRow([["세대", int(st.n), esc(st.label)], ["필수 실", int(sg.required.length), sg.required.map((r) => ROLE_LABEL[r]).join(" · "), "있을 확률 95% 이상"],
+      ["반드시 맞닿음", int(sg.must.length), "벽을 맞댈 확률 90% 이상"], ["피함", int(sg.avoid.length), "벽을 맞댈 확률 5% 이하"],
+      ["거실 중심 유전형", pc(st.genotype.tau_ge_08), `τ ≥ .8 세대 비율 · τ 중앙값 ${fmt(st.genotype.tau_p50, 3)}`]]);
+  h += statTable("gsProgram", { title: "실 구성(프로그램)", file: `생성사양_실구성_${sk}`, cols: [{ key: "role", label: "역할" }, { key: "present", label: "있을 확률", num: 1, fmt: pc }, { key: "mean", label: "평균 개수", num: 1, fmt: (x) => x.toFixed(2) },
+      { key: "mode", label: "최빈 개수", num: 1 }, { key: "dist", label: "개수 분포" }],
+    rows: GS.roles.filter((r) => st.program[r]).map((r) => { const p = st.program[r]; return { role: ROLE_LABEL[r], present: p.present, mean: p.mean, mode: p.mode,
+      dist: Object.entries(p.dist).sort((a, b) => +a[0] - +b[0]).filter(([, v]) => v >= 0.005).map(([k, v]) => `${k}개 ${(v * 100).toFixed(0)}%`).join(" · ") }; }) });
+  h += `<div class="section-gap"></div><div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">실별 면적비(세대 면적 대비)</h2><span class="field-hint">선 90% 범위 · 상자 50% 범위 · 눈금 중앙값</span></div><div class="card-body">
+      ${rangeSvg(roles.map((r) => ({ name: ROLE_LABEL[r], q: st.rooms[r].area })), "실별 면적비 범위", (v) => (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%")}</div></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">인접 확률 — ${STX.gsRel === "door" ? "문으로 연결" : "벽을 맞댐"}</h2>
+      <select class="select input-sm" id="gsRel" style="width:auto;margin-left:auto" aria-label="관계"><option value="wall"${STX.gsRel !== "door" ? " selected" : ""}>벽을 맞댐(격자 생성기의 인접)</option><option value="door"${STX.gsRel === "door" ? " selected" : ""}>문으로 연결(추정 문)</option></select></div>
+      <div class="card-body tw">${probHeatSvg(roles, (a, b) => { const x = st.adjacency[[a, b].sort().join("|")]; return x ? { p: STX.gsRel === "door" ? x.door : x.wall, n: x.n } : null; })}
+      <div class="field-hint" style="margin-top:6px">두 역할이 모두 있는 세대 중 그 관계가 있는 비율(%). 빈 칸은 둘 다 있는 세대가 적어 뺀 것.</div></div></div></div>`;
+  h += `<div class="section-gap"></div>` + statTable("gsRooms", { title: "실별 면적 · 형태 · 깊이 · 채광", file: `생성사양_실별_${sk}`,
+    cols: [{ key: "role", label: "역할" }, { key: "n", label: "실 수", num: 1 }, ...["p05", "p25", "p50", "p75", "p95"].map((q) => ({ key: "a_" + q, label: `면적비 ${q.replace("p", "P")}`, num: 1, fmt: pc })),
+      { key: "asp", label: "장단변비 중앙값", num: 1, fmt: (x) => x.toFixed(2) }, { key: "asp95", label: "장단변비 P95", num: 1, fmt: (x) => x.toFixed(2) },
+      { key: "dep", label: "깊이(최빈)", num: 1, tip: "외부 → 현관(1) → … 이 실까지 거치는 실 수" }, { key: "ext", label: "외기·발코니 접면", num: 1, fmt: pc }],
+    rows: GS.roles.filter((r) => st.rooms[r]).map((r) => { const x = st.rooms[r]; return Object.assign({ role: ROLE_LABEL[r], n: x.n, asp: x.aspect && x.aspect.p50, asp95: x.aspect && x.aspect.p95, dep: x.depth.mode, ext: x.ext },
+      ...["p05", "p25", "p50", "p75", "p95"].map((q) => ({ ["a_" + q]: x.area && x.area[q] }))); }) });
+  const wrows = Object.entries(st.adjacency).map(([k, a]) => ({ pair: pairLabel(k), wall: a.wall, door: a.door, n: a.n, w: sg.weights[k], use: a.wall >= 0.9 ? "반드시 맞닿음" : a.wall <= 0.05 ? "피함" : sg.weights[k] != null ? "선호 가중치" : "—" }))
+    .sort((x, y) => (y.w ?? 0) - (x.w ?? 0));
+  h += `<div class="section-gap"></div>` + statTable("gsAdj", { title: "제안 — 인접 제약과 선호 가중치", file: `생성사양_인접_${sk}`,
+    cols: [{ key: "pair", label: "역할 쌍" }, { key: "wall", label: "벽 맞댐", num: 1, fmt: pc }, { key: "door", label: "문 연결", num: 1, fmt: pc }, { key: "n", label: "둘 다 있는 세대", num: 1 },
+      { key: "w", label: "선호 가중치(2p − 1)", num: 1, fmt: (x) => (x > 0 ? "+" : "") + x.toFixed(2) }, { key: "use", label: "생성기에서" }],
+    rows: wrows, note: "격자 생성기(BuildingSpec.adjacency)의 인접 선호는 −1~1이며, 벽을 맞댈 확률 p를 2p − 1로 옮겼습니다(|값| < .15는 뺌). 반드시 맞닿음·피함은 CQM의 하드 제약 후보입니다." });
+  c.innerHTML = h;
+}
+const gsPython = (sk) => `# AI 허브 실측 생성 사양 → 격자 생성기(BuildingSpec) — floorplan_bench/genspec.py
+from floorplan_bench.genspec import spec_from_aihub
+from floorplan_bench.qubo import build_bqm            # QUBO(페널티) — D-Wave 어닐러
+from floorplan_bench.env import get_env
+
+spec = spec_from_aihub("${sk}", width=10, height=10)   # 실 구성·면적·채광·깊이·인접 선호가 실측값
+for r in spec.rooms:
+    print(r.key, r.area, "창" if r.needs_window else "", r.privacy)
+bqm = build_bqm(spec, get_env("balanced"))
+# 명령줄: python main.py --spec aihub:${sk} --grid 10x10 --env balanced
+`;
+
+/* ── 생성 도면 검증 — A(생성·평가 대상) vs B(기준) ── */
+function cmpDatasets() {
+  const out = [{ id: "live:", label: "보유 데이터 — 전체" }];
+  for (const s of [...new Set(ST.files.map((f) => f.source))]) out.push({ id: "live:" + s, label: `보유 데이터 — ${SOURCES[s] || s}` });
+  for (const s of ST.snaps) out.push({ id: "snap:" + s.id, label: `보관 기록 — ${s.name || "(이름 없음)"}`, snap: s });
+  return out;
+}
+function cmpRows(id) {
+  if (id.startsWith("live:")) return allUnits().length ? liveStats("", id.slice(5)).units : [];
+  const s = ST.snaps.find((x) => "snap:" + x.id === id);
+  return s && !s._stub ? s.units || [] : null;   // null = 아직 받는 중
+}
+function deltaSvg(rows) {
+  const W = 640, row = 24, L = 220, R = 20, T = 26, B = 26, H = T + row * rows.length + B, pw = W - L - R, X = (v) => L + (v + 1) / 2 * pw;
+  let g = [[0.474, "#E9ECEF"], [0.33, "#F1F3F5"], [0.147, "#F8F9FA"]].map(([t, f]) => `<rect x="${X(-t)}" y="${T}" width="${X(t) - X(-t)}" height="${row * rows.length}" fill="${f}"/>`).join("")
+    + [-1, -0.5, 0, 0.5, 1].map((v) => `<text class="ax" x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${v}</text>`).join("")
+    + `<line class="base" x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${T + row * rows.length}"/>`
+    + `<text class="ax" x="${X(-1)}" y="14">← A가 작음</text><text class="ax" x="${X(1)}" y="14" text-anchor="end">A가 큼 →</text><text class="ax" x="${X(0)}" y="14" text-anchor="middle">음영: |δ| .147 · .33 · .474</text>`;
+  rows.forEach((r, i) => {
+    const cy = T + row * i + row / 2;
+    g += `<text class="glbl" x="${L - 10}" y="${cy + 4}" text-anchor="end">${esc(r.label)}</text>`;
+    if (AS.fin(r.delta)) g += `<line x1="${X(0)}" x2="${X(r.delta)}" y1="${cy}" y2="${cy}" stroke="#9AA5B1" stroke-width="1.5"/><circle class="mean" cx="${X(r.delta)}" cy="${cy}" r="5" style="fill:var(--color-primary-100)"/>`;
+    g += `<rect class="hit" x="${L}" y="${cy - row / 2}" width="${pw}" height="${row}" data-tip="${esc(r.label)} · Cliff's δ ${AS.fin(r.delta) ? r.delta.toFixed(3) : "—"}(${r.mag}) · A 중앙값 ${fmt(r.ma, 4)} · B 중앙값 ${fmt(r.mb, 4)}"/>`;
+  });
+  return SVGT(W, H, "변수별 효과크기 Cliff's δ", g);
+}
+function gradePairSvg(ca, na, cb, nb, la, lb) {
+  const W = 640, H = 230, L = 46, R = 14, T = 30, B = 32, pw = W - L - R, ph = H - T - B, gs = E.GRADES, bw = pw / gs.length;
+  const max = Math.max(0.01, ...gs.map((g) => Math.max((ca[g] || 0) / na, (cb[g] || 0) / nb))), Y = (v) => T + ph - v / max * ph;
+  let g = axisTicks(0, max, 4).map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v * 100)}%</text>`).join("")
+    + `<rect x="${L}" y="6" width="12" height="12" rx="2" fill="${CAT[0]}"/><text class="glbl" x="${L + 18}" y="16">A ${esc(la)}</text>`
+    + `<rect x="${L + 300}" y="6" width="12" height="12" rx="2" fill="${CAT[1]}"/><text class="glbl" x="${L + 318}" y="16">B ${esc(lb)}</text>`;
+  gs.forEach((gr, i) => {
+    const pa = (ca[gr] || 0) / na, pb = (cb[gr] || 0) / nb, x = L + i * bw, w = bw * 0.32;
+    g += `<path d="${barPath(x + bw * 0.16, Y(pa), w, T + ph - Y(pa), 2)}" fill="${CAT[0]}"/><path d="${barPath(x + bw * 0.16 + w + 2, Y(pb), w, T + ph - Y(pb), 2)}" fill="${CAT[1]}"/>`
+      + `<text class="glbl" x="${x + bw / 2}" y="${H - B + 17}" text-anchor="middle">${gr}</text>`
+      + `<rect class="hit" x="${x}" y="${T}" width="${bw}" height="${ph}" data-tip="${gr} · A ${pc(pa)} (${int(ca[gr] || 0)}) · B ${pc(pb)} (${int(cb[gr] || 0)})"/>`;
+  });
+  return SVGT(W, H, "등급 분포 A·B 비교", g + `<line class="base" x1="${L}" x2="${W - R}" y1="${T + ph}" y2="${T + ph}"/>`);
+}
+function pageCompare() {
+  renderHeader("생성 도면 검증", ["생성 연구"], null);
+  const c = $("#content"), D = cmpDatasets();
+  const has = (id) => D.some((d) => d.id === id);
+  const defA = has("live:upload") ? "live:upload" : has("live:manual") ? "live:manual" : "live:";
+  const A = has(STX.cmpA) ? STX.cmpA : defA, B = has(STX.cmpB) ? STX.cmpB : has("snap:builtin-aihub") ? "snap:builtin-aihub" : D[0].id;
+  const sel = (id, cur) => `<select class="select" id="${id}" style="width:auto;max-width:320px" aria-label="${id === "cmpA" ? "A" : "B"}">${D.map((d) => `<option value="${esc(d.id)}"${d.id === cur ? " selected" : ""}>${esc(d.label)}</option>`).join("")}</select>`;
+  const nbs = ["", "1", "2", "3", "4", "5"];
+  const bar = `<div class="toolbar sx-bar"><b style="font-size:13px">A</b>${sel("cmpA", A)}<span class="field-hint">vs</span><b style="font-size:13px">B</b>${sel("cmpB", B)}
+    <select class="select" id="cmpNb" style="width:auto" aria-label="침실 수">${nbs.map((v) => `<option value="${v}"${v === (STX.cmpNb || "") ? " selected" : ""}>${v ? `침실 ${v}개${v === "5" ? " 이상" : ""}만` : "침실 수 전체"}</option>`).join("")}</select>
+    <label class="chk"><input type="checkbox" id="sxExcl"${STX.excl ? " checked" : ""}>필수 조건 탈락 세대 제외</label></div>`;
+  let ra = cmpRows(A), rb = cmpRows(B);
+  for (const [id, r] of [[A, ra], [B, rb]]) if (r === null) { ensureSnap(id.slice(5)).then(() => { if (ST.route.page === "compare") render(); }).catch((e) => toast(e.message, true)); }
+  if (ra === null || rb === null) { c.innerHTML = bar + `<div class="card"><div class="empty-state"><p>보관 기록을 받는 중…</p></div></div>`; return; }
+  const filt = (rows) => rows.filter((r) => (!STX.excl || !r.gated) && (!STX.cmpNb || (STX.cmpNb === "5" ? nb(r) >= 5 : nb(r) === +STX.cmpNb)));
+  ra = filt(ra); rb = filt(rb);
+  const la = D.find((d) => d.id === A).label, lb = D.find((d) => d.id === B).label;
+  if (A === B) { c.innerHTML = bar + `<div class="callout is-warning">${ico("alert")}<div>A와 B가 같습니다. 생성 도면(파일 업로드·직접 입력 등)을 A에, 실제 도면(AI 허브 전체)을 B에 두세요.</div></div>`; return; }
+  if (!ra.length || !rb.length) { c.innerHTML = bar + `<div class="card"><div class="empty-state"><h3>비교할 세대가 없습니다</h3><p>${!ra.length ? "A" : "B"}에 세대가 없습니다. 생성한 도면은 데이터 가져오기(파일 업로드·직접 입력·엑셀/CSV)로 넣으세요.</p></div></div>`; return; }
+  const V = pickSet(statVars(ra.concat(rb)), "all").filter((v) => !v.key.startsWith("g.") || ["g.n_spaces", "g.mean_depth_system", "g.mean_integration", "g.intelligibility"].includes(v.key));
+  const res = memo(`cmp|${sig(ra)}|${sig(rb)}|${V.length}`, () => V.map((v) => {
+    const a = ra.map(v.get), b = rb.map(v.get), da = AS.describe(a), db = AS.describe(b);
+    if (!da.n || !db.n) return null;
+    const mw = AS.mannWhitney(da.sorted, db.sorted), ks = AS.ks2(da.sorted, db.sorted), w1 = AS.wasserstein(da.sorted, db.sorted);
+    const lo = AS.quantileSorted(db.sorted, 0.05), hi = AS.quantileSorted(db.sorted, 0.95);
+    return { key: v.key, label: v.label, group: v.group, na: da.n, nb: db.n, ma: da.median, mb: db.median, ia: `${fmt(da.q1, 3)}–${fmt(da.q3, 3)}`, ib: `${fmt(db.q1, 3)}–${fmt(db.q3, 3)}`,
+      delta: mw.delta, mag: AS.cliffMag(mw.delta), p: mw.p, D: ks.D, w1n: db.iqr > 0 ? w1 / db.iqr : NaN, inr: da.sorted.filter((x) => x >= lo && x <= hi).length / da.n, lo, hi };
+  }).filter(Boolean));
+  // 실측 범위 안 비율: 세대마다 근거 문서 지표 18개 중 B의 5–95% 범위 안에 든 비율
+  const feats = res.filter((r) => r.key.startsWith("feat."));
+  const inShare = ra.map((u) => { let k = 0, m = 0; for (const f of feats) { const v = V.find((x) => x.key === f.key).get(u); if (!AS.fin(v)) continue; m++; if (v >= f.lo && v <= f.hi) k++; } return m ? k / m : NaN; });
+  const isd = AS.describe(inShare), allIn = inShare.filter((x) => x >= 1 - 1e-9).length / Math.max(1, isd.n);
+  const pa = ra.filter((r) => r.pass).length, pb = rb.filter((r) => r.pass).length, tp = AS.twoProp(pa, ra.length, pb, rb.length);
+  const ca = {}, cb = {}; for (const r of ra) ca[r.grade] = (ca[r.grade] || 0) + 1; for (const r of rb) cb[r.grade] = (cb[r.grade] || 0) + 1;
+  const x2 = AS.chi2Indep([E.GRADES.map((g) => ca[g] || 0), E.GRADES.map((g) => cb[g] || 0)]);
+  const tA = AS.describe(ra.map((r) => r.global && r.global.typicality)), tB = AS.describe(rb.map((r) => r.global && r.global.typicality));
+  let h = bar + `<div class="callout">${ico("info")}<div><b>A</b>(생성·평가 대상) ${int(ra.length)}세대를 <b>B</b>(기준) ${int(rb.length)}세대와 비교합니다. 생성 도면이 실제 도면 분포에 얼마나 가까운지 —
+      변수마다 <b>Cliff's δ</b>(A > B일 확률 − A < B일 확률, 분포 가정 없음), Mann–Whitney p, KS D, Wasserstein 거리(B의 IQR 단위), 그리고 A 세대가 B의 5–95% 범위 안에 드는 비율을 냅니다.</div></div>`
+    + kpiRow([["실측 범위 안 지표", pc(isd.mean), `세대 평균 · 18개 모두 안: ${pc(allIn)}`, "세대마다 근거 문서 지표 18개 중 B의 5–95% 범위 안에 든 비율"],
+      ["정답지 근접도 중앙값", `${fmt(tA.median, 3)} / ${fmt(tB.median, 3)}`, "A / B"],
+      ["시공 가능", `${pc(tp.p1)} / ${pc(tp.p2)}`, `차이 ${(tp.diff * 100).toFixed(1)}%p (95% CI ${(tp.lo * 100).toFixed(1)} – ${(tp.hi * 100).toFixed(1)}) · p ${pEq(tp.p)}`],
+      ["평균 총점", `${fx(AS.describe(ra.map((r) => r.total)).mean)} / ${fx(AS.describe(rb.map((r) => r.total)).mean)}`, "A / B"],
+      ["등급 분포 차이", x2 ? `V = ${x2.V.toFixed(3)}` : "—", x2 ? `χ²(${x2.df}) = ${x2.chi2.toFixed(1)}, p ${pEq(x2.p)}` : ""]]);
+  const show = res.filter((r) => !r.key.startsWith("g."));
+  h += `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">변수별 차이 — Cliff's δ</h2><span class="field-hint">0에 가까울수록 실제와 같음 · 막대에 올리면 중앙값</span></div><div class="card-body">${deltaSvg(show)}</div></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">등급 분포</h2></div><div class="card-body">${gradePairSvg(ca, ra.length, cb, rb.length, la, lb)}</div></div></div>`;
+  const cv = V.find((v) => v.key === STX.cmpV) || V.find((v) => v.key === "typicality") || V[0];
+  ECDF_CHARTS.length = 0;
+  h += `<div class="section-gap"></div><div class="card"><div class="card-header"><h2 class="card-title">누적분포 겹쳐 보기</h2>
+      <select class="select input-sm" id="cmpV" style="width:auto;margin-left:auto" aria-label="변수">${V.map((v) => `<option value="${v.key}"${v.key === cv.key ? " selected" : ""}>${esc(v.label)}</option>`).join("")}</select></div>
+    <div class="card-body">${ecdfSvg([{ name: "A", color: CAT[0], d: AS.describe(ra.map(cv.get)) }, { name: "B", color: CAT[1], d: AS.describe(rb.map(cv.get)) }].filter((s) => s.d.n), cv.label)}</div></div>`;
+  h += `<div class="section-gap"></div>` + statTable("cmp", { title: "변수별 비교 — A vs B", file: "생성도면검증",
+    cols: [{ key: "label", label: "변수" }, { key: "na", label: "n(A)", num: 1 }, { key: "nb", label: "n(B)", num: 1 }, { key: "ma", label: "중앙값 A", num: 1, fmt: (x) => fmt(x, 4) }, { key: "ia", label: "IQR A", num: 1 },
+      { key: "mb", label: "중앙값 B", num: 1, fmt: (x) => fmt(x, 4) }, { key: "ib", label: "IQR B", num: 1 }, { key: "delta", label: "Cliff's δ", num: 1, fmt: (x) => x.toFixed(3) }, { key: "mag", label: "크기" },
+      { key: "p", label: "p(MWU)", num: 1, fmt: AS.fmtP }, { key: "D", label: "KS D", num: 1, fmt: (x) => x.toFixed(3) }, { key: "w1n", label: "W₁ / IQR(B)", num: 1, fmt: (x) => x.toFixed(3) },
+      { key: "inr", label: "B 5–95% 안", num: 1, fmt: pc }],
+    rows: res, note: "Cliff's δ 크기: |δ| < .147 무시할 만함 · < .33 작음 · < .474 중간 · 그 이상 큼(Romano et al. 2006). W₁은 1-Wasserstein 거리를 B의 사분위범위로 나눈 값. p는 Mann–Whitney U(동점 보정 정규근사)." }, 100);
+  c.innerHTML = h;
+}
 function statsBody(S, tab, live) {
   const sm = S.summary, sc = sm.score;
   if (tab === "summary") {
@@ -2278,7 +2484,8 @@ const canDelSnap = (s) => !s.builtin && (!sharedSnaps() || s._local || (AUTH.use
 async function loadDefaults() {
   // 서버가 json에 캐시 헤더를 주지 않아 브라우저가 예전 판을 쓰는 일이 있다 — 매번 서버에 확인한다(ETag라 바뀌지 않았으면 가볍다)
   const get = (u) => fetch(u, { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null);
-  const [b, s] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json")]);
+  const [b, s, g] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json"), get("data/aihub-genspec.json")]);
+  ST.defaults.genspec = g && g.kind === "aihub-genspec" ? g : null;
   ST.defaults.baseline = b && b.version === 2 && b.all ? b : null;
   if (s && s.units_packed) { s.units = unpackUnits(s.units_packed); delete s.units_packed; }
   ST.defaults.stats = s && s.kind === "aihub-stats" ? Object.assign(s, { builtin: true, id: s.id || "builtin-aihub" }) : null;
@@ -2565,6 +2772,10 @@ async function onClick(e) {
       case "sample": return ingest(sampleItems(), "sample");
       case "logout": return logout();
       case "tblX": return exportStatTable(a.dataset.tid, a.dataset.fmt);
+      case "gsJson": { const live = STX.gsSrc === "live" && liveSummaries().length; const gs = live ? AS.genSpec(liveSummaries()) : ST.defaults.genspec; if (!gs) return;
+        return download(live ? "genspec_보유데이터.json" : "aihub-genspec.json", JSON.stringify(gs, null, 1), "application/json"); }
+      case "gsPy": { const sk = $("#gsStratum") ? $("#gsStratum").value : "3R2B", txt = gsPython(sk);
+        return navigator.clipboard.writeText(txt).then(() => toast("파이썬 코드를 복사했습니다")).catch(() => download("genspec_example.py", txt, "text/plain")); }
       case "copyMethods": { const txt = $("#methodsText").textContent; return navigator.clipboard.writeText(txt).then(() => toast("통계 방법 문단을 복사했습니다")).catch(() => download("통계방법.txt", txt, "text/plain")); }
       case "logsMore": return adminLoad(true);
       case "logsCsv": { const q = new URLSearchParams(Object.entries(AUTH.admin.f).filter(([, v]) => v)); location.href = "api/admin/logs.csv?" + q; return; }
@@ -2697,6 +2908,8 @@ async function onClick(e) {
     }
     if (t.id === "statType") { ST.statType = t.value; return render(); }
     if (onStatsControl(t)) return;
+    const rk = { gsSrc: "gsSrc", gsStratum: "gsStratum", gsRel: "gsRel", cmpA: "cmpA", cmpB: "cmpB", cmpNb: "cmpNb", cmpV: "cmpV" }[t.id];
+    if (rk) { STX[rk] = t.value; saveStx(); return render(); }
     if (t.id === "statSource") { ST.statSource = t.value; return render(); }
     if (t.id === "unitSort") { ST.unitSort = t.value; return render(); }
   });

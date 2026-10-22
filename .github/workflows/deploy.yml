@@ -111,7 +111,7 @@ jobs:
           TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
         run: |
           SSH="ssh -p $SSH_PORT -i $HOME/.ssh/deploy_key -o BatchMode=yes"
-          for f in index.html aihub-engine.js aihub-stats.js data/aihub-baseline.json data/aihub-default-stats.json; do
+          for f in index.html aihub-engine.js aihub-stats.js data/aihub-baseline.json data/aihub-default-stats.json data/aihub-genspec.json; do
             want=$(sha256sum "docs/$f" | cut -c1-64)
             got=$($SSH "$TARGET" "sha256sum '$DEPLOY_PATH/$f'" | cut -c1-64)
             if [ "$got" != "$want" ]; then echo "::error::서버의 $f 가 배포본과 다릅니다"; exit 1; fi

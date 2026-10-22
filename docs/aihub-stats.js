@@ -202,6 +202,103 @@ function chi2Indep(table) {
   return { chi2: x2, df, p: chi2SF(x2, df), V: Math.sqrt(x2 / (N * Math.min(r - 1, c - 1))), N, lowShare: low / (r * c) };
 }
 
+/* ═════════════ 두 표본 비교 — 생성 도면 vs 실제 도면 */
+/* Mann–Whitney U(동점 보정 정규근사) · Cliff's δ = P(A>B) − P(A<B) */
+function mannWhitney(xa, xb) {
+  const a = clean(xa), b = clean(xb), n1 = a.length, n2 = b.length;
+  if (!n1 || !n2) return null;
+  const all = a.map((x) => [x, 0]).concat(b.map((x) => [x, 1])), { r, ties } = ranks(all.map((x) => x[0]));
+  let R1 = 0; all.forEach((x, i) => { if (!x[1]) R1 += r[i]; });
+  const U = R1 - n1 * (n1 + 1) / 2, N = n1 + n2, mu = n1 * n2 / 2;
+  const sd = Math.sqrt(n1 * n2 / 12 * ((N + 1) - ties / (N * (N - 1))));
+  const z = sd > 0 ? (U - mu) / sd : 0;
+  return { U, z, p: sd > 0 ? normSF2(Math.abs(z)) : 1, delta: 2 * U / (n1 * n2) - 1, n1, n2 };
+}
+const cliffMag = (d) => { const a = Math.abs(d); return a < 0.147 ? "무시할 만함" : a < 0.33 ? "작음" : a < 0.474 ? "중간" : "큼"; };   // Romano et al. 2006
+/* 두 표본 Kolmogorov–Smirnov D와 점근 p */
+function ks2(xa, xb) {
+  const a = clean(xa).sort((x, y) => x - y), b = clean(xb).sort((x, y) => x - y), n = a.length, m = b.length;
+  if (!n || !m) return null;
+  let i = 0, j = 0, D = 0;
+  while (i < n && j < m) { const v = Math.min(a[i], b[j]); while (i < n && a[i] <= v) i++; while (j < m && b[j] <= v) j++; D = Math.max(D, Math.abs(i / n - j / m)); }
+  const ne = n * m / (n + m), lam = (Math.sqrt(ne) + 0.12 + 0.11 / Math.sqrt(ne)) * D;
+  let p = 0; for (let k = 1; k <= 100; k++) { const t = 2 * (k % 2 ? 1 : -1) * Math.exp(-2 * k * k * lam * lam); p += t; if (Math.abs(t) < 1e-12) break; }
+  return { D, p: Math.max(0, Math.min(1, p)) };
+}
+/* 1-Wasserstein 거리 = ∫|F_A − F_B| dx */
+function wasserstein(xa, xb) {
+  const a = clean(xa).sort((x, y) => x - y), b = clean(xb).sort((x, y) => x - y), n = a.length, m = b.length;
+  if (!n || !m) return NaN;
+  const xs = [...new Set(a.concat(b))].sort((x, y) => x - y);
+  let i = 0, j = 0, w = 0;
+  for (let k = 0; k < xs.length - 1; k++) { while (i < n && a[i] <= xs[k]) i++; while (j < m && b[j] <= xs[k]) j++; w += Math.abs(i / n - j / m) * (xs[k + 1] - xs[k]); }
+  return w;
+}
+/* 두 비율의 차와 Newcombe 95% CI(Wilson 하이브리드), 두 비율 z 검정 */
+function twoProp(k1, n1, k2, n2) {
+  if (!n1 || !n2) return null;
+  const p1 = k1 / n1, p2 = k2 / n2, [l1, u1] = wilson(k1, n1), [l2, u2] = wilson(k2, n2), d = p1 - p2;
+  const lo = d - Math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2), hi = d + Math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2);
+  const pp = (k1 + k2) / (n1 + n2), se = Math.sqrt(pp * (1 - pp) * (1 / n1 + 1 / n2));
+  return { p1, p2, diff: d, lo, hi, p: se > 0 ? normSF2(Math.abs(d / se)) : 1 };
+}
+
+/* ═════════════ 생성 사양 — 실제 도면에서 생성기(CP-SAT · QUBO · CQM)의 제약·목표를 뽑는다
+   입력: 엔진의 세대 요약(summarizeUnit) — measures.rooms(실별 면적비·장단변비·깊이) · rel(역할 사이 문·벽 쌍, 외기 실) · features.
+   역할: 가장 큰 침실은 master, 나머지 침실은 bed. 인접 확률은 두 역할이 모두 있는 세대만 분모로 센다. */
+const ROLES = ["entry", "living", "kitchen", "master", "bed", "bath", "dress", "balcony", "ac", "multi", "etc"];
+function genSpecStratum(units) {
+  const n = units.length, qs = (xs) => { const d = describe(xs); return d.n ? { p05: quantileSorted(d.sorted, 0.05), p25: d.q1, p50: d.median, p75: d.q3, p95: quantileSorted(d.sorted, 0.95), n: d.n } : null; };
+  const program = {}, rooms = {}, pairN = {}, door = {}, wall = {};
+  for (const role of ROLES) {
+    const counts = units.map((s) => Object.keys(s.measures.rooms).filter((k) => s.rel.roles[k] === role).length);
+    const dist = {}; counts.forEach((c) => { dist[c] = (dist[c] || 0) + 1; });
+    const mode = +Object.entries(dist).sort((a, b) => b[1] - a[1])[0][0];
+    program[role] = { present: counts.filter((c) => c > 0).length / n, mean: sum(counts) / n, mode, dist: Object.fromEntries(Object.entries(dist).map(([k, v]) => [k, v / n])) };
+    const rs = units.flatMap((s) => Object.entries(s.measures.rooms).filter(([k]) => s.rel.roles[k] === role).map(([k, r]) => ({ r, ext: s.rel.ext.includes(k) })));
+    if (!rs.length) continue;
+    const dep = rs.map((x) => x.r.step_depth).filter(fin), dd = {}; dep.forEach((v) => { dd[v] = (dd[v] || 0) + 1; });
+    rooms[role] = { n: rs.length, area: qs(rs.map((x) => x.r.area_ratio)), aspect: qs(rs.map((x) => x.r.aspect)),
+      depth: { p50: describe(dep).median, mode: dep.length ? +Object.entries(dd).sort((a, b) => b[1] - a[1])[0][0] : null }, ext: rs.filter((x) => x.ext).length / rs.length };
+  }
+  for (const s of units) {
+    const present = new Set(Object.values(s.rel.roles)), dset = new Set(s.rel.door), wset = new Set(s.rel.wall);
+    const multi = (r) => Object.values(s.rel.roles).filter((x) => x === r).length >= 2;
+    for (let i = 0; i < ROLES.length; i++) for (let j = i; j < ROLES.length; j++) {
+      const a = ROLES[i], b = ROLES[j];
+      if (!present.has(a) || !present.has(b) || (a === b && !multi(a))) continue;
+      const key = [a, b].sort().join("|");
+      pairN[key] = (pairN[key] || 0) + 1;
+      if (dset.has(key)) door[key] = (door[key] || 0) + 1;
+      if (wset.has(key)) wall[key] = (wall[key] || 0) + 1;
+    }
+  }
+  const adjacency = {};
+  for (const [k, m] of Object.entries(pairN)) if (m >= Math.max(5, n * 0.05)) adjacency[k] = { n: m, door: (door[k] || 0) / m, wall: (wall[k] || 0) / m };
+  const tau = units.map((s) => s.features.geno_tau).filter(fin);
+  const required = ROLES.filter((r) => program[r].present >= 0.95);
+  const must = [], avoid = [], weights = {};
+  for (const [k, a] of Object.entries(adjacency)) {
+    if (a.wall >= 0.9) must.push([k, a.wall]);
+    if (a.wall <= 0.05) avoid.push([k, a.wall]);
+    const w = Math.round((2 * a.wall - 1) * 20) / 20;            // 격자 생성기의 인접 선호(−1~1): 벽을 맞댈 확률을 그대로 옮긴다
+    if (Math.abs(w) >= 0.15) weights[k] = w;
+  }
+  return { n, program, rooms, adjacency, genotype: { tau_p50: tau.length ? describe(tau).median : null, tau_ge_08: tau.length ? tau.filter((t) => t >= 0.8 - 1e-9).length / tau.length : null },
+    suggest: { required, must: must.sort((x, y) => y[1] - x[1]), avoid: avoid.sort((x, y) => x[1] - y[1]), weights } };
+}
+/* 층: 유형(세대 minN 이상) · 침실 수 · 전체 */
+function genSpec(summaries, opt = {}) {
+  // 필수 실(현관·거실·주방·침실·화장실)을 갖춘 세대만 — 현관 조각만 있는 세대는 집의 본보기가 아니다(통계에는 남긴다)
+  const minN = opt.minN || 100, usable = summaries.filter((s) => s && s.rel && s.measures && s.features);
+  const units = usable.filter((s) => !s.issueCounts || !s.issueCounts.F1);
+  const strata = { all: Object.assign({ label: "전체", by: "all" }, genSpecStratum(units)) };
+  const by = (fn) => { const m = new Map(); for (const s of units) { const k = fn(s); if (k == null) continue; if (!m.has(k)) m.set(k, []); m.get(k).push(s); } return m; };
+  for (const [nb, us] of [...by((s) => s.features.n_bed)].sort((a, b) => a[0] - b[0])) if (us.length >= Math.min(minN, 30)) strata["bed" + nb] = Object.assign({ label: `침실 ${nb}개`, by: "nbed" }, genSpecStratum(us));
+  for (const [t, us] of [...by((s) => s.type)].sort((a, b) => b[1].length - a[1].length)) if (us.length >= minN) strata[t] = Object.assign({ label: t, by: "type" }, genSpecStratum(us));
+  return { kind: "aihub-genspec", version: 1, n_units: units.length, n_excluded: usable.length - units.length, roles: ROLES, strata };
+}
+
 /* ═════════════ 구간 · 누적분포 */
 function niceStep(range, target) {
   const raw = range / Math.max(1, target), mag = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / mag;
@@ -273,9 +370,15 @@ function diverging(v) {   // −1 ~ 1
   const t = Math.max(-1, Math.min(1, v)), [a, b] = t < 0 ? [MID, NEG] : [MID, POS], k = Math.abs(t);
   return fromLab(a.map((x, i) => x + (b[i] - x) * k));
 }
+const SEQ0 = toLab("#f4f6f8"), SEQ1 = toLab("#0d366b");
+function sequential(v) {   // 0 ~ 1 → 밝은 회색 ~ 진한 파랑(확률 히트맵)
+  if (!fin(v)) return "#ffffff";
+  const t = Math.max(0, Math.min(1, v));
+  return fromLab(SEQ0.map((x, i) => x + (SEQ1[i] - x) * t));
+}
 const inkOn = (hex) => (toLab(hex)[0] > 0.68 ? "#1B1F23" : "#ffffff");
 
-const API = { fin, clean, describe, quantileSorted, wilson, ranks, spearman, pearson, corrMatrix, kruskal, anova, chi2Indep, holm,
-  tCDF, tInv, chi2SF, fSF, normSF2, ibeta, gammaP, gammaQ, bins, niceStep, ecdfPoints, fmtP, exportTable, diverging, inkOn };
+const API = { fin, clean, describe, quantileSorted, wilson, ranks, spearman, pearson, corrMatrix, mannWhitney, cliffMag, ks2, wasserstein, twoProp, genSpec, ROLES, kruskal, anova, chi2Indep, holm,
+  tCDF, tInv, chi2SF, fSF, normSF2, ibeta, gammaP, gammaQ, bins, niceStep, ecdfPoints, fmtP, exportTable, diverging, sequential, inkOn };
 if (typeof module !== "undefined" && module.exports) module.exports = API; else root.AIStats = API;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -970,9 +970,24 @@ function evaluate(u, criteria, params = {}, baseline = null) {
 
 /* 저장용 요약 — 조건과 무관한 부분(지표·특징·점검 결과)만. 구조화 복제 가능한 평범한 객체.
    조건이 바뀌면 원본을 다시 읽지 않고 이 요약으로 다시 채점한다(scoreCached). */
+/* 생성 사양용 — 실 역할(가장 큰 침실 = master) 사이의 문 연결·벽 맞닿음 쌍과 외기에 면한 실 */
+function roleOf(u) {
+  const beds = unitOf(u, "bed"); let master = null;
+  for (const b of beds) if (!master || u.spaces[b].area > u.spaces[master].area) master = b;
+  return (sid) => (sid === master ? "master" : u.spaces[sid].kind);
+}
+function relations(u, A) {
+  const role = roleOf(u), door = new Set(), wall = new Set();
+  const key = (a, b) => [role(a), role(b)].sort().join("|");
+  for (const [a, b] of A.doors) door.add(key(a, b));
+  for (const k of u.contact.keys()) { const [a, b] = k.split("|"); wall.add(key(a, b)); }
+  const min = (u.options.daylight_min_px || PARAMS.daylight_min_px.def) * (u.s || 1);
+  return { door: [...door].sort(), wall: [...wall].sort(), ext: Object.keys(u.spaces).filter(k => daylightPx(u, k) >= min).sort(),
+    roles: Object.fromEntries(Object.keys(u.spaces).map(k => [k, role(k)])) };
+}
 function summarizeUnit(u, A) {
   const m = measures(u, A.adj, A.issues, A.res, A.f, A.ranked, null);
-  return { uid: u.uid, type: typeKey(u), features: A.f, measures: m,
+  return { uid: u.uid, type: typeKey(u), features: A.f, measures: m, rel: relations(u, A),
     pass: !A.issues.some(i => i.level === "error"),
     issueCounts: Object.fromEntries(ISSUE_IDS.map(id => [id, A.issues.filter(i => i.id === id && i.level !== "info").length])) };
 }

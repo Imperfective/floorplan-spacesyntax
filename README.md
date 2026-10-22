@@ -9,6 +9,7 @@
 | | |
 |---|---|
 | [1. 도면 평가 프로그램](#1-도면-평가-프로그램) | 도면 가져오기 · 채점 · 연구용 통계 · 공유 보관 기록 |
+| [생성 연구](#생성-연구) | 실제 도면 → **생성 사양**(CP-SAT · QUBO · D-Wave CQM 입력) → 생성 → **생성 도면 검증** |
 | [2. 평가 모델](#2-평가-모델) | 세대 나누기 · 시공 점검 · 정답지 근접도(근거 문헌) · 조건 문법 |
 | [3. 데이터 저장과 공유](#3-데이터-저장과-공유) | 무엇이 브라우저에, 무엇이 서버에 남는가 |
 | [4. 기본 데이터(AI 허브)](#4-기본-데이터ai-허브) | 결과물만 탑재 · 다시 만들기 · 재배포 제한 |
@@ -30,6 +31,8 @@
 | 분석 › **통계** | 요약 · 분포·집단 비교 · 등급 · 상관 · 기술통계 · 조건·점검 · 점수표 ([연구용 통계](#연구용-통계)) |
 | 분석 › **도면** | 도면 그리기(실 색·이름·추정 문·연결 그래프·문제 표시, 확대·이동), 세대별 총점·시공 점검·조건별 점수·실별 지표·정답지 근접도 |
 | 데이터 › **데이터 가져오기** | 아래 표의 여섯 가지 방법. 보유 데이터(출처별 파일·세대 수, 다시 계산, 삭제) |
+| 생성 연구 › **생성 사양** | 실제 도면에서 생성기에 넣을 실 구성 · 면적비 · 채광 · 현관에서 깊이 · 인접 확률과 제안 제약·가중치(유형·침실 수별) — [생성 연구](#생성-연구) |
+| 생성 연구 › **생성 도면 검증** | 생성 도면(A)을 실제 도면(B)과 비교 — Cliff's δ · KS · Wasserstein · 실측 범위 안 비율 · 시공 가능·등급 차이 |
 | 평가 설정 › **평가 구조** | 조건 추가·삭제·켜고 끄기, 반영 방식(가중 평균·감점·필수), 세트 적용, 설정 가져오기·내보내기 |
 | 평가 설정 › **판정 변수** | 세대 읽기·문 추정·판정 기준값과 정답지 채점 변수. 변수마다 근거 문헌·근거 등급 |
 | 평가 설정 › **정답지** | 지표 18개의 정의·채점 방식·중앙값·Qn·근거, 침실 수 층화, 참고 문헌 |
@@ -59,6 +62,35 @@
 
 모든 표는 **CSV · 표 복사(엑셀·한글·워드) · Markdown · LaTeX**로 내보냅니다. 필수 조건 탈락(0점) 세대를 빼고 볼 수 있습니다.
 세대가 2만 개를 넘으면 작은 차이도 p < .05가 되므로, 검정마다 효과크기와 그 크기(작음·중간·큼)를 함께 보여 줍니다.
+
+### 생성 연구
+
+이 데이터를 바탕으로 **D-Wave CQM 등 최적화로 도면을 생성**합니다. 흐름은 실제 도면 → 생성 사양 → 생성기 → 생성 도면 검증입니다.
+
+**① 생성 사양** — AI 허브 21,383세대에서 유형(3R2B 등)·침실 수별로 뽑은 생성기 입력(`docs/data/aihub-genspec.json`, 웹 **생성 사양** 화면과 같은 값).
+
+| 항목 | 데이터에서 | 생성기(`BuildingSpec`)에서 |
+|---|---|---|
+| 실 구성 | 역할별 있을 확률 · 개수 분포(안방 = 가장 큰 침실) | 최빈 개수로 방 목록, 있을 확률 95% 이상 = 필수 실 |
+| 면적 | 실별 세대 면적비 P5~P95 | 중앙값 비율로 격자 셀 배분(실마다 최소 2셀) · P5~P95는 면적 범위 제약 후보 |
+| 채광 | 외기·발코니에 면할 확률 | `needs_window` (≥ 0.5) |
+| 깊이 | 현관에서 거치는 실 수 | `privacy` · `public` (역할 사이 정규화) |
+| 인접 | 두 역할이 벽을 맞댈 확률 · 문으로 이어질 확률 | 인접 선호 `2p − 1`, p ≥ .9 반드시 맞닿음 · p ≤ .05 피함(CQM 하드 제약 후보) |
+
+```python
+from floorplan_bench.genspec import spec_from_aihub
+spec = spec_from_aihub("3R2B", width=10, height=10)          # 실측 사양 → BuildingSpec
+```
+```bash
+python main.py --spec aihub:3R2B --grid 10x10 --env balanced  # 층: 3R2B · 4R2B … · bed3(침실 3개) · all
+```
+
+소음·정숙·급배수는 데이터에 없는 성질이라 역할별 관행 값을 씁니다.
+
+**② 생성 도면 검증** — 생성한 도면을 데이터 가져오기(파일 업로드 · 직접 입력 · 엑셀/CSV)로 넣고 A로, 실제 도면(‘AI 허브 전체’ 기록)을 B로 두면:
+변수(총점 · 정답지 근접도 · 영역 점수 · 근거 문서 지표 18개 등)마다 **Cliff's δ**(효과크기, 분포 가정 없음) · Mann–Whitney p · **KS D** · **Wasserstein 거리**(B의 IQR 단위) ·
+A가 B의 5–95% 범위 안에 드는 비율, 세대별 **실측 범위 안 지표 비율**, 시공 가능 비율 차(Newcombe 95% CI), 등급 분포 차(χ² · Cramér's V), 누적분포 겹쳐 보기.
+침실 수를 맞춰 비교할 수 있고, 생성 실행끼리(보관 기록 A vs B)도 비교합니다.
 
 ### 로그인 · 활동 기록
 
@@ -150,6 +182,7 @@ AI 허브 21,383세대의 지표 분포와 비교해 0~100점. 같은 침실 수
 |---|---|
 | `docs/data/aihub-baseline.json` | 기본 정답지 — 지표 18개의 분포(전체 + 침실 수별 층) |
 | `docs/data/aihub-default-stats.json` | 보관 기록 맨 위 ‘AI 허브 전체’ — 세대별 점수 · 영역 점수 · 지표(열 방식 압축) |
+| `docs/data/aihub-genspec.json` | 생성 사양 — 유형·침실 수별 실 구성 · 면적비 · 채광 · 깊이 · 인접 확률 · 제안 제약 |
 
 전체 결과: 평균 75.7점 · 시공 가능 88.4% · 정답지 근접도 중앙값 75.5 · 최다 유형 3R2B(9,924세대).
 다시 만들기: `node tools/build_default_data.js <APT_FP_SPA JSON 폴더>`(약 4분).
@@ -230,7 +263,8 @@ Leap 토큰(`DWAVE_API_TOKEN`)이 없으면 CPU 시뮬레이티드 어닐링으�
 ```bash
 python tests/test_aihub_eval.py          # 평가기(세대 나누기 · 점검 · 정답지 · 조건 · 통계)
 python tests/test_engine_parity.py [라벨 폴더]   # 웹 엔진(JS) ↔ 파이썬 값 일치 — 실제 라벨 300장(948세대)에서 오차 0
-node tests/test_stats.js                 # 연구용 통계를 기준값(t·χ²·F 분포표, R 예제, Wilson 등)과 대조
+node tests/test_stats.js                 # 연구용 통계를 기준값(t·χ²·F 분포표, R 예제, Wilson, Newcombe 등)과 대조
+python tests/test_genspec.py             # 생성 사양 → BuildingSpec(셀 합 · 필수 실 · 인접 가중치 범위)
 ```
 
 ---
@@ -248,7 +282,7 @@ server/floorplan-api/      로그인 · 허용 계정 · 활동 기록 · 공유
 deploy/                    api-up.sh · caddy/(블록 · apply.py) · deploy.sh
 tools/build_default_data.js  AI 허브 라벨 → 기본 데이터
 aihub_eval.py              평가 CLI
-floorplan_bench/           aihub · evaluate · criteria · stats · render_aihub(평가) / spacesyntax · syntax_render(공간구문)
+floorplan_bench/           aihub · evaluate · criteria · stats · render_aihub · genspec(평가 · 생성 사양) / spacesyntax · syntax_render(공간구문)
                            spec · env · terms · plan · qubo · generate · solve_ortools · solve_dwave · diagnose · report(벤치마크)
 main.py · run_study.py · build_paper.py · syntax_cli.py · syntax_report.py · examples/
 tests/                     test_aihub_eval.py · test_engine_parity.py · engine_dump.js · test_stats.js

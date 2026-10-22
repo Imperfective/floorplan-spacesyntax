@@ -4,13 +4,15 @@
 //
 // 만드는 파일
 //   aihub-baseline.json        정답지 — 유형별 특징 분포(중앙값·척도). 웹 '정답지'의 기본값
-//   aihub-default-stats.json   전체 데이터를 기본 평가 구조로 채점한 통계(보관 기록 형식, 점수표는 세대별 점수만)
+//   aihub-default-stats.json   전체 데이터를 기본 평가 구조로 채점한 통계(보관 기록 형식, 점수표는 열 방식 압축)
+//   aihub-genspec.json         생성 사양 — 유형·침실 수별 실 구성·면적비·깊이·외기·인접 확률과 제안 제약(생성기 입력)
 //
 // AI 허브 이용정책상 원본 데이터의 재배포는 금지, 2차 저작물(분석 결과)은 출처 표기 후 배포 가능하다.
 // 그래서 폴리곤·좌표 같은 원본 내용은 넣지 않고, 엔진이 계산한 분포·점수만 넣는다.
 const fs = require("fs");
 const path = require("path");
 const E = require(path.join(__dirname, "..", "docs", "aihub-engine.js"));
+const S = require(path.join(__dirname, "..", "docs", "aihub-stats.js"));
 
 const src = process.argv[2];
 const outDir = process.argv[3] || path.join(__dirname, "..", "docs", "data");
@@ -66,5 +68,7 @@ const meta = { source: SOURCE_NOTE, files: files.length, units: sums.length, fai
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "aihub-baseline.json"), JSON.stringify({ ...baseline, meta }));
 fs.writeFileSync(path.join(outDir, "aihub-default-stats.json"), JSON.stringify(stats));
+const spec = Object.assign(S.genSpec(sums.map(({ s }) => s)), { meta });
+fs.writeFileSync(path.join(outDir, "aihub-genspec.json"), JSON.stringify(spec));
 console.log(JSON.stringify({ ...meta, mean: stats.summary.score.mean, pass_rate: stats.summary.feasibility_pass_rate,
   top_types: Object.entries(baseline.type_counts).slice(0, 6) }));

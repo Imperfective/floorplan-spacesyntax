@@ -32,5 +32,14 @@ let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 214748364
 const cols = Array.from({ length: 4 }, (_, v) => Array.from({ length: 500 }, (_, i) => (rnd() < 0.1 ? null : Math.round((rnd() + v * i / 500) * 10) / 10)));
 const M = S.corrMatrix(cols);
 near("상관 행렬 ↔ 직접", M[1][3].r, S.spearman(cols[1], cols[3]).rho, 1e-12);
+// 두 표본 비교 — 정의로 검산
+const A = [1, 2, 3, 4, 5], B = [3, 4, 5, 6, 7, 8];
+let gt = 0, lt = 0; for (const a of A) for (const b of B) { if (a > b) gt++; else if (a < b) lt++; }
+near("Cliff's δ = 정의", S.mannWhitney(A, B).delta, (gt - lt) / (A.length * B.length), 1e-12);
+near("Mann–Whitney U", S.mannWhitney(A, B).U, 4.5, 1e-12);
+near("KS D(최대 누적분포 차)", S.ks2(A, B).D, 0.5, 1e-12);
+near("Wasserstein [0,1] vs [1,2]", S.wasserstein([0, 1], [1, 2]), 1, 1e-12);
+const tp = S.twoProp(56, 70, 48, 80);   // Newcombe(1998) 예: 차 0.2, 95% CI 0.0524 – 0.3339
+near("두 비율 차 CI 하한", tp.lo, 0.0524); near("두 비율 차 CI 상한", tp.hi, 0.3339);
 if (fail) { console.error(`실패 ${fail}개`); process.exit(1); }
 console.log("통계 검사 통과");

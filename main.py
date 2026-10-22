@@ -7,6 +7,7 @@
 
 실행:
     .venv/bin/python main.py --spec apartment_8x8 --env balanced
+    .venv/bin/python main.py --spec aihub:3R2B --grid 10x10      # AI 허브 실측 생성 사양(docs/data/aihub-genspec.json)
 """
 
 from __future__ import annotations
@@ -30,8 +31,17 @@ def hdr(n: int, title: str) -> None:
     print(f"\n{BAR}\n  {n}단계 · {title}\n{BAR}")
 
 
+def resolve_spec(key: str, grid: str):
+    """내장 사양 키 또는 aihub:<층>(예: aihub:3R2B, aihub:bed3) — 층은 웹 '생성 사양' 화면과 같다."""
+    if key.startswith("aihub:"):
+        from floorplan_bench.genspec import spec_from_aihub
+        w, h = (int(v) for v in grid.lower().split("x"))
+        return spec_from_aihub(key.split(":", 1)[1], width=w, height=h)
+    return SPECS[key]
+
+
 def run(args) -> dict:
-    spec = SPECS[args.spec]
+    spec = resolve_spec(args.spec, args.grid)
     w = get_env(args.env)
     os.makedirs(args.outdir, exist_ok=True)
     results: dict = {"spec": spec.key, "spec_name": spec.name, "env": w.key}
@@ -153,7 +163,8 @@ def run(args) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="AI 도면 평가: OR-Tools vs D-Wave")
-    ap.add_argument("--spec", default="apartment_8x8", choices=list(SPECS))
+    ap.add_argument("--spec", default="apartment_8x8", help=f"{' · '.join(SPECS)} 또는 aihub:<층>(예: aihub:3R2B)")
+    ap.add_argument("--grid", default="10x10", help="aihub 사양의 격자 크기(가로x세로)")
     ap.add_argument("--env", default="balanced", choices=list(PRESETS))
     ap.add_argument("--n-plans", type=int, default=6)
     ap.add_argument("--backend", default="auto", choices=["auto", "claude", "procedural"])
