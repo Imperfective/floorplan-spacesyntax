@@ -18,6 +18,8 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
+from . import jsmath
+
 from .plan import FloorPlan
 from .spec import BuildingSpec
 
@@ -223,7 +225,8 @@ def diamond_value(k: int) -> float:
     """Hillier의 다이아몬드 값 D_k — 노드 수가 다른 그래프를 견줄 수 있게 한다."""
     if k < 4:
         return float("nan")
-    return 2.0 * (k * (math.log2((k + 2) / 3.0) - 1.0) + 1.0) / ((k - 1) * (k - 2))
+    # log2는 웹 엔진(V8 Math.log2)과 끝자리까지 같게 — C math.log2와 1ulp 다를 때가 있다
+    return 2.0 * (k * (jsmath.log2((k + 2) / 3.0) - 1.0) + 1.0) / ((k - 1) * (k - 2))
 
 
 def betweenness(g: SyntaxGraph) -> dict[str, float]:
@@ -312,8 +315,9 @@ def _r2(xs, ys) -> float:
         return float("nan")
     mx, my = sum(xs) / n, sum(ys) / n
     sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
-    sxx = sum((x - mx) ** 2 for x in xs)
-    syy = sum((y - my) ** 2 for y in ys)
+    # 제곱은 곱으로 — float ** 2(윈도 C pow)는 x * x와 1ulp 다를 때가 있어 웹 엔진과 어긋난다
+    sxx = sum((x - mx) * (x - mx) for x in xs)
+    syy = sum((y - my) * (y - my) for y in ys)
     if sxx <= 0 or syy <= 0:
         return float("nan")
     return (sxy * sxy) / (sxx * syy)

@@ -55,8 +55,9 @@ def test_good_plan_passes():
     assert r["feasibility"]["pass"], r["feasibility"]["issues"]
     assert ids == set()
     assert r["type"] == "3R1B"
-    # 거실이 가장 통합된 공간
-    assert r["features"]["living_int_rank"] == 1
+    # 거실이 가장 통합된 공간 — 침실보다 통합도가 높다
+    assert r["measures"]["rooms"]["living"]["integration_rank"] == 1
+    assert r["features"]["int_ratio_lb"] > 1
 
 
 def test_missing_kitchen_F1():
@@ -172,6 +173,29 @@ def test_params_change_inference():
     cfg = Config(criteria=parse_dsl("@n_spaces <= 7 as=gate")[0])
     assert evaluate(u, rules=EvalParams(balcony="none"), config=cfg)["score"]["total"] == 100
     assert evaluate(u, rules=EvalParams(balcony="leaf"), config=cfg)["score"]["total"] == 0
+
+
+def test_baseline_typicality():
+    from floorplan_bench.evaluate import build_baseline, cdf_at, qn_scale, typicality
+    assert qn_scale([1.0, 1.0, 1.0, 5.0]) == 0                      # 절반 넘게 같은 값이면 척도 0
+    # 0..9: h=6, k=C(6,2)=15 → 15번째로 작은 쌍 차이 = 2, d_10 = 10/13.8
+    assert abs(qn_scale([float(i) for i in range(10)]) - 2.2219 * 10 / 13.8 * 2) < 1e-9
+    assert cdf_at({"n": 4, "exact": [[0, 0, 2], [1, 2, 2]]}, 0) == 0.25   # 같은 값은 절반으로
+    rows = []
+    for k, rooms in enumerate((GOOD, GOOD + [(17, "balcony", 2, 9.25, 6, 1.4)],
+                               [g for g in GOOD if g[2:] != (-3, 2, 3, 4)], GOOD + [(14, "bed", 5, 9, 3, 3)])):
+        _, r = run(rooms, f"APT_FP_SPA_{k}.json")
+        rows.append({"unit": r["unit"], "type": r["type"], **r["features"]})
+    base = build_baseline(rows)
+    assert base["version"] == 2 and base["n_units"] == 4 and base["strata"] == {}   # 층은 5세대부터
+    assert "r_living" in base["all"] and "geno_dist" in base["all"]
+    t = typicality(rows[0], base)
+    assert 0 <= t["score"] <= 100 and set(t["domains"]) == {"syntax", "area", "shape", "ext"}
+    assert t["features"]["control_living"]["w"] == 0                # 참고값은 점수에 안 들어간다
+    # 영역 가중치를 하나만 남기면 총점 = 그 영역 점수
+    only_area = typicality(rows[0], base, {"w_syntax": 0, "w_shape": 0, "w_ext": 0})
+    assert abs(only_area["score"] - only_area["domains"]["area"]["score"]) < 1e-9
+    assert typicality(rows[0], {"n_units": 1, "all": {}}) is None   # 옛 형식 정답지
 
 
 def test_stats_aggregate():

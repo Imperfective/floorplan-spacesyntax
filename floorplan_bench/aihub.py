@@ -12,8 +12,9 @@
 
 픽셀→미터 축척은 라벨에 없고 시트마다 다르다(한 장에 1세대~8세대). 욕실·침실 넓이나
 벽 두께로 추정해 보면 추정치끼리 2~4배 어긋난다. 그래서 **평가 지표는 모두 축척이 필요 없게**
-(세대 면적 대비 비율·형태비·위상) 만들고, 판정 임계값(접면 길이 등)만 시트의 침실 중앙값을
-9㎡로 놓고 잡은 대략의 축척(px_per_m)에 맞춘다. ㎡ 값은 참고용 추정치다.
+(세대 면적 대비 비율·형태비·위상) 만든다. 길이·면적 판정 기준은 배율 s(시트 침실 한 변 중앙값 ÷
+ref_bed_side_px)로 보정하고, 벽 간격은 축척과 무관해 보정하지 않는다. ㎡ 값(px_per_m, 침실 중앙값을
+9㎡로 놓은 축척)은 표시용 추정치다.
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ import json
 import math
 import os
 from dataclasses import asdict, dataclass, field
+
+from . import jsmath
 
 # category_id → (키, 한글명)
 SPACE_CATS: dict[int, tuple[str, str]] = {
@@ -53,6 +56,7 @@ def _seg_dist(p: Pt, a: Pt, b: Pt) -> float:
     dx, dy = b[0] - a[0], b[1] - a[1]
     L = dx * dx + dy * dy
     t = 0.0 if L == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L))
+    # 가장 많이 불리는 곳이라 C math.hypot(웹과 끝자리가 다를 수 있음 — 간격 비교에만 쓴다)
     return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
 
 
@@ -71,7 +75,7 @@ def _inside(p: Pt, poly: list[Pt]) -> bool:
 def _boundary_samples(poly: list[Pt], step: float) -> list[Pt]:
     out = []
     for a, b in _edges(poly):
-        n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
+        n = max(1, int(jsmath.hypot(b[0] - a[0], b[1] - a[1]) / step))
         out += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n)]
     return out
 
@@ -122,6 +126,9 @@ class Unit:
     dropped: list[str] = field(default_factory=list)   # 샤프트 등으로 제외한 소형 실
     contact_mid: dict[tuple[str, str], Pt] = field(default_factory=dict)  # 접면 중앙 — 문을 그릴 자리
     options: dict = field(default_factory=dict)        # 이 세대를 읽을 때 쓴 LoadOptions
+    perimeter: dict[str, float] = field(default_factory=dict)   # 실 → 둘레(경계 표본 수 × 간격, px)
+    s: float = 1.0                                      # 축척 배율 = 시트 침실 한 변 중앙값 ÷ ref_bed_side_px
+    bed_side_px: float | None = None                    # 시트 침실 한 변(√면적) 중앙값(px)
 
     @property
     def uid(self) -> str:
@@ -129,11 +136,14 @@ class Unit:
 
     @property
     def area_px(self) -> float:
-        return sum(s.area_px for s in self.spaces.values())
+        a = 0
+        for s in self.spaces.values():   # 웹의 reduce와 같은 순서로 더한다
+            a += s.area_px
+        return a
 
     def area_m2(self, sid: str | None = None) -> float:
         a = self.spaces[sid].area_px if sid else self.area_px
-        return a / self.px_per_m ** 2
+        return a / (self.px_per_m * self.px_per_m)   # 웹의 ** 2와 같게(x * x)
 
     def of(self, kind: str) -> list[str]:
         return [k for k, s in self.spaces.items() if s.kind == kind]
@@ -144,15 +154,22 @@ class Unit:
 
 @dataclass(frozen=True)
 class LoadOptions:
+    """읽기 변수 — 웹 PARAMS의 '읽기' 묶음과 같은 이름·기본값.
+    s = 시트 침실 한 변(√면적) 중앙값 ÷ ref_bed_side_px. 길이·면적 기준은 s로 보정하고,
+    벽 간격은 축척과 무관해 보정하지 않는다."""
     px_per_m: float | None = None
-    """축척(px/m). None이면 시트의 침실 넓이 중앙값을 ref_bed_m2로 보고 추정한다."""
+    """축척(px/m). None이면 시트의 침실 넓이 중앙값을 ref_bed_m2로 보고 추정한다 — ㎡·m 표시에만 쓴다."""
     ref_bed_m2: float = 9.0
+    ref_bed_side_px: float = 305
+    """축척 배율 기준: 침실 한 변(px). 표본에서 침실 한 변 160~487px, 배율 1 = 305px."""
     wall_tol_px: float = 32.0
-    """이 거리 안이면 벽 하나를 사이에 두고 맞닿은 것으로 본다(벽 두께 분포의 골짜기)."""
-    min_contact_m: float = 0.6
-    """맞닿았다고 보려면 접면이 이만큼은 길어야 한다(모서리 접촉 제외)."""
-    min_space_ratio: float = 0.012
-    """세대 면적 대비 이보다 작은 '기타' 실은 샤프트(PS·AD)로 보고 뺀다."""
+    """이 거리 안이면 벽 하나를 사이에 두고 맞닿은 것으로 본다(내벽). 축척 보정 안 함."""
+    wall_tol_ext_px: float = 50.0
+    """발코니·실외기실과의 간격 허용(외벽 쪽, 표본 37~48px). 축척 보정 안 함."""
+    min_contact_px: float = 40.0
+    """맞닿았다고 보려면 접면이 이만큼(× max(1, s)) 길어야 한다(모서리 접촉 제외)."""
+    duct_area_px: float = 12000
+    """이보다(× s²) 작은 '기타' 실은 덕트·PS로 보고 그래프에서 뺀다."""
     orphan_reach_m: float = 2.0
     """현관 없는 실 덩어리를 이 거리 안의 세대에 붙인다(고립 실 검출용)."""
     sample_step_px: float = 6.0
@@ -183,19 +200,31 @@ def label_type(data: dict, path: str = "") -> str:
     return "OCR"
 
 
-def _contact(pa: list[Pt], pb: list[Pt], bb_a, bb_b, opt: LoadOptions) -> tuple[float, Pt | None]:
+# 발코니·실외기실과의 간격은 외벽 쪽 기준(더 넓다)
+EXT_KINDS = ("balcony", "ac")
+
+
+def _tol_of(ca: int, cb: int, opt: LoadOptions) -> float:
+    """두 실(category_id) 사이 간격 허용 — 한쪽이라도 발코니·실외기실이면 외벽 쪽 기준."""
+    ext = any(c in SPACE_CATS and SPACE_CATS[c][0] in EXT_KINDS for c in (ca, cb))
+    return max(opt.wall_tol_px, opt.wall_tol_ext_px) if ext else opt.wall_tol_px
+
+
+def _contact(pa: list[Pt], pb: list[Pt], bb_a, bb_b, opt: LoadOptions,
+             tol: float | None = None) -> tuple[float, Pt | None]:
     """접면 길이(px)와 접면 중앙점."""
-    if _bbox_gap(bb_a, bb_b) > opt.wall_tol_px:
+    tol = opt.wall_tol_px if tol is None else tol
+    if _bbox_gap(bb_a, bb_b) > tol:
         return 0.0, None
     # 양쪽에서 잰 접면 길이 중 짧은 쪽 — 큰 실의 긴 변이 작은 실 하나에 붙는 과대평가 방지
-    sa = [p for p in _boundary_samples(pa, opt.sample_step_px) if _poly_dist(p, pb) <= opt.wall_tol_px]
-    sb = [p for p in _boundary_samples(pb, opt.sample_step_px) if _poly_dist(p, pa) <= opt.wall_tol_px]
+    sa = [p for p in _boundary_samples(pa, opt.sample_step_px) if _poly_dist(p, pb) <= tol]
+    sb = [p for p in _boundary_samples(pb, opt.sample_step_px) if _poly_dist(p, pa) <= tol]
     if not sa or not sb:
         return 0.0, None
     pts = sa + sb
     mid = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
     # 중앙점이 ㄱ자 접면의 안쪽 허공에 떨어지면 가장 가까운 실제 표본점으로
-    mid = min(pts, key=lambda p: math.hypot(p[0] - mid[0], p[1] - mid[1]))
+    mid = min(pts, key=lambda p: jsmath.hypot(p[0] - mid[0], p[1] - mid[1]))
     return min(len(sa), len(sb)) * opt.sample_step_px, mid
 
 
@@ -216,18 +245,23 @@ def load_units(path: str, opt: LoadOptions = LoadOptions()) -> list[Unit]:
         elif cid in CORE_CATS:
             core.append(item)
 
-    if opt.px_per_m is None:
-        beds = sorted(r[2] for r in raw if SPACE_CATS[r[0]][0] == "bed")
-        ppm = math.sqrt(beds[len(beds) // 2] / opt.ref_bed_m2) if beds else 100.0
+    beds = sorted(r[2] for r in raw if SPACE_CATS[r[0]][0] == "bed")
+    med_bed = beds[len(beds) // 2] if beds else None
+    if not (opt.px_per_m is not None and opt.px_per_m > 0):
+        ppm = math.sqrt(med_bed / opt.ref_bed_m2) if med_bed else 100.0
         opt = LoadOptions(**{**opt.as_dict(), "px_per_m": ppm})
+    # 축척 배율 s — 모든 도면이 같은 크기 종이에 맞춰 그려져 1px의 길이가 도면마다 약 3배 다르다
+    bed_side = math.sqrt(med_bed) if med_bed else None
+    scale = bed_side / opt.ref_bed_side_px if med_bed else 1.0
 
     n = len(raw)
-    min_contact = opt.min_contact_m * opt.px_per_m
+    min_contact = opt.min_contact_px * max(1.0, scale)
     contact: dict[tuple[int, int], float] = {}
     mids: dict[tuple[int, int], Pt] = {}
     for i in range(n):
         for j in range(i + 1, n):
-            L, mid = _contact(raw[i][1], raw[j][1], raw[i][3], raw[j][3], opt)
+            tol = _tol_of(raw[i][0], raw[j][0], opt)
+            L, mid = _contact(raw[i][1], raw[j][1], raw[i][3], raw[j][3], opt, tol)
             if L >= min_contact:
                 contact[(i, j)] = L
                 mids[(i, j)] = mid
@@ -257,7 +291,7 @@ def load_units(path: str, opt: LoadOptions = LoadOptions()) -> list[Unit]:
         if gap <= opt.orphan_reach_m * opt.px_per_m:
             homes[home] = homes[home] + g
     for gi, members in enumerate(homes):
-        units.append(_make_unit(path, gi, members, raw, core, contact, mids, opt))
+        units.append(_make_unit(path, gi, members, raw, core, contact, mids, opt, scale, bed_side))
     for k, u in enumerate(units):
         u.index = k
     return units
@@ -303,7 +337,7 @@ def _split_by_entry(raw, adj) -> dict[int, int]:
 
         def cdist(i, e):
             (x1, y1, w1, h1), (x2, y2, w2, h2) = raw[i][3], raw[e][3]
-            return math.hypot(x1 + w1 / 2 - x2 - w2 / 2, y1 + h1 / 2 - y2 - h2 / 2)
+            return jsmath.hypot((x1 + w1 / 2) - (x2 + w2 / 2), (y1 + h1 / 2) - (y2 + h2 / 2))
 
         for i in comp:
             best = min(entries, key=lambda e: (dist[i].get(e, 1e9), cdist(i, e)))
@@ -312,12 +346,12 @@ def _split_by_entry(raw, adj) -> dict[int, int]:
     return owner
 
 
-def _make_unit(path, gi, members, raw, core, contact, mids, opt) -> Unit:
-    total = sum(raw[i][2] for i in members)
+def _make_unit(path, gi, members, raw, core, contact, mids, opt, scale=1.0, bed_side=None) -> Unit:
+    duct_max = opt.duct_area_px * scale * scale   # 덕트·PS로 뺄 '기타' 면적
     keep, dropped = [], []
     for i in members:
         cid, _, area, _ = raw[i]
-        if SPACE_CATS[cid][0] == "etc" and area < opt.min_space_ratio * total:
+        if SPACE_CATS[cid][0] == "etc" and area < duct_max:
             dropped.append(i)
         else:
             keep.append(i)
@@ -340,20 +374,26 @@ def _make_unit(path, gi, members, raw, core, contact, mids, opt) -> Unit:
     con_mid = {tuple(sorted((sid_of[i], sid_of[j]))): mids[(i, j)] for (i, j) in contact
                if i in sid_of and j in sid_of}
 
-    # 외기 접면: 경계 표본 중 세대 내 다른 실·샤프트·코어 어느 것에도 벽 하나 거리로 닿지 않는 것
-    others = [raw[i][1] for i in members] + [c[1] for c in core]
-    exterior = {}
+    # 외기 접면: 경계 표본 중 세대 내 다른 실·샤프트·코어 어느 것에도 벽 하나 거리로 닿지 않는 것.
+    # 간격 허용은 상대마다 다르다(발코니·실외기실 쪽은 외벽 기준). 둘레 = 경계 표본 수 × 간격.
+    others = [(raw[i][1], i, raw[i][0]) for i in members] + [(c[1], None, c[0]) for c in core]
+    exterior, perimeter = {}, {}
     for i in keep:
         poly, bb = raw[i][1], raw[i][3]
-        near = [q for q, j in zip(others, list(members) + [None] * len(core))
-                if j != i and _bbox_gap(bb, _bb(q)) <= opt.wall_tol_px]
-        free = sum(1 for p in _boundary_samples(poly, opt.sample_step_px)
-                   if all(_poly_dist(p, q) > opt.wall_tol_px for q in near))
+        near = []
+        for q, j, cid in others:
+            tol = _tol_of(raw[i][0], cid, opt)
+            if j != i and _bbox_gap(bb, _bb(q)) <= tol:
+                near.append((q, tol))
+        samples = _boundary_samples(poly, opt.sample_step_px)
+        free = sum(1 for p in samples if all(_poly_dist(p, q) > tol for q, tol in near))
         exterior[sid_of[i]] = free * opt.sample_step_px
+        perimeter[sid_of[i]] = len(samples) * opt.sample_step_px
 
     return Unit(os.path.basename(path), gi, spaces, con, exterior, opt.px_per_m,
                 dropped=[f"{SPACE_CATS[raw[i][0]][1]}({raw[i][2] / opt.px_per_m ** 2:.1f}㎡)" for i in dropped],
-                contact_mid=con_mid, options=opt.as_dict())
+                contact_mid=con_mid, options={**opt.as_dict(), "s": scale, "bed_side_px": bed_side},
+                perimeter=perimeter, s=scale, bed_side_px=bed_side)
 
 
 def _bb(poly: list[Pt]) -> tuple[float, float, float, float]:

@@ -1,6 +1,6 @@
 """AI 허브 라벨 JSON으로 도면을 평가하고 그린다 — PNG 인식 단계 없이.
 
-    ① 정답지 만들기: 실제 아파트 라벨(SPA) 폴더 → 유형별 분포
+    ① 정답지 만들기: 실제 아파트 라벨(SPA) 폴더 → 지표별 분포(전체 + 침실 수별 층)
     python aihub_eval.py baseline <라벨폴더> -o out/baseline.json
 
     ② 평가 구조(조건·반영방식·변수) 정하기 — 웹 스튜디오에서 내보낸 JSON과 같은 형식
@@ -28,7 +28,7 @@ import sys
 
 from floorplan_bench.aihub import label_type, load_struct, load_units, read_coco
 from floorplan_bench.criteria import MEASURES, PRESETS, Config, load_config, parse_dsl, to_dsl
-from floorplan_bench.evaluate import (CRITERIA, FEATURES, EvalParams, build_baseline, evaluate,
+from floorplan_bench.evaluate import (CRITERIA, FEATURES, build_baseline, default_params, evaluate,
                                       features, permeability, split_params, struct_checks,
                                       to_json, type_key)
 from floorplan_bench.render_aihub import render_sheet
@@ -55,7 +55,12 @@ def read_baseline(path):
     if not path:
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        base = json.load(f)
+    if base.get("version") != 2:
+        print(f"경고: {path}는 옛 형식의 정답지라 정답지 근접도를 계산하지 않습니다 — "
+              "'baseline' 명령으로 다시 만드세요.", file=sys.stderr)
+        return None
+    return base
 
 
 def cmd_baseline(a):
@@ -72,7 +77,10 @@ def cmd_baseline(a):
     top = next(iter(base["type_counts"]), None)
     if top:
         print(f"최다 유형: {top} ({base['type_counts'][top]}세대) — 평형 대용 기준")
-    write(a.out, to_json({**base, "rows": rows}))
+    print(f"지표 {len(base['all'])}개 · 침실 수별 층 "
+          + (", ".join(f"{k}실 {v['n']}세대" for k, v in base["strata"].items()) or "없음"))
+    # 반올림하지 않는다 — 이산 지표의 누적분포는 값이 같은지로 센다
+    write(a.out, to_json({**base, "rows": rows}, ndigits=None))
 
 
 def evaluate_path(path, cfg, base):
@@ -90,13 +98,17 @@ def cmd_score(a):
         rows += [stat_row(r, os.path.basename(f)) for r in rs]
     if a.stats:
         if not cfg.params:
-            cfg.params = EvalParams().as_dict()
+            cfg.params = default_params()
         write(a.stats, to_json(aggregate(rows, cfg, a.name, a.memo, base)))
     for r in results:
         sc = r["score"]
         print(f"{r['unit']:<26} {r['type']:<6} {sc['total']:5.1f}점 {sc['grade']:<2} "
               f"(기본 {sc['base']:5.1f} − 감점 {sc['penalty']:4.1f}"
               f"{' · 필수조건 탈락 ' + str(sc['gated']) if sc['gated'] else ''})")
+        typ = r.get("typicality")
+        if a.verbose and typ:
+            doms = " · ".join(f"{d} {x['score']:.0f}" for d, x in typ["domains"].items())
+            print(f"    정답지 근접도 {typ['score']:.1f} [{typ['reference']}] {doms}")
         if a.verbose:
             for row in r["criteria_rows"]:
                 c = row["criterion"]
@@ -112,7 +124,7 @@ def cmd_score(a):
     write(a.out, to_json({"criteria_basis": CRITERIA, "config": cfg.as_dict(), "results": results}))
     if a.csv:
         cols = ["unit", "type", "est_area_m2", "total", "grade", "base", "penalty", "gated"] \
-               + [f"@{k}" for k, v in MEASURES.items() if v["scope"] == "global"] + list(FEATURES)
+               + [f"@{k}" for k, v in MEASURES.items() if v["scope"] == "global"]                + [k for k in FEATURES if k != "geno_dist"]   # geno_dist는 정답지와 견줄 때만 계산된다
         os.makedirs(os.path.dirname(a.csv) or ".", exist_ok=True)
         with open(a.csv, "w", encoding="utf-8-sig", newline="") as fh:
             w = csv.writer(fh)
@@ -159,7 +171,7 @@ def cmd_config(a):
         return
     cs, errs = parse_dsl(PRESETS[a.preset])
     assert not errs, errs
-    cfg = Config(params=EvalParams().as_dict(), criteria=cs)
+    cfg = Config(params=default_params(), criteria=cs)
     text = json.dumps(cfg.as_dict(), ensure_ascii=False, indent=2)
     if a.out:
         write(a.out, text)
