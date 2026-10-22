@@ -1,6 +1,6 @@
 /* AI 허브 라벨 평가 엔진 — floorplan_bench/{aihub,evaluate,criteria}.py 의 자바스크립트 판.
  *
- * 브라우저(docs/aihub.html)와 node(tests/test_engine_parity.py) 양쪽에서 돈다.
+ * 브라우저(docs/index.html)와 node(tests/test_engine_parity.py) 양쪽에서 돈다.
  * 같은 입력·같은 설정이면 파이썬과 같은 값을 내야 한다 — 고칠 때는 둘을 함께 고친다.
  */
 (function (root) {

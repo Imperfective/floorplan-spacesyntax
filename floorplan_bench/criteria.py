@@ -1,6 +1,6 @@
 """평가 구조를 사용자가 정한다 — 조건(criterion)을 넣고 빼고, 점수에 어떻게 반영할지 고른다.
 
-웹 스튜디오(docs/aihub.html)와 같은 문법·같은 JSON을 쓴다. 웹에서 만든 설정 파일을
+웹 프로그램(docs/index.html)와 같은 문법·같은 JSON을 쓴다. 웹에서 만든 설정 파일을
 그대로 `aihub_eval.py score --config 설정.json` 으로 돌릴 수 있다.
 
 조건 한 줄

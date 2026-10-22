@@ -2212,9 +2212,15 @@ function pageArchive() {
   const id = ST.route.id;
   if (id) {
     const s = ST.snaps.find(x => x.id === id);
+    if (s && s._stub) {
+      renderHeader(s.name || "보관 기록", ["기록", ["보관 기록", "#/archive"]], null);
+      $("#content").innerHTML = `<div class="card"><div class="empty-state"><p>기록을 받는 중…</p></div></div>`;
+      ensureSnap(id).then(() => { if (ST.route.id === id) render(); }).catch(e => toast("기록을 받지 못했습니다 — " + e.message, true));
+      return;
+    }
     if (!s) { renderHeader("보관 기록", ["기록"], null); $("#content").innerHTML = `<div class="card"><div class="empty-state"><h3>기록을 찾을 수 없습니다</h3><p>지워졌거나 다른 브라우저에서 보관한 기록입니다.</p><a class="btn btn-secondary" href="#/archive">보관 기록 목록</a></div></div>`; return; }
     renderHeader(s.name || "보관 기록", ["기록", ["보관 기록", "#/archive"]], PAGES.stats.tabs.map(([k, l]) => [k, l, `#/archive/${encodeURIComponent(id)}/${k}`, k === "units" ? s.summary.n_units : null]));
-    $("#content").innerHTML = `<div class="toolbar"><span class="field-hint">${dt(s.created)} 보관${s.memo ? " · " + esc(s.memo) : ""}</span><span class="spacer"></span>
+    $("#content").innerHTML = `<div class="toolbar"><span class="field-hint">${dt(s.created)} 보관${s.author_name || s.author ? " · " + esc(s.author_name || s.author) : ""}${s.memo ? " · " + esc(s.memo) : ""}</span><span class="spacer"></span>
         <button class="btn btn-secondary" data-act="dlSnap" data-sid="${esc(id)}">${ico("download")}JSON 내려받기</button>
         <button class="btn btn-primary" data-act="applySnap" data-sid="${esc(id)}">이 조건·변수 적용</button></div>${statsBody(s, ST.route.tab, false)}`;
     return;
@@ -2229,20 +2235,45 @@ function pageArchive() {
       ${ST.snaps.length ? `<button class="btn btn-ghost" data-act="dlAll">${ico("download")}전체 내려받기</button>` : ""}
       <button class="btn btn-primary" data-act="saveSnap"${allUnits().length ? "" : " disabled"}>현재 통계 보관</button>
     </div>
-    <div class="card">${list.length ? `<div class="card-body flush tw"><table class="t"><thead><tr><th>이름</th><th>보관 일시</th><th class="n">세대</th><th class="n">평균 점수</th><th class="n">시공 가능</th><th class="n">조건</th><th></th></tr></thead><tbody>
+    <div class="card">${list.length ? `<div class="card-body flush tw"><table class="t"><thead><tr><th>이름</th><th>보관 일시</th><th>보관한 사람</th><th class="n">세대</th><th class="n">평균 점수</th><th class="n">시공 가능</th><th class="n">조건</th><th></th></tr></thead><tbody>
       ${list.map(s => `<tr class="click" data-open="${esc(s.id)}"><td><b>${esc(s.name || "(이름 없음)")}</b>${s.memo ? `<div class="field-hint">${esc(s.memo)}</div>` : ""}</td><td class="num">${dt(s.created)}</td>
-        <td class="n">${int(s.summary.n_units)}</td><td class="n">${fx(s.summary.score.mean)}</td><td class="n">${pct(s.summary.feasibility_pass_rate)}</td><td class="n">${int((s.config.criteria || []).filter(c => c.enabled !== false).length)}</td>
-        <td style="white-space:nowrap;text-align:right"><button class="btn btn-ghost btn-sm" data-act="applySnap" data-sid="${esc(s.id)}">조건 적용</button><button class="btn btn-ghost btn-sm" data-act="dlSnap" data-sid="${esc(s.id)}">JSON</button>${s.builtin ? `<span class="badge badge-neutral" style="margin-left:6px">기본</span>` : `<button class="btn btn-ghost btn-sm btn-icon" data-act="delSnap" data-sid="${esc(s.id)}" title="삭제" aria-label="삭제">${ico("trash")}</button>`}</td></tr>`).join("")}
-      </tbody></table></div>` : `<div class="empty-state"><h3>${ST.snaps.length ? "검색 결과가 없습니다" : "보관한 기록이 없습니다"}</h3><p>통계 화면에서 ‘현재 통계 보관’을 누르면 그때의 점수·지표와 조건·변수가 한 기록으로 이 브라우저에 남습니다. CLI <code>score --stats</code>로 만든 JSON도 불러올 수 있습니다.</p></div>`}</div>
-    ${DB.ok ? "" : `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div>이 브라우저는 저장소를 쓸 수 없어 창을 닫으면 기록이 사라집니다. JSON으로 내려받아 두세요.</div></div>`}`;
+        <td>${s.builtin ? `<span class="field-hint">사이트 기본</span>` : s._local ? `<span class="badge badge-warning" data-tip="이 브라우저에만 있어 다른 사람은 볼 수 없습니다">이 브라우저에만</span>` : esc(s.author_name || s.author || "이 브라우저")}</td>
+        <td class="n">${int(s.summary.n_units)}</td><td class="n">${fx(s.summary.score.mean)}</td><td class="n">${pct(s.summary.feasibility_pass_rate)}</td><td class="n">${int(snapCrit(s))}</td>
+        <td style="white-space:nowrap;text-align:right"><button class="btn btn-ghost btn-sm" data-act="applySnap" data-sid="${esc(s.id)}">조건 적용</button><button class="btn btn-ghost btn-sm" data-act="dlSnap" data-sid="${esc(s.id)}">JSON</button>${s._local ? `<button class="btn btn-ghost btn-sm" data-act="shareSnap" data-sid="${esc(s.id)}">공유로 올리기</button>` : ""}${s.builtin ? `<span class="badge badge-neutral" style="margin-left:6px">기본</span>` : canDelSnap(s) ? `<button class="btn btn-ghost btn-sm btn-icon" data-act="delSnap" data-sid="${esc(s.id)}" title="삭제" aria-label="삭제">${ico("trash")}</button>` : ""}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty-state"><h3>${ST.snaps.length ? "검색 결과가 없습니다" : "보관한 기록이 없습니다"}</h3><p>통계 화면에서 ‘현재 통계 보관’을 누르면 그때의 점수·지표와 조건·변수가 한 기록으로 ${sharedSnaps() ? "로그인한 모든 사람이 함께 보는 공유 기록에" : "이 브라우저에"} 남습니다. CLI <code>score --stats</code>로 만든 JSON도 불러올 수 있습니다.</p></div>`}</div>
+    ${sharedSnaps() && ST.snaps.some(s => s._local) ? `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div><b>이 브라우저에만 있는 기록 ${ST.snaps.filter(s => s._local).length}건</b>은 다른 사람이 볼 수 없습니다. <button class="btn btn-secondary btn-sm" data-act="shareAll" style="margin-left:8px">모두 공유로 올리기</button></div></div>` : ""}
+    ${sharedSnaps() || DB.ok ? "" : `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div>이 브라우저는 저장소를 쓸 수 없어 창을 닫으면 기록이 사라집니다. JSON으로 내려받아 두세요.</div></div>`}`;
 }
 
 /* ═════════════════════════════════════ 보관 기록 */
+/* 로그인 서버가 있으면 보관 기록을 서버에 공유한다(로그인한 사람 모두 같은 목록). 없으면 이 브라우저(IndexedDB)에만.
+   공유 목록은 요약만 받고, 기록을 열 때 전체를 받는다(SNAP_FULL에 둔다). 이 브라우저에만 있는 예전 기록은 '공유로 올리기'로 옮긴다. */
+const SNAP_FULL = new Map();
+const sharedSnaps = () => AUTH.on;
 async function loadSnaps() {
-  if (DB.db) { try { ST.snaps = (await dbDo("snapshots", "readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
-  ST.snaps = ST.snaps.filter(s => !s.builtin).sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+  let local = [];
+  if (DB.db) { try { local = (await dbDo("snapshots", "readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
+  local = local.filter(s => !s.builtin).map(s => Object.assign(s, { _local: sharedSnaps() }));
+  let remote = [];
+  if (sharedSnaps()) {
+    try {
+      remote = (await api("api/snapshots")).snapshots.map(r => SNAP_FULL.has(r.id) ? Object.assign(SNAP_FULL.get(r.id), { author: r.author, author_name: r.author_name })
+        : { id: r.id, name: r.name, memo: r.memo, created: r.created, author: r.author, author_name: r.author_name, _stub: true, _ncrit: r.meta.n_criteria,
+            summary: { n_units: r.meta.n_units, n_files: r.meta.n_files, score: { mean: r.meta.mean }, feasibility_pass_rate: r.meta.pass_rate }, config: { criteria: [] } });
+    } catch (e) { toast("공유 보관 기록을 불러오지 못했습니다 — " + e.message, true); }
+  }
+  ST.snaps = [...remote, ...local].sort((x, y) => (y.created || "").localeCompare(x.created || ""));
   if (ST.defaults.stats) ST.snaps.unshift(ST.defaults.stats);   // 기본 통계(AI 허브 전체)는 맨 위에, 지울 수 없음
 }
+/* 공유 기록은 목록에 요약만 있다 — 열거나 내려받을 때 전체를 받는다 */
+async function ensureSnap(id) {
+  const s = ST.snaps.find(x => x.id === id); if (!s || !s._stub) return s;
+  const full = await api("api/snapshots/" + encodeURIComponent(id));
+  Object.assign(s, full, { _stub: false }); delete s._ncrit; SNAP_FULL.set(id, s);
+  return s;
+}
+const snapCrit = (s) => s._ncrit != null ? s._ncrit : (s.config.criteria || []).filter(c => c.enabled !== false).length;
+const canDelSnap = (s) => !s.builtin && (!sharedSnaps() || s._local || (AUTH.user && (AUTH.user.admin || s.author === AUTH.user.email)));
 /* 사이트 기본 데이터 — AI 허브 라벨에서 계산한 결과물만(tools/build_default_data.js). 없으면 조용히 넘어간다. */
 async function loadDefaults() {
   // 서버가 json에 캐시 헤더를 주지 않아 브라우저가 예전 판을 쓰는 일이 있다 — 매번 서버에 확인한다(ETag라 바뀌지 않았으면 가볍다)
@@ -2265,15 +2296,35 @@ function unpackUnits({ cols, rows }) {
   });
 }
 async function saveSnap(s) {
+  delete s._local; delete s._stub;
+  if (sharedSnaps()) {
+    const { id } = await api("api/snapshots", { method: "POST", body: JSON.stringify(s) });
+    s.id = id; s.author = AUTH.user.email; s.author_name = AUTH.user.name; SNAP_FULL.set(id, s);
+    await loadSnaps(); return ST.snaps.find(x => x.id === id) || s;
+  }
   s.id = s.id || "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.put(s)); } catch { DB.ok = false; toast("브라우저 저장소에 쓰지 못했습니다. 이 창에서만 보관됩니다.", true); } }
   ST.snaps = ST.snaps.filter(x => x.id !== s.id).concat([s]);
   await loadSnaps(); return s;
 }
 async function delSnap(id) {
-  logEvent("archive.delete", { name: (ST.snaps.find(x => x.id === id) || {}).name });
-  if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.delete(id)); } catch {} }
-  ST.snaps = ST.snaps.filter(x => x.id !== id);
+  const s = ST.snaps.find(x => x.id === id); if (!s) return;
+  if (sharedSnaps() && !s._local) await api("api/snapshots/" + encodeURIComponent(id), { method: "DELETE", body: "{}" });
+  else if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.delete(id)); } catch {} }
+  SNAP_FULL.delete(id); ST.snaps = ST.snaps.filter(x => x.id !== id);
+}
+/* 이 브라우저에만 있던 기록을 공유 기록으로 옮긴다 */
+async function shareLocalSnaps(ids) {
+  let n = 0;
+  for (const id of ids) {
+    const s = ST.snaps.find(x => x.id === id && x._local); if (!s) continue;
+    const copy = Object.assign({}, s); delete copy.id; delete copy._local;
+    try { await api("api/snapshots", { method: "POST", body: JSON.stringify(copy) }); }
+    catch (e) { toast(`‘${s.name}’을(를) 올리지 못했습니다 — ${e.message}`, true); continue; }
+    if (DB.db) { try { await dbDo("snapshots", "readwrite", st => st.delete(id)); } catch {} }
+    n++;
+  }
+  await loadSnaps(); if (n) toast(`기록 ${n}건을 공유 기록으로 올렸습니다`); render();
 }
 const snapFile = (s) => `aihub_stats_${(s.name || "기록").replace(/[\\/:*?"<>|\s]+/g, "_")}_${(s.created || "").slice(0, 10)}.json`;
 async function loadStatFile(file) {
@@ -2349,12 +2400,13 @@ function csv() {
 function saveSnapModal() {
   if (!allUnits().length) return;
   modal({ title: "현재 통계 보관", ok: "보관",
-    body: `<p style="margin:0 0 16px">지금의 점수·지표와 조건·변수를 한 기록으로 이 브라우저에 남깁니다.${ST.statType || ST.statSource ? " 출처·유형 필터와 관계없이 보유한 전체 세대가 들어갑니다." : ""}</p>
+    body: `<p style="margin:0 0 16px">지금의 점수·지표와 조건·변수를 한 기록으로 ${sharedSnaps() ? "공유 기록에 남깁니다 — 로그인한 모든 사람이 봅니다" : "이 브라우저에 남깁니다"}.${ST.statType || ST.statSource ? " 출처·유형 필터와 관계없이 보유한 전체 세대가 들어갑니다." : ""}</p>
       <div class="field"><label class="field-label" for="snapName">이름</label><input class="input" id="snapName" placeholder="예: 3R2B 시공성 v1" value="기록 ${ST.snaps.length + 1}"></div>
       <div class="field" style="margin:0"><label class="field-label" for="snapMemo">메모</label><textarea class="input" id="snapMemo" rows="3" placeholder="이 조건을 쓴 이유, 근거 논문 등"></textarea></div>`,
     onOk: async (el) => {
       const s = liveStats(); s.name = el.querySelector("#snapName").value.trim() || `기록 ${ST.snaps.length + 1}`; s.memo = el.querySelector("#snapMemo").value.trim();
-      await saveSnap(s); logEvent("archive.save", { name: s.name, units: s.summary && s.summary.n_units }); toast(`‘${s.name}’을(를) 보관했습니다`); render();
+      try { await saveSnap(s); } catch (err) { return toast("보관하지 못했습니다 — " + err.message, true); }
+      toast(`‘${s.name}’을(를) 보관했습니다`); render();
     } });
 }
 
@@ -2562,14 +2614,16 @@ async function onClick(e) {
       case "dlLive": { const s = liveStats(ST.statType, ST.statSource); s.name = [ST.statSource && SOURCES[ST.statSource], ST.statType].filter(Boolean).join("_") || "현재"; return download(snapFile(s), JSON.stringify(s, null, 1), "application/json"); }
       case "saveSnap": return saveSnapModal();
       case "loadStat": return $("#statIn").click();
-      case "dlAll": return download(`aihub_stats_archive_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ kind: "aihub-stats-archive", version: 1, records: ST.snaps }, null, 1), "application/json");
-      case "dlSnap": return snap && download(snapFile(snap), JSON.stringify(snap, null, 1), "application/json");
+      case "dlAll": { const recs = []; for (const x of ST.snaps) recs.push(await ensureSnap(x.id)); return download(`aihub_stats_archive_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ kind: "aihub-stats-archive", version: 1, records: recs }, null, 1), "application/json"); }
+      case "dlSnap": { if (!snap) return; const full = await ensureSnap(snap.id); return download(snapFile(full), JSON.stringify(full, null, 1), "application/json"); }
+      case "shareSnap": return snap && shareLocalSnaps([snap.id]);
+      case "shareAll": return shareLocalSnaps(ST.snaps.filter(x => x._local).map(x => x.id));
       case "applySnap": return snap && modal({ title: "보관 기록의 조건·변수 적용", ok: "적용",
-        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int((snap.config.criteria || []).length)}개와 판정 변수로 지금 설정을 바꾸고, 보유한 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
-        onOk: async () => { await applyConfig(snap.config, `‘${snap.name}’의 조건·변수를 적용했습니다`); go("#/stats"); } });
-      case "delSnap": return snap && !snap.builtin && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
-        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 이 브라우저에서 지웁니다. 지운 기록은 되돌릴 수 없습니다. 필요하면 먼저 JSON으로 내려받아 두세요.</p>`,
-        onOk: async () => { await delSnap(snap.id); toast("기록을 지웠습니다"); if (ST.route.id) go("#/archive"); else render(); } });
+        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int(snapCrit(snap))}개와 판정 변수로 지금 설정을 바꾸고, 보유한 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
+        onOk: async () => { const full = await ensureSnap(snap.id); await applyConfig(full.config, `‘${snap.name}’의 조건·변수를 적용했습니다`); go("#/stats"); } });
+      case "delSnap": return snap && canDelSnap(snap) && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
+        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) ${sharedSnaps() && !snap._local ? "공유 기록에서 지웁니다 — 모든 사람의 목록에서 사라집니다" : "이 브라우저에서 지웁니다"}. 지운 기록은 되돌릴 수 없습니다. 필요하면 먼저 JSON으로 내려받아 두세요.</p>`,
+        onOk: async () => { try { await delSnap(snap.id); } catch (err) { return toast(err.message, true); } toast("기록을 지웠습니다"); if (ST.route.id) go("#/archive"); else render(); } });
       case "unroom": ST.room = null; return render();
       case "preset": ST.criteria = E.parseDSL(E.PRESETS[$("#presetSel").value]).criteria; commitCrit(); return toast(`‘${$("#presetSel").value}’ 세트를 적용했습니다`);
       case "addCrit": {

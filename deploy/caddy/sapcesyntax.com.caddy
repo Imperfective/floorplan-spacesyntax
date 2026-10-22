@@ -26,7 +26,6 @@ sapcesyntax.com {
 		@assets path *.css *.js *.woff2 *.png *.jpg *.svg *.ico
 		header @assets Cache-Control "private, max-age=31536000, immutable"
 
-		redir /grid      /grid-editor.html
 		redir /syntax    /syntax-report.html
 		redir /benchmark /benchmark-report.html
 		file_server

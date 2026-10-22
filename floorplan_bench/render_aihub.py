@@ -4,7 +4,7 @@
     STR  벽(진회색)·문(주황)·창(파랑), 겹친 문·창은 빨강
     OBJ  위생·주방 기구 박스      OCR  글자를 제자리에
 
-웹 스튜디오(docs/aihub.html)의 그림과 같은 색을 쓴다.
+웹 프로그램(docs/index.html)의 그림과 같은 색을 쓴다.
 """
 
 from __future__ import annotations

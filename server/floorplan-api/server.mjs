@@ -13,6 +13,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import zlib from "node:zlib";
 
 const CFG = {
   clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -39,7 +40,8 @@ db.exec(`PRAGMA journal_mode = WAL;
   CREATE TABLE IF NOT EXISTS sessions (sid_hash TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT, created TEXT, expires INTEGER);
   CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, email TEXT, action TEXT NOT NULL, detail TEXT, page TEXT, ip TEXT, ua TEXT);
   CREATE INDEX IF NOT EXISTS events_email ON events(email);
-  CREATE INDEX IF NOT EXISTS events_action ON events(action);`);
+  CREATE INDEX IF NOT EXISTS events_action ON events(action);
+  CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, name TEXT, memo TEXT, author TEXT, author_name TEXT, created TEXT, meta TEXT, body BLOB, size INTEGER);`);
 const Q = {
   user: db.prepare("SELECT * FROM users WHERE email = ?"),
   users: db.prepare("SELECT u.*, (SELECT COUNT(*) FROM events e WHERE e.email = u.email) AS n_events, (SELECT MAX(ts) FROM events e WHERE e.email = u.email) AS last_event FROM users u ORDER BY u.added_at"),
@@ -51,6 +53,10 @@ const Q = {
   delSession: db.prepare("DELETE FROM sessions WHERE sid_hash = ?"),
   delSessionsOf: db.prepare("DELETE FROM sessions WHERE email = ?"),
   purge: db.prepare("DELETE FROM sessions WHERE expires <= ?"),
+  snaps: db.prepare("SELECT id, name, memo, author, author_name, created, meta, size FROM snapshots ORDER BY created DESC"),
+  snap: db.prepare("SELECT * FROM snapshots WHERE id = ?"),
+  addSnap: db.prepare("INSERT INTO snapshots (id, name, memo, author, author_name, created, meta, body, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+  delSnap: db.prepare("DELETE FROM snapshots WHERE id = ?"),
   log: db.prepare("INSERT INTO events (ts, email, action, detail, page, ip, ua) VALUES (?, ?, ?, ?, ?, ?, ?)"),
 };
 const now = () => new Date().toISOString();
@@ -76,6 +82,11 @@ function send(res, code, body, headers = {}) {
   res.end(isObj ? JSON.stringify(body) : body);
 }
 const redirect = (res, to, headers = {}) => send(res, 302, "", { Location: to, ...headers });
+async function readBody(req, max) {
+  let size = 0; const chunks = [];
+  for await (const c of req) { size += c.length; if (size > max) throw Object.assign(new Error("too large"), { code: 413 }); chunks.push(c); }
+  return Buffer.concat(chunks);
+}
 async function readJson(req, max = 64 * 1024) {
   let size = 0; const chunks = [];
   for await (const c of req) { size += c.length; if (size > max) throw Object.assign(new Error("too large"), { code: 413 }); chunks.push(c); }
@@ -188,6 +199,33 @@ async function handle(req, res) {
     const detail = b.detail == null ? null : JSON.stringify(b.detail).slice(0, 8000);
     logEvent(req, u.email, action, detail, String(b.page || "").slice(0, 200));
     return send(res, 200, { ok: true });
+  }
+
+  // 공유 보관 기록 — 로그인한 사람 모두 같은 목록을 본다. 지우기는 만든 사람과 관리자만
+  if (p === "/api/snapshots" && req.method === "GET")
+    return send(res, 200, { snapshots: Q.snaps.all().map((r) => ({ ...r, meta: JSON.parse(r.meta || "{}") })) });
+  if (p === "/api/snapshots" && req.method === "POST") {
+    const raw = await readBody(req, 64 * 1024 * 1024);
+    let s; try { s = JSON.parse(raw.toString("utf8")); } catch { return send(res, 400, { error: "JSON이 아닙니다" }); }
+    if (!s || s.kind !== "aihub-stats" || !s.summary) return send(res, 400, { error: "통계 JSON(kind: aihub-stats)이 아닙니다" });
+    const id = "s" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex");
+    s.id = id; delete s.builtin;
+    const meta = { n_units: s.summary.n_units, n_files: s.summary.n_files, mean: s.summary.score && s.summary.score.mean,
+      pass_rate: s.summary.feasibility_pass_rate, n_criteria: ((s.config && s.config.criteria) || []).filter((c) => c.enabled !== false).length, origin: String(s.origin || "").slice(0, 40) };
+    const name = String(s.name || "").slice(0, 200), memo = String(s.memo || "").slice(0, 2000), body = zlib.gzipSync(Buffer.from(JSON.stringify(s)));
+    Q.addSnap.run(id, name, memo, u.email, u.name || "", s.created || now(), JSON.stringify(meta), body, body.length);
+    logEvent(req, u.email, "archive.save", { id, name, units: meta.n_units });
+    return send(res, 200, { id });
+  }
+  const sm = p.match(/^\/api\/snapshots\/([\w-]+)$/);
+  if (sm) {
+    const row = Q.snap.get(sm[1]); if (!row) return send(res, 404, { error: "기록이 없습니다" });
+    if (req.method === "GET") return send(res, 200, zlib.gunzipSync(row.body).toString("utf8"), { "Content-Type": "application/json; charset=utf-8" });
+    if (req.method === "DELETE") {
+      if (row.author !== u.email && !u.admin) return send(res, 403, { error: "만든 사람이나 관리자만 지울 수 있습니다" });
+      Q.delSnap.run(row.id); logEvent(req, u.email, "archive.delete", { id: row.id, name: row.name, author: row.author });
+      return send(res, 200, { ok: true });
+    }
   }
 
   // 관리자
