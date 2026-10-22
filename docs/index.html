@@ -1860,7 +1860,8 @@ async function loadSnaps() {
 }
 /* 사이트 기본 데이터 — AI 허브 라벨에서 계산한 결과물만(tools/build_default_data.js). 없으면 조용히 넘어간다. */
 async function loadDefaults() {
-  const get = (u) => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+  // 서버가 json에 캐시 헤더를 주지 않아 브라우저가 예전 판을 쓰는 일이 있다 — 매번 서버에 확인한다(ETag라 바뀌지 않았으면 가볍다)
+  const get = (u) => fetch(u, { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null);
   const [b, s] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json")]);
   ST.defaults.baseline = b && b.version === 2 && b.all ? b : null;
   ST.defaults.stats = s && s.kind === "aihub-stats" ? Object.assign(s, { builtin: true, id: s.id || "builtin-aihub" }) : null;
