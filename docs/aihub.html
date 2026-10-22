@@ -325,7 +325,7 @@ table.t tr.click{cursor:pointer} table.t tr.click:hover td{background:var(--line
 </div>
 <div class="tip" id="tip" hidden></div>
 
-<!-- 서버가 .js를 1년 immutable 캐시하므로 엔진을 고칠 때마다 v를 바꾼다 -->
+<!-- 서버가 .js를 1년 immutable 캐시한다. 배포(deploy.yml·deploy.sh) 때 v가 엔진 해시로 자동 교체된다 -->
 <script src="aihub-engine.js?v=20261022"></script>
 <script>
 "use strict";

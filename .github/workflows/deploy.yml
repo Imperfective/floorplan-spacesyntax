@@ -1,9 +1,17 @@
-# main 에 푸시하면 netcup VPS로 자동 배포한다.
-# 저장소 Settings → Secrets and variables → Actions 에 아래를 등록:
-#   SSH_HOST        서버 주소 (예: 203.0.113.10)
-#   SSH_USER        접속 계정 (예: deploy 또는 root)
-#   SSH_PRIVATE_KEY 배포용 개인키 전문
-#   SSH_PORT        (선택) 기본 22
+# main 에 docs/ 변경을 푸시하면 sapcesyntax.com 으로 자동 배포한다.
+#
+# 서버 구성 (2026-10 기준): 사이트는 호스트 Caddy가 아니라 Docker 컨테이너 deepvoice-caddy 가
+# 서빙하고, 그 컨테이너의 /data/floorplan 이 호스트의 DEPLOY_PATH(아래 기본값)에 마운트돼 있다.
+# 같은 컨테이너가 다른 사이트도 서빙하므로 이 워크플로는 그 폴더 하나만 바꾸고 Caddy는 건드리지 않는다.
+# 정적 파일이라 Caddy 재시작 없이 바로 반영된다.
+#
+# 저장소 Settings → Secrets and variables → Actions
+#   Secrets   SSH_HOST          서버 주소 (152.53.208.67)
+#             SSH_USER          접속 계정 (minkyu — DEPLOY_PATH에 쓰기 권한, root 불필요)
+#             SSH_PRIVATE_KEY   배포용 개인키 전문
+#             SSH_PORT          (선택) 기본 22
+#   Variables DEPLOY_PATH       (선택) 기본 /home/minkyu/deepvoice/caddy/data/floorplan
+#             SITE_URL          (선택) 배포 확인 주소, 기본 https://sapcesyntax.com
 name: Deploy to VPS
 
 on:
@@ -12,27 +20,70 @@ on:
     paths: ["docs/**", ".github/workflows/deploy.yml"]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+env:
+  DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/home/minkyu/deepvoice/caddy/data/floorplan' }}
+  SITE_URL: ${{ vars.SITE_URL || 'https://sapcesyntax.com' }}
+  SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: SSH 키 준비
+      - name: 시크릿 확인
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER_: ${{ secrets.SSH_USER }}
+          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          missing=""
+          [ -n "$HOST" ]  || missing="$missing SSH_HOST"
+          [ -n "$USER_" ] || missing="$missing SSH_USER"
+          [ -n "$KEY" ]   || missing="$missing SSH_PRIVATE_KEY"
+          if [ -n "$missing" ]; then echo "::error::시크릿이 비어 있습니다:$missing"; exit 1; fi
+
+      - name: 엔진 캐시 무효화
+        # 서버가 .js를 1년 immutable 캐시하므로, 엔진 내용 해시를 주소에 붙여 바뀔 때만 새로 받게 한다
+        run: |
+          v=$(sha256sum docs/aihub-engine.js | cut -c1-12)
+          sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" docs/aihub.html
+          grep -o 'aihub-engine\.js?v=[^"]*' docs/aihub.html
+
+      - name: SSH 키 준비
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: rsync 배포
+        env:
+          TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
         run: |
           rsync -az --delete --chmod=D755,F644 \
-            -e "ssh -p ${{ secrets.SSH_PORT || 22 }} -i ~/.ssh/id_ed25519" \
-            docs/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/floorplan/"
+            -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o BatchMode=yes" \
+            docs/ "$TARGET:$DEPLOY_PATH/"
 
-      - name: Caddy 재적용
+      - name: 배포 확인
         run: |
-          ssh -p "${{ secrets.SSH_PORT || 22 }}" -i ~/.ssh/id_ed25519 \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "chown -R caddy:caddy /var/www/floorplan 2>/dev/null || true; systemctl reload caddy"
+          for f in index.html aihub.html; do
+            want=$(sha256sum "docs/$f" | cut -c1-64)
+            for i in 1 2 3 4 5; do
+              got=$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/$f" | sha256sum | cut -c1-64) || got=""
+              [ "$got" = "$want" ] && break
+              sleep 3
+            done
+            if [ "$got" != "$want" ]; then echo "::error::$SITE_URL/$f 가 배포본과 다릅니다"; exit 1; fi
+            echo "✓ $f"
+          done
+          eng=$(grep -o 'aihub-engine\.js?v=[^"]*' docs/aihub.html)
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL/$eng")
+          [ "$code" = 200 ] || { echo "::error::$eng → $code"; exit 1; }
+          echo "✓ $eng"

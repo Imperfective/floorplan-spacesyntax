@@ -379,9 +379,36 @@ tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파�
 
 `docs/` 폴더를 그대로 서빙합니다 → **https://imperfective.github.io/floorplan-spacesyntax/**
 
-### 자체 도메인 + VPS (netcup 등)
+### sapcesyntax.com (netcup VPS) — 자동 배포
+
+**`main`에 `docs/` 변경을 푸시하면 GitHub Actions가 자동으로 배포합니다** (`.github/workflows/deploy.yml`).
+
+지금 서버에서는 호스트 Caddy가 아니라 Docker 컨테이너 **`deepvoice-caddy`** 가 이 사이트를 서빙합니다.
+컨테이너의 `/data/floorplan`이 호스트의 `/home/minkyu/deepvoice/caddy/data/floorplan`에 마운트돼 있어,
+배포는 그 폴더 하나만 rsync로 바꿉니다. 같은 컨테이너가 다른 사이트도 서빙하므로 Caddy 설정은 건드리지 않고,
+정적 파일이라 재시작 없이 바로 반영됩니다. root SSH 로그인은 막혀 있으므로 `minkyu` 계정으로 배포합니다.
+
+| 저장소 설정 (Settings → Secrets and variables → Actions) | 값 |
+|---|---|
+| Secret `SSH_HOST` | `152.53.208.67` |
+| Secret `SSH_USER` | `minkyu` |
+| Secret `SSH_PRIVATE_KEY` | 배포용 개인키 전문 (공개키는 서버 `minkyu`의 `~/.ssh/authorized_keys`에 등록) |
+| Secret `SSH_PORT` · Variable `DEPLOY_PATH` · `SITE_URL` | 선택 — 기본 22 · 위 폴더 · `https://sapcesyntax.com` |
+
+워크플로는 배포 전에 `aihub.html`의 엔진 주소(`aihub-engine.js?v=…`)를 엔진 파일 해시로 바꿉니다
+(서버가 `.js`를 1년 캐시하므로 엔진이 바뀔 때만 새로 받게 하기 위함). 배포 후 사이트의 파일이 배포본과 같은지 확인합니다.
+
+로컬에서 같은 일을 하려면 (rsync가 없는 윈도우 Git Bash에서도 됨):
+
+```bash
+SSH_KEY=~/.ssh/<배포키> DEPLOY_HOST=minkyu@152.53.208.67 bash deploy/deploy.sh
+```
+
+### 새 서버에 설치 (호스트 Caddy)
 
 정적 파일 한 벌이라 어떤 서버에도 올라갑니다. `deploy/`에 필요한 것이 들어 있습니다.
+아래는 Caddy를 호스트에 직접 설치하는 경우이며, 이때 웹 루트는 `/var/www/floorplan`입니다
+(`deploy.sh`를 쓸 때는 `WEBROOT=/var/www/floorplan`).
 
 **서버 콘솔에서 한 줄** — 설치와 업데이트가 같은 명령입니다.
 
@@ -394,17 +421,17 @@ SSH 키를 등록해 두었다면 로컬에서 배포해도 됩니다.
 
 ```bash
 ssh 사용자@서버 'SITE_DOMAIN=sapcesyntax.com bash -s' < deploy/install.sh   # 최초
-DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh                                # 파일만 갱신
+WEBROOT=/var/www/floorplan DEPLOY_HOST=root@서버 bash deploy/deploy.sh       # 파일만 갱신
 ```
 
 | 파일 | 하는 일 |
 |---|---|
 | `deploy/setup-vps.sh` | Caddy 설치(없을 때만) · 웹 루트 · 방화벽 · 사이트 블록 설치. **기존 Caddy 설정을 덮어쓰지 않습니다** — 백업 후 `conf.d/`에 이 사이트만 추가 |
 | `deploy/site.caddy.tpl` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` `/aihub` 단축 경로 |
-| `deploy/deploy.sh` | `docs/`를 rsync로 올리고 Caddy 재적용 |
+| `deploy/deploy.sh` | `docs/`를 올림(엔진 해시 적용). root로 호스트 Caddy에 올릴 때만 소유자·Caddy 재적용 |
 | `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
 | `deploy/install.sh` | 서버에서 한 줄로 클론·설정·배포·검증까지. 재실행하면 업데이트 |
-| `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (SSH 시크릿 4개 필요) |
+| `.github/workflows/deploy.yml` | main에 푸시하면 자동 배포 (시크릿 3개 + 선택 1개, 위 표) |
 
 #### Cloudflare DNS 설정
 
