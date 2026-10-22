@@ -2303,6 +2303,7 @@ async function onClick(e) {
     } catch (e) { console.error(e); }
   }
   const stale = ST.files.some(f => f.pkey !== pkey());
+  rebuildBaseline();   // 다시 계산하는 동안에도 기본 정답지를 보여 준다
   if (stale) await reprocessAll("판정 변수가 바뀌어 다시 계산하는 중");
   else { rebuildBaseline(); rescore(false); }
   if (!ST.baseline) rebuildBaseline();
