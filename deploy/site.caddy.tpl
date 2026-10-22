@@ -24,6 +24,7 @@ __DOMAIN__ {
 	redir /grid      /grid-editor.html
 	redir /syntax    /syntax-report.html
 	redir /benchmark /benchmark-report.html
+	redir /aihub     /aihub.html
 }
 
 www.__DOMAIN__ {

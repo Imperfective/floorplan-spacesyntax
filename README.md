@@ -3,13 +3,14 @@
 AI가 생성한 건물 도면을 **좌표로 데이터화**하고, **"좋은 도면"을 수치 함수로 정의**한 뒤,
 서로 다른 방법으로 평가·최적화해 비교하는 실험 도구모음입니다.
 
-세 갈래로 이루어져 있습니다.
+네 갈래로 이루어져 있습니다.
 
 | # | 갈래 | 무엇을 하는가 |
 |---|---|---|
 | **A** | [도면 공간구문 스튜디오 (웹)](#a-도면-공간구문-스튜디오-웹) | **도면 PNG를 올리면** 벽·방·문·좌표를 파싱해 데이터화하고, 입력한 Space Syntax 조건을 자동 적용해 채점 |
 | **B** | [Space Syntax CLI](#b-space-syntax-cli) | 같은 분석을 명령줄에서. JSON·CSV 내보내기와 규칙 비교 |
 | **C** | [OR-Tools vs D-Wave 벤치마크](#c-or-tools-vs-d-wave-벤치마크) | 동일한 목적 함수를 고전 조합 최적화와 양자 어닐링 계열에 각각 주고 비교 |
+| **D** | [AI 허브 라벨(JSON) 평가 모델](#d-ai-허브-라벨json-평가-모델) | **AI 허브 도면 라벨 JSON을 여러 개 올리면** 도면을 탭별로 그리고, 사용자가 정한 평가 구조(조건·반영방식·변수)로 채점해 통계로 모아 보관·JSON 내보내기 |
 
 ---
 
@@ -28,6 +29,11 @@ open docs/index.html
 
 # C. 4단계 파이프라인
 .venv/bin/python main.py --spec apartment_8x8 --env balanced --time-limit 60
+
+# D. AI 허브 라벨 평가 — 웹은 설치 없이 docs/aihub.html, CLI는 표준 라이브러리만 사용
+open docs/aihub.html
+python aihub_eval.py baseline <02.라벨링데이터> -o out/baseline.json
+python aihub_eval.py score <02.라벨링데이터> --baseline out/baseline.json --stats out/stats.json
 ```
 
 ---
@@ -227,6 +233,88 @@ E(도면) = Σᵢ signᵢ · wᵢ · termᵢ(도면)        sign = −1(보상) 
 
 ---
 
+## D. AI 허브 라벨(JSON) 평가 모델
+
+→ **https://imperfective.github.io/floorplan-spacesyntax/aihub.html**
+
+PNG 인식 없이 AI 허브 '건축 도면 데이터'의 라벨 JSON(COCO 폴리곤)을 바로 읽어 **도면을 그리고** 세대별로 채점합니다.
+실제 지어진 아파트(AI 허브)를 **정답지**로 삼고, 생성 도면이 ① 시공 가능한지 ② 정답지 분포에 얼마나 가까운지 봅니다.
+**무엇을 어떻게 점수에 넣을지는 사용자가 정합니다**(조건 추가·삭제, 반영방식, 판정 변수).
+
+### 웹 — `docs/aihub.html` (평가 스튜디오)
+
+라벨 JSON(SPA·STR·OBJ·OCR)을 **여러 개 또는 폴더째** 올리면(파일 열기·폴더 열기·끌어다 놓기) 나눠서 처리하며 진행률을 보여 주고,
+**파일마다 도면 탭**을 엽니다. 파일은 브라우저 밖으로 나가지 않습니다.
+
+| 화면 | 하는 일 |
+|---|---|
+| 통계 탭 (맨 앞) | 불러온 모든 세대의 총점 분포·등급, 유형별(`3R2B` 등) 점수·시공 가능 비율, 조건별 평균 조건점수·만점 비율, 시공 점검 위반 수, 전역 지표 요약, 세대별 표. 조건·변수를 바꾸면 바로 다시 집계 |
+| 통계 보관 | 지금의 점수·지표·**조건·변수**를 이름·메모를 붙여 한 기록으로 이 브라우저(IndexedDB)에 보관 → 보기 · 조건 적용(그 연구 조건으로 되돌리기) · **JSON 내려받기** · 삭제. CLI `score --stats`가 만든 JSON도 불러와 보관 |
+| 도면 탭 | 실 폴리곤(용도별 색)·실명·면적비, 추정 문(■), 연결 그래프, 문제 실(빨강). STR은 벽·문·창, 겹친 문·창은 빨강. 탭은 ×(또는 가운데 클릭)로 닫고, 많으면 ‘바로 가기’ 목록으로 |
+| 평가 구조 | 조건 카드를 **추가·삭제·켜고 끄기**. 대상(전역/실 용도)·지표·판정 방식(범위/목표값/합격선)·**반영 방식**(가중 평균/감점/필수)·가중치·감점 크기를 바꾸면 즉시 재채점. 문법으로 한꺼번에 편집도 가능 |
+| 변수 | 벽 두께 허용치·최소 접면·샤프트 기준·발코니 연결 방식·겹침/채광 임계값 등 → 바꾸면 세대를 다시 읽고 재채점 |
+| 결과 | 총점·등급, 조건별 값·조건점수·반영량, 시공 가능성 점검, 실별·전역 지표, 정답지 근접도(z-점수) |
+
+통계 JSON(`kind: "aihub-stats"`)에는 요약·유형별·조건별·위반·지표 통계와 함께 세대별 점수·전역 지표·조건점수(`units`),
+그 통계를 낸 조건·변수(`config`), 정답지 정보가 들어 있어 연구 기록으로 그대로 남길 수 있습니다.
+
+**설정 저장**으로 내보낸 JSON은 파이썬 CLI의 `--config`로 그대로 씁니다(같은 엔진을 JS로 옮겼고, `tests/test_engine_parity.py`가 두 쪽 값이 같은지 확인합니다).
+
+### 조건 문법 (웹·CLI 공통)
+
+```
+대상.지표  연산자  값  [.. 최악값 | ± 허용치]  [w=가중치]  [as=penalty:점수 | as=gate]  [agg=worst|mean]
+
+@missing_required    <= 0          as=gate         # 못 맞추면 총점 0
+@overlap_pairs       <= 0          as=penalty:25   # 못 맞춘 만큼 25점까지 감점
+living.integration_rank <= 1 .. 4  w=2             # 가중 평균에 들어감
+master.step_depth    == 3 ± 1.5    w=1.5
+@typicality          >= 90 .. 40   w=3             # 정답지 근접도
+#! bed.aspect <= 2.5 as=penalty:5                  # '#!' = 꺼 둔 조건
+```
+
+```
+기본점 = Σ(가중치 × 조건점수) ÷ Σ가중치 × 100
+총점   = 기본점 − Σ 감점 × (1 − 조건점수),   필수 조건을 하나라도 못 맞추면 0
+```
+
+대상: 전역 `@` · `living bed master(가장 큰 침실) kitchen entry bath balcony dress ac etc multi`.
+지표 목록은 `python aihub_eval.py config --list`.
+
+### CLI
+
+```bash
+python aihub_eval.py baseline <02.라벨링데이터> -o out/baseline.json         # 정답지 분포
+python aihub_eval.py config -o my.json                                         # 기본 설정 파일(웹과 같은 형식)
+python aihub_eval.py score  <파일|폴더> --baseline out/baseline.json --config my.json -v --csv out/s.csv                            --stats out/stats.json --name "3R2B 시공성 v1" --memo "근거: …"   # 웹 통계와 같은 JSON
+python aihub_eval.py render <파일|폴더> -o out/svg --baseline out/baseline.json --config my.json   # SVG 도면
+python aihub_eval.py struct <STR 파일|폴더> -v                                 # 문·창 겹침
+python tests/test_aihub_eval.py && python tests/test_engine_parity.py          # 검증
+```
+
+| 갈래 | 내용 |
+|---|---|
+| 세대 분리 | 한 시트의 실들을 벽 두께(≤32px) 인접 그래프로 묶고, 현관이 여럿이면 현관 기준으로 나눔 |
+| 문 추정 | SPA엔 문이 없으므로 맞닿은 실 + 용도별 출입 규칙으로 투과성 그래프 추정 |
+| ① 시공 가능성 | 필수실 · 겹침 · 출입 불가 실 · 침실 경유 · 주방-화장실 직결 · 채광 · 실 형태(장단변비·충전율) · 문·창 겹침(STR) |
+| ② 공간구문 | 외부(carrier)를 현관에 붙인 그래프의 깊이·RRA·통합도·순위·선택도 (`spacesyntax.analyze_graph` 재사용) |
+| ③ 근접도 | 면적비·깊이·거실 통합도 순위 등 특징의 강건 z-점수 → 0~100. 같은 유형(예: `3R2B`) 분포 우선 |
+
+주의 — 라벨엔 축척이 없고 시트마다 다릅니다. 그래서 평형 대신 **침실-화장실 수 유형**(`3R2B` 등)으로 묶고,
+면적은 세대 합계 대비 비율로만 비교합니다(㎡ 표기는 추정치). 각 기준의 근거는 `evaluate.CRITERIA`, 조건별 메모(`why`)에 적습니다.
+
+---|---|
+| 세대 분리 | 한 시트의 실들을 벽 두께(≤32px) 인접 그래프로 묶고, 현관이 여럿이면 현관 기준으로 나눔 |
+| 문 추정 | SPA엔 문이 없으므로 맞닿은 실 + 용도별 출입 규칙(`PermeabilityRules`)으로 투과성 그래프 추정 |
+| ① 시공 가능성 | F1 필수실 · F2 겹침 · F3 출입 불가 실 · F4 침실 경유 · F5 주방-화장실 직결 · F6 채광 · F7 형태비 · F8 문·창 겹침(STR) |
+| ② 공간구문 | 외부(carrier)를 현관에 붙인 그래프의 깊이·RRA·통합도 순위 (`spacesyntax.analyze_graph` 재사용) |
+| ③ 근접도 | 면적비·깊이·거실 통합도 순위 등 특징의 강건 z-점수 → 0~100. 같은 유형(예: `3R2B`) 분포 우선 |
+
+주의 — 라벨엔 축척이 없고 시트마다 다릅니다. 그래서 평형 대신 **침실-화장실 수 유형**(`3R2B` 등)으로 묶고,
+면적은 세대 합계 대비 비율로만 비교합니다(㎡ 표기는 추정치). 각 기준의 근거는 `evaluate.CRITERIA`에 모여 있습니다.
+
+---
+
 ## 구조
 
 ```
@@ -243,18 +331,27 @@ floorplan_bench/
   spacesyntax.py     공간구문 분석 엔진 (그래프 · VGA · 아이소비스트)
   syntax_render.py   j-graph · 히트맵 SVG
   report.py          평면도 SVG · 지표 분해
+  aihub.py           AI 허브 라벨(COCO JSON) → 세대 분리 · 맞닿은 실 · 외기 접면
+  evaluate.py        문 추정 · 시공 가능성 점검 · 실별/전역 지표 · 정답지 분포
+  criteria.py        사용자 평가 구조 — 조건 문법 · 반영방식(가중/감점/필수) · 채점 · 설정 파일
+  stats.py           채점 결과 → 통계 JSON (웹 통계 탭과 같은 형식)
+  render_aihub.py    라벨 JSON → SVG 도면
 
 main.py              4단계 파이프라인 CLI
 run_study.py         전체 연구 (주 비교 + 스윕 + 진단)
 build_paper.py       연구 결과 → 논문 형식 HTML
 syntax_cli.py        Space Syntax CLI
 syntax_report.py     Space Syntax 결과 → HTML
+aihub_eval.py        AI 허브 라벨 평가 CLI (baseline · config · score · render · struct)
 
 docs/index.html              도면 공간구문 스튜디오 (이미지 파싱 웹 앱)
+docs/aihub.html              AI 허브 도면 평가 스튜디오 (라벨 JSON · 탭 도면 · 평가 구조 · 통계 보관)
+docs/aihub-engine.js         평가 엔진 JS판 — floorplan_bench의 aihub·evaluate·criteria·stats와 같은 값
 docs/grid-editor.html        격자로 직접 그리는 이전 버전
 docs/syntax-report.html      Space Syntax 분석 리포트
 docs/benchmark-report.html   OR-Tools vs D-Wave 비교 리포트
 examples/                    예제 도면 · 규칙 파일 · CP-SAT 입문 예제
+tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파이썬 일치 검사(node 필요)
 ```
 
 ## 선택적 자격 증명
@@ -303,7 +400,7 @@ DEPLOY_HOST=사용자@서버 bash deploy/deploy.sh                              
 | 파일 | 하는 일 |
 |---|---|
 | `deploy/setup-vps.sh` | Caddy 설치(없을 때만) · 웹 루트 · 방화벽 · 사이트 블록 설치. **기존 Caddy 설정을 덮어쓰지 않습니다** — 백업 후 `conf.d/`에 이 사이트만 추가 |
-| `deploy/site.caddy.tpl` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` 단축 경로 |
+| `deploy/site.caddy.tpl` | 자동 HTTPS · 압축 · 보안 헤더 · CSP · 캐시 정책 · `/grid` `/syntax` `/benchmark` `/aihub` 단축 경로 |
 | `deploy/deploy.sh` | `docs/`를 rsync로 올리고 Caddy 재적용 |
 | `deploy/nginx.conf` | Caddy 대신 nginx를 쓸 경우의 설정 (certbot 필요) |
 | `deploy/install.sh` | 서버에서 한 줄로 클론·설정·배포·검증까지. 재실행하면 업데이트 |
