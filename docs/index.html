@@ -92,6 +92,16 @@ textarea.code{font-feature-settings:"tnum" 1;font-size:12.5px;line-height:22px;m
 .chip:hover{background:var(--color-bg-2)}
 .chip.is-active{background:var(--color-primary-100);color:#fff;border-color:var(--color-primary-100)}
 .card{background:var(--color-bg-0);border:1px solid var(--color-divider);border-radius:var(--radius-md)}
+.chart{display:block;width:100%;max-width:780px;margin:0 auto;height:auto;font-size:11px;font-feature-settings:"tnum" 1}
+.chart .grid{stroke:#E9ECEF;stroke-width:1}.chart .base{stroke:#C9CED3;stroke-width:1}
+.chart .ax{fill:#8A939C}.chart .lbl{fill:#5B6570;font-size:10.5px}.chart .glbl{fill:#3A424A;font-size:11.5px}.chart .seg{font-size:10.5px;font-weight:600}
+.chart .bar{fill:var(--color-primary-100)}.chart .hit,.chart .hit-x{fill:transparent}.chart .hit:hover{fill:rgba(0,79,89,.06)}
+.chart .ref-mean{stroke:#F47D30;stroke-width:1.5;stroke-dasharray:4 3}.chart .ref-med{stroke:#52514e;stroke-width:1.5}
+.chart .whisk{stroke:#5B6570;stroke-width:1.2}.chart .box{fill:var(--color-primary-50);stroke:var(--color-primary-100);stroke-width:1.2}.chart .med{stroke:var(--color-primary-100);stroke-width:2.5}.chart .mean{fill:#F47D30;stroke:#fff;stroke-width:1.5}
+.chart .ecdf{fill:none;stroke-width:2;stroke-linejoin:round}.chart .xhair{stroke:#8A939C;stroke-width:1;stroke-dasharray:3 3}
+.tbl-x{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}.card-foot{padding:10px var(--space-6) 14px;font-size:12px;color:var(--color-text-secondary);border-top:1px solid var(--color-divider);line-height:18px}
+.test-res{display:grid;gap:6px;font-size:13.5px;font-feature-settings:"tnum" 1}.test-res b{font-weight:600}
+table.t tr.sub td:first-child{color:var(--color-text-disabled)}table.t tr.sub td{background:#FBFCFC}
 .card-header{padding:var(--space-5) var(--space-6) var(--space-4);display:flex;align-items:center;gap:var(--space-3);border-bottom:1px solid var(--color-divider);flex-wrap:wrap}
 .card-title{font-size:16px;font-weight:700;margin:0;flex:1}
 .card-body{padding:var(--space-5) var(--space-6)}
@@ -395,6 +405,7 @@ details.more[open]>summary svg{transform:rotate(90deg)}
 
 <!-- 서버가 .js를 1년 immutable 캐시한다. 배포(deploy.yml·deploy.sh) 때 v가 엔진 해시로 자동 교체된다 -->
 <script src="aihub-engine.js?v=20261022"></script>
+<script src="aihub-stats.js?v=20261022"></script>
 <script>
 "use strict";
 const E = window.AIHub;
@@ -781,7 +792,7 @@ async function entriesToFiles(entries) {
 
 /* ═════════════════════════════════════ 라우팅 */
 const PAGES = {
-  stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["criteria", "조건·점검"], ["measures", "지표"], ["units", "점수표"]] },
+  stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["dist", "분포 · 집단 비교"], ["grades", "등급"], ["corr", "상관"], ["desc", "기술통계"], ["criteria", "조건·점검"], ["units", "점수표"]] },
   plans:    { title: "도면", icon: "plan" },
   data:     { title: "데이터 가져오기", icon: "inbox", tabs: [["aihub", "AI 허브"], ["upload", "파일 업로드"], ["png", "이미지 변환"], ["manual", "직접 입력"], ["stored", "보유 데이터"]] },
   criteria: { title: "평가 구조", icon: "sliders", tabs: [["list", "조건"], ["dsl", "문법 편집"]] },
@@ -793,6 +804,8 @@ const PAGES = {
 function parseHash() {
   const p = (location.hash || "#/stats").replace(/^#\/?/, "").split("/").map(s => { try { return decodeURIComponent(s); } catch { return s; } });
   const page = PAGES[p[0]] ? p[0] : "stats";
+  if (p[0] === "stats" && p[1] === "measures") p[1] = "desc";   // 예전 ‘지표’ 탭 주소
+  if (p[0] === "archive" && p[2] === "measures") p[2] = "desc";
   const r = { page, tab: null, id: null };
   if (PAGES[page].tabs && page !== "archive") r.tab = (PAGES[page].tabs.find(t => t[0] === p[1]) || PAGES[page].tabs[0])[0];
   if (page === "plans" || page === "archive") r.id = p[1] || null;
@@ -851,10 +864,21 @@ function render() {
 /* ── 통계 ── */
 function liveStats(type = "", source = "") {
   const rows = allUnits().filter(x => (!type || x.r.type === type) && (!source || x.f.source === source))
-    .map(({ f, r }) => E.statRow(r, f.name, { source: f.source }));
+    .map(({ f, r }) => Object.assign(E.statRow(r, f.name, { source: f.source }), unitExtras(r)));
   const b = ST.baseline;
-  return E.aggregate(rows, { params: cleanParams(), criteria: ST.criteria },
+  const S = E.aggregate(rows, { params: cleanParams(), criteria: ST.criteria },
     { baseline: b ? { source: ST.baseSource, n_units: b.n_units, type_counts: b.type_counts } : null });
+  // 현관 라벨이 없어 세대가 하나도 안 나온 공간 도면 — 통계 파일 수에 들어가지 않으므로 따로 센다
+  if (!type) S.summary.n_files_empty = ST.files.filter(f => f.type === "SPA" && !(f.results || []).length && (!source || f.source === source)).length;
+  return S;
+}
+/* 연구용 통계에 쓰는 세대별 값 — 정답지 영역 점수와 근거 문서 지표(원래 값) */
+function unitExtras(r) {
+  const out = {};
+  if (r.typicality) out.dom = Object.fromEntries(Object.entries(r.typicality.domains).map(([k, v]) => [k, v.score]));
+  if (r.features) out.feat = Object.fromEntries(E.SCORED.map(k => [k, Number.isFinite(r.features[k]) ? r.features[k]
+    : r.typicality && r.typicality.features[k] ? r.typicality.features[k].value : null]));
+  return out;
 }
 function emptyData(title, desc) {
   return `<div class="card"><div class="empty-state"><h3>${title}</h3><p>${desc}</p>
@@ -893,16 +917,385 @@ function histogram(h, total) {
     <div class="xax">${h.map(b => `<span>${b.lo}</span>`).join("")}</div>
   </div>`;
 }
+/* ═════════════════════════════════════ 연구용 통계 — 분포·집단 비교 · 등급 · 상관 · 기술통계
+   계산은 aihub-stats.js(AIStats). 표는 CSV 내려받기 · 엑셀 붙여넣기용 복사 · Markdown · LaTeX로 내보낸다. */
+const AS = window.AIStats;
+const STX = { v: "total", g: "", bins: "auto", excl: false, gg: "nbed", corrSet: "core", method: "spearman", set: "core", dg: "" };
+try { Object.assign(STX, JSON.parse(store.get("aihub.statx") || "{}")); } catch {}
+const saveStx = () => store.set("aihub.statx", JSON.stringify(STX));
+const STAT_TABLES = {}, STAT_MEMO = new Map(), ECDF_CHARTS = [];
+const GRADE_RANGE = { "A+": "95–100", A: "90–95", "B+": "85–90", B: "80–85", "C+": "70–80", C: "60–70", D: "45–60", F: "0–45" };
+// 등급 묶음 4단 — dataviz 순서색 검증 통과(파랑 700 · 550 · 400 · 250, 밝은 끝 2.11:1)
+const BANDS = [["A", ["A+", "A"], "#0d366b"], ["B", ["B+", "B"], "#1c5cab"], ["C", ["C+", "C"], "#3987e5"], ["D·F", ["D", "F"], "#86b6ef"]];
+// 집단 겹침 선 — 범주색 3개(all-pairs 통과). 4개 이상이면 상자그림으로만 비교한다
+const CAT = ["#2a78d6", "#eb6834", "#1baf7a"];
+const GROUPS = { "": "집단 없음", nbed: "침실 수", type: "유형(상위 8)", grade: "등급(8단계)", band: "등급 묶음(A·B·C·D·F)", pass: "시공 가능 여부", source: "출처" };
+const VAR_SETS = { core: "점수 · 정답지 영역", feat: "근거 문서 지표 18개", global: "전역 지표", all: "전체" };
+const nb = (r) => (r.global && AS.fin(r.global.n_bed) ? r.global.n_bed : r.feat && AS.fin(r.feat.n_bed) ? r.feat.n_bed : null);
+
+function statVars(rows) {
+  const V = [], has = (get) => rows.some((r) => AS.fin(get(r)));
+  const add = (key, label, group, get, def) => { if (has(get)) V.push({ key, label, group, get, def }); };
+  add("total", "총점", "점수", (r) => r.total);
+  add("base", "기본점(감점 전)", "점수", (r) => r.base);
+  add("penalty", "감점", "점수", (r) => r.penalty);
+  add("typicality", "정답지 근접도", "정답지", (r) => r.global && r.global.typicality);
+  for (const [d, D] of Object.entries(E.DOMAINS)) add("dom." + d, `영역 점수 — ${D.label}`, "정답지", (r) => r.dom && r.dom[d]);
+  for (const k of E.SCORED) add("feat." + k, E.FEATURES[k].label, "지표(근거 문서)", (r) => r.feat && r.feat[k], E.FEATURES[k].def);
+  for (const [k, m] of Object.entries(E.MEASURES)) if (m.scope === "global" && k !== "typicality") add("g." + k, m.label, "전역 지표", (r) => r.global && r.global[k], m.hint);
+  return V;
+}
+function pickSet(V, set) {
+  if (set === "core") return V.filter((v) => !v.key.startsWith("feat.") && !v.key.startsWith("g."));
+  if (set === "feat") return V.filter((v) => v.key.startsWith("feat."));
+  if (set === "global") return V.filter((v) => v.key.startsWith("g."));
+  return V;
+}
+function groupFn(rows, g) {
+  if (g === "nbed") return (r) => { const n = nb(r); return n == null ? null : n >= 5 ? "침실 5개 이상" : `침실 ${n}개`; };
+  if (g === "type") {
+    const cnt = {}; for (const r of rows) cnt[r.type] = (cnt[r.type] || 0) + 1;
+    const top = new Set(Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 8).map((x) => x[0]));
+    return (r) => (top.has(r.type) ? r.type : "기타 유형");
+  }
+  if (g === "grade") return (r) => r.grade;
+  if (g === "band") return (r) => (BANDS.find((b) => b[1].includes(r.grade)) || [null])[0];
+  if (g === "pass") return (r) => (r.pass ? "시공 가능" : "시공 불가");
+  if (g === "source") return (r) => SOURCES[r.source] || r.source || "—";
+  return null;
+}
+function groupSplit(rows, g) {
+  const fn = groupFn(rows, g); if (!fn) return null;
+  const m = new Map(); for (const r of rows) { const k = fn(r); if (k == null) continue; if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+  let keys = [...m.keys()];
+  const rank = { nbed: (k) => (k.includes("이상") ? 99 : parseInt(k.replace(/\D/g, ""), 10)), grade: (k) => E.GRADES.indexOf(k), band: (k) => BANDS.findIndex((b) => b[0] === k), pass: (k) => (k === "시공 가능" ? 0 : 1) }[g];
+  keys.sort(rank ? (a, b) => rank(a) - rank(b) : (a, b) => (a.startsWith("기타") ? 1 : b.startsWith("기타") ? -1 : m.get(b).length - m.get(a).length));
+  return keys.map((k) => ({ name: k, rows: m.get(k) }));
+}
+const sxRows = (S) => (STX.excl ? S.units.filter((r) => !r.gated) : S.units);
+const memo = (key, fn) => { if (STAT_MEMO.has(key)) return STAT_MEMO.get(key); const v = fn(); if (STAT_MEMO.size > 40) STAT_MEMO.clear(); STAT_MEMO.set(key, v); return v; };
+const sig = (rows) => `${rows.length}|${rows[0] && rows[0].unit}|${rows.length && rows[rows.length - 1].unit}|${rows.reduce((s, r) => s + (r.total || 0), 0).toFixed(6)}|${ST.criteria.length}`;
+
+/* 숫자 형식 — 값의 크기에 맞춘 소수 자리 */
+const dpOf = (d) => { const a = Math.abs(d.median || d.mean || 0); return a >= 100 ? 1 : a >= 10 ? 2 : a >= 1 ? 3 : 4; };
+const pEq = (p) => (!AS.fin(p) ? "—" : p < 0.001 ? "< .001" : "= " + AS.fmtP(p));   // APA: p = .034 · p < .001
+const fixd = (v, dp) => (AS.fin(v) ? v.toFixed(dp) : "—");
+const effEps = (e) => (e >= 0.26 ? "큼" : e >= 0.08 ? "중간" : e >= 0.01 ? "작음" : "매우 작음");   // Tomczak & Tomczak 2014
+const effEta = (e) => (e >= 0.14 ? "큼" : e >= 0.06 ? "중간" : e >= 0.01 ? "작음" : "매우 작음");   // Cohen 1988
+const effV = (v, df) => { const k = Math.min(df, 5), s = [0.1, 0.07, 0.06, 0.05, 0.04][k - 1] || 0.04; return v >= s * 5 ? "큼" : v >= s * 3 ? "중간" : v >= s ? "작음" : "매우 작음"; };   // Cohen 1988(자유도별)
+const effR = (r) => { const a = Math.abs(r); return a >= 0.5 ? "강함" : a >= 0.3 ? "중간" : a >= 0.1 ? "약함" : "거의 없음"; };
+
+/* ── 표 + 내보내기 ── */
+function statTable(id, t, limit = 400) {
+  STAT_TABLES[id] = t;
+  const cell = (r, c) => { const v = r[c.key]; return v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : c.fmt ? c.fmt(v, r) : typeof v === "number" ? int(v) : String(v); };
+  const body = t.rows.slice(0, limit);
+  return `<div class="card"><div class="card-header"><h2 class="card-title">${esc(t.title)}</h2><div class="tbl-x">
+      <button class="btn btn-ghost btn-sm" data-act="tblX" data-tid="${id}" data-fmt="csv" data-tip="CSV 파일로 내려받기(원래 값, 반올림 없음)">${ico("download")}CSV</button>
+      <button class="btn btn-ghost btn-sm" data-act="tblX" data-tid="${id}" data-fmt="tsv" data-tip="엑셀·한글·워드에 붙여 넣을 수 있게 복사">표 복사</button>
+      <button class="btn btn-ghost btn-sm" data-act="tblX" data-tid="${id}" data-fmt="md" data-tip="Markdown 표로 복사">MD</button>
+      <button class="btn btn-ghost btn-sm" data-act="tblX" data-tid="${id}" data-fmt="tex" data-tip="LaTeX(booktabs) 표로 복사">LaTeX</button></div></div>
+    <div class="card-body flush tw"><table class="t compact"><thead><tr>${t.cols.map((c) => `<th class="${c.num ? "n" : ""}"${c.tip ? ` data-tip="${esc(c.tip)}"` : ""}>${esc(c.label)}</th>`).join("")}</tr></thead>
+      <tbody>${body.map((r) => `<tr${r._cls ? ` class="${r._cls}"` : ""}>${t.cols.map((c) => `<td class="${c.num ? "n" : ""}"${r._tip && c === t.cols[0] ? ` data-tip="${esc(r._tip)}"` : ""}>${esc(cell(r, c))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    ${t.rows.length > limit || t.note ? `<div class="card-foot">${t.rows.length > limit ? `화면에는 ${int(limit)}행까지 보입니다 — 내보내기에는 ${int(t.rows.length)}행이 모두 들어갑니다. ` : ""}${esc(t.note || "")}</div>` : ""}</div>`;
+}
+async function exportStatTable(id, fmt) {
+  const t = STAT_TABLES[id]; if (!t) return;
+  const text = AS.exportTable(t, fmt), base = (t.file || t.title || "통계").replace(/[\\/:*?"<>|\s]+/g, "_");
+  logEvent("stats.export", { table: t.title, format: fmt, rows: t.rows.length });
+  if (fmt === "csv") return download(base + ".csv", text, "text/csv");
+  try { await navigator.clipboard.writeText(text); toast({ tsv: "표를 복사했습니다 — 엑셀·한글·워드에 붙여 넣으세요", md: "Markdown 표를 복사했습니다", tex: "LaTeX 표를 복사했습니다" }[fmt]); }
+  catch { download(base + (fmt === "tex" ? ".tex" : fmt === "md" ? ".md" : ".txt"), text, "text/plain"); }
+}
+
+/* ── 그림(SVG) — 가는 막대·회색 격자·hover 툴팁(data-tip) ── */
+const SVGT = (W, H, label, inner, extra = "") => `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"${extra}>${inner}</svg>`;
+const barPath = (x, y, w, h, r) => { r = Math.max(0, Math.min(r, w / 2, h)); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; };
+function axisTicks(a, b, target) { const st = AS.niceStep(b - a || 1, target), out = []; for (let v = Math.ceil(a / st) * st; v <= b + st * 1e-9; v += st) out.push(+v.toPrecision(10)); return out; }
+const tickFmt = (v) => (Math.abs(v) >= 1000 ? int(v) : String(+v.toPrecision(6)));
+function histSvg(bs, d, label) {
+  const W = 640, H = 236, L = 50, R = 14, T = 18, B = 34, pw = W - L - R, ph = H - T - B;
+  const x0 = bs[0].lo, x1 = bs[bs.length - 1].hi, X = (v) => L + (v - x0) / (x1 - x0 || 1) * pw;
+  const max = Math.max(1, ...bs.map((b) => b.n)), yt = axisTicks(0, max, 4), top = Math.max(max, yt[yt.length - 1]), Y = (v) => T + ph - v / top * ph;
+  let g = yt.map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${int(v)}</text>`).join("");
+  g += axisTicks(x0, x1, 7).filter((v) => v >= x0 && v <= x1).map((v) => `<text class="ax" x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${tickFmt(v)}</text>`).join("");
+  g += `<line class="base" x1="${L}" x2="${W - R}" y1="${T + ph}" y2="${T + ph}"/>`;
+  for (const b of bs) {
+    const x = X(b.lo) + 1, w = Math.max(1, X(b.hi) - X(b.lo) - 2), h = b.n / top * ph;
+    if (b.n) g += `<path class="bar" d="${barPath(x, T + ph - h, w, h, 3)}"/>`;
+    g += `<rect class="hit" x="${X(b.lo)}" y="${T}" width="${X(b.hi) - X(b.lo)}" height="${ph}" data-tip="${tickFmt(b.lo)} 이상 ${tickFmt(b.hi)} 미만 · ${int(b.n)}세대 (${(b.n / d.n * 100).toFixed(1)}%)"/>`;
+  }
+  const mk = (v, cls, txt, dy) => (AS.fin(v) && v >= x0 && v <= x1 ? `<line class="${cls}" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${T + ph}"/><text class="lbl" x="${X(v) + 4}" y="${T + dy}">${txt}</text>` : "");
+  g += mk(d.mean, "ref-mean", `평균 ${fmt(d.mean, 4)}`, 9) + mk(d.median, "ref-med", `중앙값 ${fmt(d.median, 4)}`, 22);
+  return SVGT(W, H, `${label} 분포 히스토그램`, g);
+}
+function whiskers(d) {
+  const s = d.sorted, lo = d.q1 - 1.5 * d.iqr, hi = d.q3 + 1.5 * d.iqr;
+  let a = 0; while (a < s.length && s[a] < lo) a++;
+  let b = s.length - 1; while (b >= 0 && s[b] > hi) b--;
+  return { wl: s[Math.min(a, s.length - 1)], wh: s[Math.max(b, 0)], out: a + (s.length - 1 - b) };
+}
+function boxSvg(gs, label) {
+  const W = 640, row = 34, L = 150, R = 16, T = 6, B = 30, H = T + row * gs.length + B, pw = W - L - R;
+  const ws = gs.map((g) => whiskers(g.d)), lo = Math.min(...ws.map((w) => w.wl)), hi = Math.max(...ws.map((w) => w.wh)), pad = (hi - lo) * 0.04 || 1;
+  const x0 = lo - pad, x1 = hi + pad, X = (v) => L + (v - x0) / (x1 - x0) * pw;
+  let g = axisTicks(x0, x1, 7).filter((v) => v >= x0 && v <= x1).map((v) => `<line class="grid" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="ax" x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${tickFmt(v)}</text>`).join("");
+  gs.forEach((gr, i) => {
+    const d = gr.d, w = ws[i], cy = T + row * i + row / 2, bh = 14;
+    g += `<text class="glbl" x="${L - 10}" y="${cy + 4}" text-anchor="end">${esc(gr.name)} <tspan class="ax">n=${int(d.n)}</tspan></text>`
+      + `<line class="whisk" x1="${X(w.wl)}" x2="${X(w.wh)}" y1="${cy}" y2="${cy}"/><line class="whisk" x1="${X(w.wl)}" x2="${X(w.wl)}" y1="${cy - 5}" y2="${cy + 5}"/><line class="whisk" x1="${X(w.wh)}" x2="${X(w.wh)}" y1="${cy - 5}" y2="${cy + 5}"/>`
+      + `<rect class="box" x="${X(d.q1)}" y="${cy - bh / 2}" width="${Math.max(1, X(d.q3) - X(d.q1))}" height="${bh}" rx="2"/>`
+      + `<line class="med" x1="${X(d.median)}" x2="${X(d.median)}" y1="${cy - bh / 2}" y2="${cy + bh / 2}"/><circle class="mean" cx="${X(d.mean)}" cy="${cy}" r="3.5"/>`
+      + `<rect class="hit" x="${L}" y="${cy - row / 2}" width="${pw}" height="${row}" data-tip="${esc(gr.name)} · n ${int(d.n)} · 중앙값 ${fmt(d.median, 4)} [${fmt(d.q1, 4)}–${fmt(d.q3, 4)}] · 평균 ${fmt(d.mean, 4)} · 수염 밖 ${int(w.out)}개"/>`;
+  });
+  return SVGT(W, H, `${label} 집단별 상자그림`, g);
+}
+function ecdfSvg(series, label) {
+  const W = 640, H = 236, L = 50, R = 110, T = 12, B = 34, pw = W - L - R, ph = H - T - B;
+  const x0 = Math.min(...series.map((s) => s.d.min)), x1 = Math.max(...series.map((s) => s.d.max)), X = (v) => L + (v - x0) / (x1 - x0 || 1) * pw, Y = (f) => T + ph - f * ph;
+  let g = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line class="grid" x1="${L}" x2="${L + pw}" y1="${Y(f)}" y2="${Y(f)}"/><text class="ax" x="${L - 6}" y="${Y(f) + 4}" text-anchor="end">${f * 100}%</text>`).join("");
+  g += axisTicks(x0, x1, 7).filter((v) => v >= x0 && v <= x1).map((v) => `<text class="ax" x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${tickFmt(v)}</text>`).join("");
+  const ends = [];
+  for (const s of series) {
+    const pts = AS.ecdfPoints(s.d.sorted, 500); let p = `M${X(pts[0][0])},${Y(0)}`;
+    for (const [v, f] of pts) p += `H${X(v).toFixed(1)}V${Y(f).toFixed(1)}`;
+    g += `<path class="ecdf" d="${p}H${L + pw}" style="stroke:${s.color}"/>`;
+    ends.push({ s, y: Y(1) });
+  }
+  // 직접 이름표 — 오른쪽 끝, 겹치면 아래로 비킨다
+  let lastY = -99; series.forEach((s, i) => { let y = T + 10 + i * 16; if (y < lastY + 15) y = lastY + 15; lastY = y;
+    g += `<circle cx="${L + pw + 12}" cy="${y - 4}" r="4" fill="${s.color}"/><text class="glbl" x="${L + pw + 20}" y="${y}">${esc(s.name)}</text>`; });
+  g += `<line class="xhair" x1="0" x2="0" y1="${T}" y2="${T + ph}" visibility="hidden"/><rect class="hit-x" x="${L}" y="${T}" width="${pw}" height="${ph}"/>`;
+  const id = ECDF_CHARTS.push({ series: series.map((s) => ({ name: s.name, sorted: s.d.sorted })), x0, x1, L, pw, W }) - 1;
+  return SVGT(W, H, `${label} 누적분포(ECDF)`, g, ` data-ecdf="${id}"`);
+}
+function gradeSvg(cnt, n) {
+  const W = 640, H = 230, L = 50, R = 14, T = 22, B = 34, pw = W - L - R, ph = H - T - B, gs = E.GRADES, bw = pw / gs.length;
+  const max = Math.max(1, ...gs.map((g) => cnt[g] || 0)), yt = axisTicks(0, max, 4), top = Math.max(max, yt[yt.length - 1]), Y = (v) => T + ph - v / top * ph;
+  let g = yt.map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${int(v)}</text>`).join("");
+  g += `<line class="base" x1="${L}" x2="${W - R}" y1="${T + ph}" y2="${T + ph}"/>`;
+  gs.forEach((gr, i) => {
+    const k = cnt[gr] || 0, x = L + i * bw + bw * 0.22, w = bw * 0.56, h = k / top * ph, [lo, hi] = AS.wilson(k, n);
+    if (k) g += `<path class="bar" d="${barPath(x, T + ph - h, w, h, 3)}"/>`;
+    g += `<text class="lbl" x="${x + w / 2}" y="${T + ph - h - 6}" text-anchor="middle">${(k / n * 100).toFixed(1)}%</text>`
+      + `<text class="glbl" x="${x + w / 2}" y="${H - B + 17}" text-anchor="middle">${gr}</text>`
+      + `<rect class="hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${ph}" data-tip="${gr} (${GRADE_RANGE[gr]}점) · ${int(k)}세대 · ${(k / n * 100).toFixed(1)}% · 95% CI ${(lo * 100).toFixed(1)}–${(hi * 100).toFixed(1)}%"/>`;
+  });
+  return SVGT(W, H, "등급별 세대 수", g);
+}
+function stackSvg(groups) {
+  const W = 640, row = 30, L = 150, R = 16, T = 34, B = 8, H = T + row * groups.length + B, pw = W - L - R;
+  let g = BANDS.map(([b, gs, c], i) => `<rect x="${L + i * 120}" y="6" width="12" height="12" rx="2" fill="${c}"/><text class="glbl" x="${L + i * 120 + 18}" y="16">${b} (${gs.join("·")})</text>`).join("");
+  groups.forEach((gr, i) => {
+    const y = T + i * row, n = gr.n; let x = L;
+    g += `<text class="glbl" x="${L - 10}" y="${y + row / 2 + 4}" text-anchor="end">${esc(gr.name)} <tspan class="ax">n=${int(n)}</tspan></text>`;
+    BANDS.forEach(([b, gs, c], j) => {
+      const k = gs.reduce((s, x2) => s + (gr.cnt[x2] || 0), 0), w = n ? k / n * pw : 0; if (!w) return;
+      g += `<rect x="${x + (j ? 1 : 0)}" y="${y + 4}" width="${Math.max(0.5, w - (j ? 2 : 1))}" height="${row - 8}" rx="2" fill="${c}" data-tip="${esc(gr.name)} · ${b} ${int(k)}세대 (${(k / n * 100).toFixed(1)}%)"/>`;
+      if (k / n >= 0.08) g += `<text x="${x + w / 2}" y="${y + row / 2 + 4}" text-anchor="middle" class="seg" fill="${AS.inkOn(c)}">${Math.round(k / n * 100)}%</text>`;
+      x += w;
+    });
+  });
+  return SVGT(W, H, "집단별 등급 묶음 비율(100% 누적 막대)", g);
+}
+function heatSvg(V, M, method) {
+  const k = V.length, cell = k <= 8 ? 48 : k <= 14 ? 38 : 30, L = 200, T = 150, W = L + cell * k + 130, H = T + cell * k + 54;
+  const sym = method === "spearman" ? "ρ" : "r";
+  let g = V.map((v, i) => `<text class="glbl" x="${L - 8}" y="${T + cell * i + cell / 2 + 4}" text-anchor="end">${esc(v.label)}</text>`
+    + `<text class="glbl" transform="translate(${L + cell * i + cell / 2 + 4},${T - 8}) rotate(-45)">${esc(v.label)}</text>`).join("");
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) {
+    const c = M[i][j], r = c ? c.r : NaN, fill = i === j ? "#f4f5f6" : AS.diverging(r);
+    g += `<rect x="${L + cell * j + 1}" y="${T + cell * i + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill="${fill}"${i !== j ? ` data-tip="${esc(V[i].label)} × ${esc(V[j].label)} · ${sym} = ${AS.fin(r) ? r.toFixed(3) : "—"} · p ${AS.fmtP(c && c.p)} · n ${int(c && c.n)}"` : ""}/>`;
+    if (i !== j && AS.fin(r) && cell >= 30) g += `<text x="${L + cell * j + cell / 2}" y="${T + cell * i + cell / 2 + 4}" text-anchor="middle" class="seg" fill="${AS.inkOn(fill)}">${r.toFixed(2).replace(/^(-?)0\./, "$1.")}</text>`;
+  }
+  const ly = T + cell * k + 22, lw = Math.min(260, cell * k), lx = L;
+  g += `<defs><linearGradient id="divg">${[-1, -0.5, 0, 0.5, 1].map((v) => `<stop offset="${(v + 1) / 2 * 100}%" stop-color="${AS.diverging(v)}"/>`).join("")}</linearGradient></defs>`
+    + `<rect x="${lx}" y="${ly}" width="${lw}" height="10" rx="2" fill="url(#divg)"/>` + [-1, 0, 1].map((v) => `<text class="ax" x="${lx + (v + 1) / 2 * lw}" y="${ly + 24}" text-anchor="middle">${v}</text>`).join("")
+    + `<text class="ax" x="${lx + lw + 10}" y="${ly + 9}">${sym} (음 ← → 양)</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none;margin:0" role="img" aria-label="상관 행렬 히트맵">${g}</svg>`;
+}
+
+/* ── 공통 막대: 변수·집단·탈락 제외 ── */
+function sxControls(V, opts) {
+  const sel = (id, cur, items, label) => `<select class="select" id="${id}" style="width:auto;max-width:300px" aria-label="${label}">${items.map(([v, l, grp]) => `${grp ? `<optgroup label="${esc(grp)}">` : ""}<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  let h = "";
+  if (opts.v) { let last = ""; h += `<select class="select" id="sxV" style="width:auto;max-width:320px" aria-label="변수">${V.map((v) => { const og = v.group !== last ? `${last ? "</optgroup>" : ""}<optgroup label="${esc(v.group)}">` : ""; last = v.group; return `${og}<option value="${v.key}"${v.key === STX.v ? " selected" : ""}>${esc(v.label)}</option>`; }).join("")}</optgroup></select>`; }
+  if (opts.g) h += sel("sxG", STX[opts.g], Object.entries(GROUPS).filter(([k]) => (opts.noNone ? k : true) && !(opts.skip || []).includes(k)), "집단");
+  if (opts.bins) h += sel("sxBins", STX.bins, [["auto", "구간 자동(Freedman–Diaconis)"], ["10", "구간 10개"], ["20", "구간 20개"], ["40", "구간 40개"]], "구간");
+  if (opts.set) h += sel("sxSet", STX[opts.set], Object.entries(VAR_SETS), "변수 묶음");
+  if (opts.method) h += sel("sxMethod", STX.method, [["spearman", "Spearman ρ (순위)"], ["pearson", "Pearson r"]], "상관 방법");
+  h += `<label class="chk" style="margin-left:4px"><input type="checkbox" id="sxExcl"${STX.excl ? " checked" : ""}>필수 조건 탈락(0점) 세대 제외</label>`;
+  return `<div class="toolbar sx-bar" data-gkey="${opts.g || ""}" data-skey="${opts.set || ""}">${h}</div>`;
+}
+const exclNote = (S, rows) => (STX.excl ? `<div class="field-hint" style="margin:-4px 0 12px">필수 조건 탈락 세대 ${int(S.units.length - rows.length)}개를 뺀 ${int(rows.length)}세대입니다.</div>` : "");
+const kpiRow = (items) => `<div class="kpis">${items.map(([l, v, d, tip]) => `<div class="kpi"${tip ? ` data-tip="${esc(tip)}"` : ""}><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d || ""}</div></div>`).join("")}</div>`;
+
+/* ── 분포 · 집단 비교 ── */
+function tabDist(S) {
+  const rows = sxRows(S), V = statVars(rows);
+  if (!V.length) return `<div class="card"><div class="empty-state"><p>분석할 값이 없습니다.</p></div></div>`;
+  const v = V.find((x) => x.key === STX.v) || V[0];
+  const d = AS.describe(rows.map(v.get)), dp = dpOf(d);
+  if (!d.n) return sxControls(V, { v: 1, g: "g", bins: 1 }) + `<div class="card"><div class="empty-state"><p>‘${esc(v.label)}’ 값이 있는 세대가 없습니다.</p></div></div>`;
+  ECDF_CHARTS.length = 0;
+  let h = sxControls(V, { v: 1, g: "g", bins: 1 }) + exclNote(S, rows)
+    + (v.def ? `<div class="field-hint" style="margin:-4px 0 12px">${esc(v.label)} — ${esc(v.def)}</div>` : "")
+    + kpiRow([["n", int(d.n), rows.length - d.n ? `값 없음 ${int(rows.length - d.n)}세대` : "모든 세대"],
+      ["평균", fixd(d.mean, dp), `95% CI ${fixd(d.ciLo, dp)} – ${fixd(d.ciHi, dp)}`, "평균의 95% 신뢰구간(t 분포)"],
+      ["표준편차", fixd(d.sd, dp), `표준오차 ${fixd(d.se, dp)}`],
+      ["중앙값", fixd(d.median, dp), `IQR ${fixd(d.q1, dp)} – ${fixd(d.q3, dp)}`, "사분위수 R type 7(엑셀 PERCENTILE.INC)"],
+      ["왜도 · 첨도", `${fixd(d.skew, 2)} · ${fixd(d.kurt, 2)}`, "표본 G1 · 초과 첨도 G2", "0에 가까우면 정규분포와 비슷. |왜도| > 1이면 치우침이 큼"],
+      ["범위", `${fixd(d.min, dp)} – ${fixd(d.max, dp)}`, ""]]);
+  const bs = AS.bins(d, STX.bins);
+  const histCard = `<div class="card"><div class="card-header"><h2 class="card-title">${esc(v.label)} — 히스토그램</h2><span class="field-hint">구간 ${bs.length}개 · 주황 점선 평균 · 회색 선 중앙값</span></div><div class="card-body">${histSvg(bs, d, v.label)}</div></div>`;
+  STAT_TABLES.bins = null;
+  const binTable = { title: `${v.label} 구간별 빈도`, file: `분포_${v.label}`, cols: [{ key: "lo", label: "이상", num: 1, fmt: tickFmt }, { key: "hi", label: "미만", num: 1, fmt: tickFmt }, { key: "n", label: "세대", num: 1 }, { key: "p", label: "비율", num: 1, fmt: (x) => (x * 100).toFixed(1) + "%" }, { key: "cp", label: "누적 비율", num: 1, fmt: (x) => (x * 100).toFixed(1) + "%" }],
+    rows: (() => { let c = 0; return bs.map((b) => { c += b.n; return { lo: b.lo, hi: b.hi, n: b.n, p: b.n / d.n, cp: c / d.n }; }); })() };
+  const groups = STX.g ? groupSplit(rows, STX.g) : null;
+  if (!groups || groups.length < 2) {
+    h += `<div class="grid2">${histCard}<div class="card"><div class="card-header"><h2 class="card-title">누적분포(ECDF)</h2><span class="field-hint">그림 위를 움직이면 그 값 이하 비율</span></div><div class="card-body">${ecdfSvg([{ name: "전체", color: "#004F59", d }], v.label)}</div></div>
+      </div><div class="section-gap"></div>${statTable("bins", binTable, 60)}`;
+    if (STX.g && groups && groups.length < 2) h += `<div class="field-hint" style="margin-top:8px">집단이 하나뿐이라 비교하지 않습니다.</div>`;
+    return h;
+  }
+  const gs = groups.map((g) => ({ name: g.name, d: AS.describe(g.rows.map(v.get)) })).filter((g) => g.d.n);
+  const vals = gs.map((g) => g.d.sorted), kw = AS.kruskal(vals), an = AS.anova(vals);
+  h += `<div class="grid2">${histCard}
+    <div class="card"><div class="card-header"><h2 class="card-title">${esc(GROUPS[STX.g])}별 상자그림</h2><span class="field-hint">상자 Q1–Q3 · 굵은 선 중앙값 · 점 평균 · 수염 1.5 IQR</span></div><div class="card-body">${boxSvg(gs, v.label)}</div></div></div>
+    <div class="section-gap"></div><div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">누적분포(ECDF)</h2><span class="field-hint">${gs.length <= 3 ? "그림 위를 움직이면 집단별 그 값 이하 비율" : "집단이 3개를 넘어 전체만 그립니다 — 집단 비교는 상자그림"}</span></div>
+      <div class="card-body">${ecdfSvg(gs.length <= 3 ? gs.map((g, i) => ({ name: g.name, color: CAT[i], d: g.d })) : [{ name: "전체", color: "#004F59", d }], v.label)}</div></div>`;
+  const sigTxt = (p) => (p < 0.05 ? "유의함(p < .05)" : "유의하지 않음");
+  h += `<div class="card"><div class="card-header"><h2 class="card-title">집단 차이 검정</h2></div><div class="card-body test-res">
+      ${kw ? `<div><b>Kruskal–Wallis H(${kw.df}) = ${kw.H.toFixed(2)}, p ${pEq(kw.p)}, ε² = ${kw.eps2.toFixed(3)}</b> <span class="field-hint">N = ${int(kw.N)} · ${sigTxt(kw.p)} · 효과크기 ${effEps(kw.eps2)}</span></div>` : ""}
+      ${an ? `<div><b>일원 분산분석 F(${an.d1}, ${an.d2}) = ${an.F.toFixed(2)}, p ${pEq(an.p)}, η² = ${an.eta2.toFixed(3)}</b> <span class="field-hint">참고(정규성·등분산 가정) · 효과크기 ${effEta(an.eta2)}</span></div>` : ""}
+      <div class="field-hint" style="margin-top:6px">세대 수가 많으면 아주 작은 차이도 p &lt; .05가 됩니다. 차이의 크기는 효과크기(ε² · η²)로 판단하세요 — ε² .01 작음 · .08 중간 · .26 큼(Tomczak &amp; Tomczak 2014), η² .01 · .06 · .14(Cohen 1988).</div></div></div></div>`;
+  h += `<div class="section-gap"></div>` + statTable("groups", { title: `${v.label} — ${GROUPS[STX.g]}별 기술통계`, file: `집단비교_${v.label}`,
+    cols: [{ key: "name", label: GROUPS[STX.g] }, { key: "n", label: "n", num: 1 }, { key: "mean", label: "평균", num: 1, fmt: (x) => fixd(x, dp) }, { key: "sd", label: "SD", num: 1, fmt: (x) => fixd(x, dp) },
+      { key: "ci", label: "95% CI", num: 1 }, { key: "median", label: "중앙값", num: 1, fmt: (x) => fixd(x, dp) }, { key: "q1", label: "Q1", num: 1, fmt: (x) => fixd(x, dp) }, { key: "q3", label: "Q3", num: 1, fmt: (x) => fixd(x, dp) }, { key: "mr", label: "평균 순위", num: 1, fmt: (x) => x.toFixed(1), tip: "Kruskal–Wallis 평균 순위" }],
+    rows: gs.map((g, i) => ({ name: g.name, n: g.d.n, mean: g.d.mean, sd: g.d.sd, ci: `${fixd(g.d.ciLo, dp)} – ${fixd(g.d.ciHi, dp)}`, median: g.d.median, q1: g.d.q1, q3: g.d.q3, mr: kw ? kw.meanRank[i] : null })) });
+  if (kw && kw.dunn.length && gs.length <= 10) {
+    h += `<div class="section-gap"></div>` + statTable("dunn", { title: "사후검정 — Dunn(동점 보정), Holm 보정", file: `사후검정_${v.label}`,
+      cols: [{ key: "a", label: "집단 1" }, { key: "b", label: "집단 2" }, { key: "z", label: "z", num: 1, fmt: (x) => x.toFixed(2) }, { key: "p", label: "p", num: 1, fmt: AS.fmtP }, { key: "pAdj", label: "p(Holm)", num: 1, fmt: AS.fmtP }, { key: "sig", label: "판정" }],
+      rows: kw.dunn.map((x) => ({ a: gs[x.a].name, b: gs[x.b].name, z: x.z, p: x.p, pAdj: x.pAdj, sig: x.pAdj < 0.05 ? "차이 있음" : "—" })), note: "z > 0이면 집단 1의 순위가 높음(값이 큼)." });
+  }
+  return h + `<div class="section-gap"></div>` + statTable("bins", binTable, 60);
+}
+
+/* ── 등급 ── */
+function tabGrades(S) {
+  const rows = sxRows(S), n = rows.length;
+  if (!n) return sxControls([], { g: "gg", noNone: 1, skip: ["grade", "band"] }) + `<div class="card"><div class="empty-state"><p>세대가 없습니다.</p></div></div>`;
+  const cnt = {}; for (const r of rows) cnt[r.grade] = (cnt[r.grade] || 0) + 1;
+  let cum = 0;
+  const gt = { title: "등급 분포", file: "등급분포", cols: [{ key: "g", label: "등급" }, { key: "range", label: "점수 구간" }, { key: "n", label: "세대", num: 1 }, { key: "p", label: "비율", num: 1, fmt: (x) => (x * 100).toFixed(1) + "%" },
+      { key: "cp", label: "누적 비율", num: 1, fmt: (x) => (x * 100).toFixed(1) + "%", tip: "그 등급 이상인 세대 비율" }, { key: "ci", label: "95% CI(Wilson)", num: 1 }],
+    rows: E.GRADES.map((g) => { const k = cnt[g] || 0; cum += k; const [lo, hi] = AS.wilson(k, n); return { g, range: GRADE_RANGE[g], n: k, p: k / n, cp: cum / n, ci: `${(lo * 100).toFixed(1)} – ${(hi * 100).toFixed(1)}%` }; }),
+    note: `점수 구간은 아래 경계를 포함(예: A+ = 95점 이상). 필수 조건 탈락 세대는 0점이라 F에 들어갑니다${STX.excl ? "(지금은 제외)" : ""}.` };
+  let h = sxControls([], { g: "gg", noNone: 1, skip: ["grade", "band"] }) + exclNote(S, rows)
+    + kpiRow([["세대", int(n), ""], ["A 이상(90점+)", pct(((cnt["A+"] || 0) + (cnt.A || 0)) / n), `${int((cnt["A+"] || 0) + (cnt.A || 0))}세대`], ["B 이상(80점+)", pct(E.GRADES.slice(0, 4).reduce((s, g) => s + (cnt[g] || 0), 0) / n), ""],
+      ["C 이상(60점+)", pct(E.GRADES.slice(0, 6).reduce((s, g) => s + (cnt[g] || 0), 0) / n), ""], ["F(45점 미만)", pct((cnt.F || 0) / n), `${int(cnt.F || 0)}세대`]])
+    + `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">등급별 세대 수</h2><span class="field-hint">막대에 올리면 95% 신뢰구간</span></div><div class="card-body">${gradeSvg(cnt, n)}</div></div><div>${statTable("grades", gt)}</div></div>`;
+  const groups = groupSplit(rows, STX.gg) || [];
+  if (groups.length >= 2) {
+    const G = groups.map((g) => { const c = {}; for (const r of g.rows) c[r.grade] = (c[r.grade] || 0) + 1; return { name: g.name, n: g.rows.length, cnt: c, mean: AS.describe(g.rows.map((r) => r.total)).mean }; });
+    const x2 = AS.chi2Indep(G.map((g) => E.GRADES.map((gr) => g.cnt[gr] || 0)));
+    h += `<div class="section-gap"></div><div class="card"><div class="card-header"><h2 class="card-title">${esc(GROUPS[STX.gg])}별 등급 묶음</h2><span class="field-hint">100% 누적 막대 · 막대에 올리면 세대 수</span></div><div class="card-body">${stackSvg(G)}
+      ${x2 ? `<div class="test-res" style="margin-top:12px"><b>χ²(${x2.df}, N = ${int(x2.N)}) = ${x2.chi2.toFixed(2)}, p ${pEq(x2.p)}, Cramér's V = ${x2.V.toFixed(3)}</b> <span class="field-hint">8등급 × ${G.length}집단 독립성 검정 · 효과크기 ${effV(x2.V, Math.min(G.length, 8) - 1)}${x2.lowShare > 0.2 ? ` · 기대빈도 5 미만 칸이 ${(x2.lowShare * 100).toFixed(0)}%라 근사가 부정확할 수 있습니다(등급 묶음으로 보세요)` : ""}</span></div>` : ""}</div></div>`;
+    h += `<div class="section-gap"></div>` + statTable("gradecross", { title: `${GROUPS[STX.gg]} × 등급 교차표(행 비율)`, file: `등급교차_${GROUPS[STX.gg]}`,
+      cols: [{ key: "name", label: GROUPS[STX.gg] }, { key: "n", label: "n", num: 1 }, ...E.GRADES.map((g) => ({ key: "g_" + g, label: g, num: 1, fmt: (x, r) => `${int(r["c_" + g])} (${(x * 100).toFixed(1)}%)` })), { key: "mean", label: "평균 점수", num: 1, fmt: (x) => x.toFixed(1) }],
+      rows: G.map((g) => Object.assign({ name: g.name, n: g.n, mean: g.mean }, ...E.GRADES.map((gr) => ({ ["g_" + gr]: (g.cnt[gr] || 0) / g.n, ["c_" + gr]: g.cnt[gr] || 0 })))) });
+  }
+  return h;
+}
+
+/* ── 상관 ── */
+function tabCorr(S) {
+  const rows = sxRows(S), V = pickSet(statVars(rows), STX.corrSet).slice(0, 40);
+  let h = sxControls([], { set: "corrSet", method: 1 }) + exclNote(S, rows);
+  if (V.length < 2) return h + `<div class="card"><div class="empty-state"><p>상관을 볼 변수가 둘 이상 필요합니다.</p></div></div>`;
+  const M = memo(`corr|${sig(rows)}|${STX.excl}|${STX.corrSet}|${STX.method}|${V.map((v) => v.key).join(",")}`, () => AS.corrMatrix(V.map((v) => rows.map(v.get)), STX.method));
+  const sym = STX.method === "spearman" ? "ρ" : "r", pr = [];
+  for (let i = 0; i < V.length; i++) for (let j = i + 1; j < V.length; j++) pr.push({ a: V[i].label, b: V[j].label, r: M[i][j].r, p: M[i][j].p, n: M[i][j].n });
+  pr.sort((x, y) => Math.abs(y.r || 0) - Math.abs(x.r || 0));
+  h += `<div class="card"><div class="card-header"><h2 class="card-title">상관 행렬 — ${STX.method === "spearman" ? "Spearman ρ" : "Pearson r"}</h2><span class="field-hint">파랑 양(+) · 빨강 음(−) · 칸에 올리면 p와 n · 짝별 완전 사례</span></div><div class="card-body tw">${heatSvg(V, M, STX.method)}</div></div>
+    <div class="section-gap"></div>` + statTable("corr", { title: `상관 — ${STX.method === "spearman" ? "Spearman ρ" : "Pearson r"} (|${sym}| 큰 순)`, file: `상관_${STX.method}`,
+    cols: [{ key: "a", label: "변수 1" }, { key: "b", label: "변수 2" }, { key: "r", label: sym, num: 1, fmt: (x) => x.toFixed(3) }, { key: "eff", label: "크기" }, { key: "p", label: "p", num: 1, fmt: AS.fmtP }, { key: "n", label: "n", num: 1 }],
+    rows: pr.map((x) => Object.assign(x, { eff: AS.fin(x.r) ? effR(x.r) : "—" })), note: `크기: |${sym}| ≥ .5 강함 · .3 중간 · .1 약함(Cohen 1988). 세대 수가 많아 작은 상관도 유의하게 나오므로 크기로 판단하세요.` }, 100);
+  return h;
+}
+
+/* ── 기술통계(논문 표 1) ── */
+function tabDesc(S, live) {
+  const rows = sxRows(S), V = pickSet(statVars(rows), STX.set), groups = STX.dg ? groupSplit(rows, STX.dg) : null;
+  const out = [];
+  for (const v of V) {
+    const parts = groups && groups.length >= 2 ? [{ name: "전체", rows }, ...groups] : [{ name: "", rows }];
+    for (const p of parts) {
+      const d = AS.describe(p.rows.map(v.get)); if (!d.n) continue;
+      const dp = dpOf(d);
+      out.push({ var: v.label, grp: p.name, n: d.n, mean: fixd(d.mean, dp), sd: fixd(d.sd, dp), ci: `${fixd(d.ciLo, dp)} – ${fixd(d.ciHi, dp)}`, median: fixd(d.median, dp), q1: fixd(d.q1, dp), q3: fixd(d.q3, dp),
+        min: fixd(d.min, dp), max: fixd(d.max, dp), skew: fixd(d.skew, 2), kurt: fixd(d.kurt, 2), _cls: p.name && p.name !== "전체" ? "sub" : "" });
+    }
+  }
+  const cols = [{ key: "var", label: "변수" }, ...(groups && groups.length >= 2 ? [{ key: "grp", label: GROUPS[STX.dg] }] : []), { key: "n", label: "n", num: 1 }, { key: "mean", label: "평균", num: 1 }, { key: "sd", label: "SD", num: 1 },
+    { key: "ci", label: "95% CI", num: 1 }, { key: "median", label: "중앙값", num: 1 }, { key: "q1", label: "Q1", num: 1 }, { key: "q3", label: "Q3", num: 1 }, { key: "min", label: "최저", num: 1 }, { key: "max", label: "최고", num: 1 },
+    { key: "skew", label: "왜도", num: 1 }, { key: "kurt", label: "첨도", num: 1 }];
+  const ctl = sxControls([], { set: "set" }).replace(`<label class="chk"`, `<select class="select" id="sxDG" style="width:auto" aria-label="집단">${Object.entries(GROUPS).map(([k, l]) => `<option value="${k}"${k === STX.dg ? " selected" : ""}>${k ? l + "별로 나눔" : "집단 나누지 않음"}</option>`).join("")}</select><label class="chk"`);
+  return ctl + exclNote(S, rows) + statTable("desc", { title: "기술통계", file: "기술통계", cols, rows: out,
+      note: "SD 표준편차 · 95% CI 평균의 95% 신뢰구간(t 분포) · 사분위수 R type 7 · 왜도 표본 G1 · 첨도 표본 초과 첨도 G2. 소수 자리는 값의 크기에 맞췄습니다(CSV는 원래 값)." }, 600)
+    + `<div class="section-gap"></div><div class="card"><div class="card-header"><h2 class="card-title">통계 방법 — 논문용 서술</h2><button class="btn btn-ghost btn-sm" data-act="copyMethods">복사</button></div>
+      <div class="card-body"><p id="methodsText" style="margin:0;line-height:1.75;font-size:13.5px">${esc(methodsText(S, rows, live))}</p></div></div>
+    <div class="section-gap"></div><div class="card"><div class="card-header"><h2 class="card-title">이 통계를 낸 조건·변수</h2></div><div class="card-body">
+      <pre class="num" style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:22px">${esc(S.config.dsl)}</pre>
+      <div class="field-hint" style="margin-top:12px">${esc(Object.entries(S.config.params || {}).map(([k, v]) => `${k}=${v}`).join(" · "))}</div>
+      <div class="field-hint">정답지: ${S.baseline ? `${{ default: "AI 허브 전체(기본)", auto: "보유 세대" }[S.baseline.source] || "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div>
+      ${S.builtin && S.memo ? `<div class="field-hint">${esc(S.memo)}</div>` : ""}</div></div>`;
+}
+function methodsText(S, rows, live) {
+  const sm = S.summary, empty = sm.n_files_empty, crit = (S.config.criteria || []).filter((c) => c.enabled !== false).length;
+  const sp = E.scoringParams(S.config.params || {});
+  return `분석 대상은 도면 ${int(sm.n_files)}장에서 현관 라벨을 기준으로 나눈 ${int(sm.n_units)}세대이다${empty ? `(현관 라벨이 없어 세대를 나눌 수 없는 도면 ${int(empty)}장은 제외)` : ""}${STX.excl ? `. 이 중 필수 조건에서 탈락한 ${int(S.units.length - rows.length)}세대를 빼고 ${int(rows.length)}세대를 분석했다` : ""}. `
+    + `각 세대는 사용자가 정한 평가 구조(조건 ${crit}개, 0~100점)로 채점했으며, 정답지 근접도는 ${S.baseline ? `AI 허브 「건축 도면 데이터」 아파트 평면도 ${int(S.baseline.n_units)}세대의` : "기준"} 지표 분포와 비교한 강건 점수(Qn 척도 z 또는 경험적 백분위, 침실 수 층화)를 영역 가중치(공간구문 ${sp.w_syntax} · 면적 구성 ${sp.w_area} · 형태 ${sp.w_shape} · 외기 접면 ${sp.w_ext})로 합친 값이다. `
+    + `기술통계는 평균, 표준편차, 평균의 95% 신뢰구간(t 분포), 중앙값과 사분위수(type 7), 표본 왜도(G1)와 초과 첨도(G2)로 보고했다. `
+    + `집단 간 차이는 정규성을 가정하지 않는 Kruskal–Wallis H 검정(동점 보정)과 효과크기 ε²로 검정하고, 사후검정은 Dunn 검정에 Holm 보정을 적용했으며, 일원 분산분석(F, η²)을 함께 보고했다. `
+    + `등급 분포의 집단 간 차이는 χ² 독립성 검정과 Cramér's V로, 변수 간 관련성은 Spearman 순위상관(ρ, 짝별 완전 사례)으로 분석했다. 비율의 95% 신뢰구간은 Wilson 방법으로 구했고, 유의수준은 .05로 했다.`;
+}
+
+/* ECDF 십자선 — 그림 위 x 위치의 '그 값 이하' 비율 */
+function ecdfHover(e) {
+  const svg = e.target.closest && e.target.closest("svg[data-ecdf]"); if (!svg) return false;
+  const c = ECDF_CHARTS[+svg.dataset.ecdf], tip = $("#tip"), line = svg.querySelector(".xhair"); if (!c) return false;
+  const rect = svg.getBoundingClientRect(), vx = (e.clientX - rect.left) / rect.width * c.W;
+  if (vx < c.L || vx > c.L + c.pw) { line.setAttribute("visibility", "hidden"); tip.hidden = true; return true; }
+  const val = c.x0 + (vx - c.L) / c.pw * (c.x1 - c.x0);
+  line.setAttribute("x1", vx); line.setAttribute("x2", vx); line.setAttribute("visibility", "visible");
+  const le = (s) => { let lo = 0, hi = s.length; while (lo < hi) { const m = (lo + hi) >> 1; if (s[m] <= val) lo = m + 1; else hi = m; } return lo / s.length; };
+  tip.textContent = `${fmt(val, 4)} 이하 — ` + c.series.map((s) => `${s.name} ${(le(s.sorted) * 100).toFixed(1)}%`).join(" · ");
+  tip.hidden = false; tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 12) + "px"; tip.style.top = (e.clientY - 34) + "px";
+  return true;
+}
+function onStatsControl(t) {
+  if (t.id === "sxV") STX.v = t.value;
+  else if (t.id === "sxG") { const k = t.closest(".sx-bar").dataset.gkey || "g"; STX[k] = t.value; }
+  else if (t.id === "sxBins") STX.bins = t.value;
+  else if (t.id === "sxSet") { const k = t.closest(".sx-bar").dataset.skey || "set"; STX[k] = t.value; }
+  else if (t.id === "sxMethod") STX.method = t.value;
+  else if (t.id === "sxDG") STX.dg = t.value;
+  else if (t.id === "sxExcl") STX.excl = t.checked;
+  else return false;
+  saveStx(); render(); return true;
+}
+
 function statsBody(S, tab, live) {
   const sm = S.summary, sc = sm.score;
   if (tab === "summary") {
     const kpis = [
-      ["세대", int(sm.n_units), `파일 ${int(sm.n_files)}개`],
+      ["세대", int(sm.n_units), `파일 ${int(sm.n_files)}개${sm.n_files_empty ? ` · 세대 없는 파일 ${int(sm.n_files_empty)}개` : ""}`, sm.n_files_empty ? `현관 라벨이 없어 세대를 나눌 수 없는 파일 ${int(sm.n_files_empty)}개는 통계에 들어가지 않습니다(세대는 현관을 기준으로 나눕니다)` : ""],
       ["평균 점수", fx(sc.mean), `중앙값 ${fx(sc.median)} · 표준편차 ${fx(sc.sd)}`],
       ["시공 가능", pct(sm.feasibility_pass_rate), "오류 없는 세대 비율"],
       ["필수 조건 탈락", pct(sm.gated_rate), "총점 0점 처리된 세대"],
       ["평균 감점", fx(sm.mean_penalty, 2), `평균 기본점 ${fx(sm.mean_base)}`],
-    ].map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+    ].map(([l, v, d, tip]) => `<div class="kpi"${tip ? ` data-tip="${esc(tip)}"` : ""}><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
     const types = `<table class="t"><thead><tr><th>유형</th><th class="n">세대</th><th class="n">평균</th><th class="n">중앙값</th><th class="n">최저</th><th class="n">최고</th><th>시공 가능</th></tr></thead><tbody>
       ${S.by_type.map(t => `<tr><td><b>${esc(t.type)}</b></td><td class="n">${int(t.n)}</td><td class="n">${fx(t.mean)}</td><td class="n">${fx(t.median)}</td><td class="n">${fx(t.min)}</td><td class="n">${fx(t.max)}</td>
         <td class="num" style="white-space:nowrap"><span class="meter"><b style="width:${t.pass_rate * 100}%"></b></span>${pct(t.pass_rate)}</td></tr>`).join("")}</tbody></table>`;
@@ -924,18 +1317,10 @@ function statsBody(S, tab, live) {
       <div class="section-gap"></div>
       <div class="card"><div class="card-header"><h2 class="card-title">시공 가능성 점검</h2></div><div class="card-body flush tw">${iss}</div></div>`;
   }
-  if (tab === "measures") {
-    return `<div class="card"><div class="card-header"><h2 class="card-title">전역 지표 요약</h2></div><div class="card-body flush tw">
-      <table class="t"><thead><tr><th>지표</th><th class="n">n</th><th class="n">평균</th><th class="n">중앙값</th><th class="n">표준편차</th><th class="n">최저</th><th class="n">최고</th></tr></thead><tbody>
-      ${Object.entries(S.measures).filter(([, d]) => d.n).map(([k, d]) => `<tr><td>${esc((E.MEASURES[k] || {}).label || k)} <span class="field-hint">@${k}</span></td><td class="n">${int(d.n)}</td><td class="n">${fmt(d.mean)}</td><td class="n">${fmt(d.median)}</td><td class="n">${fmt(d.sd)}</td><td class="n">${fmt(d.min)}</td><td class="n">${fmt(d.max)}</td></tr>`).join("")}
-      </tbody></table></div></div>
-      <div class="section-gap"></div>
-      <div class="card"><div class="card-header"><h2 class="card-title">이 통계를 낸 조건·변수</h2></div><div class="card-body">
-        <pre class="num" style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:22px">${esc(S.config.dsl)}</pre>
-        <div class="field-hint" style="margin-top:12px">${esc(Object.entries(S.config.params || {}).map(([k, v]) => `${k}=${v}`).join(" · "))}</div>
-        <div class="field-hint">정답지: ${S.baseline ? `${{ default: "AI 허브 전체(기본)", auto: "보유 세대" }[S.baseline.source] || "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div>
-        ${S.builtin && S.memo ? `<div class="field-hint">${esc(S.memo)}</div>` : ""}</div></div>`;
-  }
+  if (tab === "dist") return tabDist(S);
+  if (tab === "grades") { if (["", "grade", "band"].includes(STX.gg)) STX.gg = "nbed"; return tabGrades(S); }
+  if (tab === "corr") return tabCorr(S);
+  if (tab === "desc") return tabDesc(S, live);
   const rows = S.units.slice().sort((a, b) => ST.unitSort === "asc" ? a.total - b.total : ST.unitSort === "desc" ? b.total - a.total : a.unit.localeCompare(b.unit));
   const LIM = 2000;
   return `<div class="toolbar"><select class="select" id="unitSort" style="width:auto" aria-label="정렬">${[["name", "이름순"], ["asc", "점수 낮은 순"], ["desc", "점수 높은 순"]].map(([v, l]) => `<option value="${v}"${v === ST.unitSort ? " selected" : ""}>${l}</option>`).join("")}</select>
@@ -1864,7 +2249,20 @@ async function loadDefaults() {
   const get = (u) => fetch(u, { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null);
   const [b, s] = await Promise.all([get("data/aihub-baseline.json"), get("data/aihub-default-stats.json")]);
   ST.defaults.baseline = b && b.version === 2 && b.all ? b : null;
+  if (s && s.units_packed) { s.units = unpackUnits(s.units_packed); delete s.units_packed; }
   ST.defaults.stats = s && s.kind === "aihub-stats" ? Object.assign(s, { builtin: true, id: s.id || "builtin-aihub" }) : null;
+}
+/* 기본 통계의 점수표는 열 방식(cols + rows)으로 압축돼 있다 — g.* 전역 지표 · d.* 영역 점수 · f.* 근거 문서 지표 */
+function unpackUnits({ cols, rows }) {
+  return rows.map(a => {
+    const o = { global: {}, dom: {}, feat: {} };
+    cols.forEach((c, i) => {
+      const v = a[i];
+      if (c.startsWith("g.")) o.global[c.slice(2)] = v; else if (c.startsWith("d.")) o.dom[c.slice(2)] = v; else if (c.startsWith("f.")) o.feat[c.slice(2)] = v;
+      else o[c] = c === "pass" ? !!v : v;
+    });
+    return o;
+  });
 }
 async function saveSnap(s) {
   s.id = s.id || "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -2114,6 +2512,8 @@ async function onClick(e) {
     switch (act) {
       case "sample": return ingest(sampleItems(), "sample");
       case "logout": return logout();
+      case "tblX": return exportStatTable(a.dataset.tid, a.dataset.fmt);
+      case "copyMethods": { const txt = $("#methodsText").textContent; return navigator.clipboard.writeText(txt).then(() => toast("통계 방법 문단을 복사했습니다")).catch(() => download("통계방법.txt", txt, "text/plain")); }
       case "logsMore": return adminLoad(true);
       case "logsCsv": { const q = new URLSearchParams(Object.entries(AUTH.admin.f).filter(([, v]) => v)); location.href = "api/admin/logs.csv?" + q; return; }
       case "logsOf": e.preventDefault(); AUTH.admin.f = { email: a.dataset.email, action: "", q: "" }; return go("#/admin/logs");
@@ -2242,6 +2642,7 @@ async function onClick(e) {
       return render();
     }
     if (t.id === "statType") { ST.statType = t.value; return render(); }
+    if (onStatsControl(t)) return;
     if (t.id === "statSource") { ST.statSource = t.value; return render(); }
     if (t.id === "unitSort") { ST.unitSort = t.value; return render(); }
   });
@@ -2278,6 +2679,7 @@ async function onClick(e) {
     pickFiles(ents.length ? await entriesToFiles(ents) : e.dataTransfer.files);
   });
   document.addEventListener("pointermove", (e) => {
+    if (ecdfHover(e)) return;
     const t = e.target.closest && e.target.closest("[data-tip]"), tip = $("#tip");
     if (!t) { tip.hidden = true; return; }
     tip.textContent = t.dataset.tip; tip.hidden = false;

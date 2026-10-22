@@ -17,8 +17,10 @@ SSH_OPTS=(-o BatchMode=yes)
 # 엔진 캐시 무효화 — 워크플로와 같은 규칙(엔진 해시)을 임시 사본에 적용
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 cp -R "$SRC/." "$TMP/"
-v=$(sha256sum "$TMP/aihub-engine.js" | cut -c1-12)
-sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" "$TMP/index.html"
+for f in aihub-engine aihub-stats; do
+  v=$(sha256sum "$TMP/$f.js" | cut -c1-12)
+  sed -i -E "s#$f\.js\?v=[^\"]*#$f.js?v=$v#" "$TMP/index.html"
+done
 
 echo "▸ $SRC  →  $DEPLOY_HOST:$WEBROOT  (engine v=$v)"
 tar -C "$TMP" -cf - . | ssh "${SSH_OPTS[@]}" "$DEPLOY_HOST" "set -e

@@ -57,11 +57,13 @@ jobs:
           if [ -n "$missing" ]; then echo "::error::시크릿이 비어 있습니다:$missing"; exit 1; fi
 
       - name: 엔진 캐시 무효화
-        # 서버가 .js를 1년 immutable 캐시하므로, 엔진 내용 해시를 주소에 붙여 바뀔 때만 새로 받게 한다
+        # 서버가 .js를 1년 immutable 캐시하므로, 엔진·통계 파일 내용 해시를 주소에 붙여 바뀔 때만 새로 받게 한다
         run: |
-          v=$(sha256sum docs/aihub-engine.js | cut -c1-12)
-          sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" docs/index.html
-          grep -o 'aihub-engine\.js?v=[^"]*' docs/index.html
+          for f in aihub-engine aihub-stats; do
+            v=$(sha256sum "docs/$f.js" | cut -c1-12)
+            sed -i -E "s#$f\.js\?v=[^\"]*#$f.js?v=$v#" docs/index.html
+          done
+          grep -o 'aihub-[a-z]*\.js?v=[^"]*' docs/index.html
 
       - name: SSH 키 준비
         env:
@@ -109,7 +111,7 @@ jobs:
           TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
         run: |
           SSH="ssh -p $SSH_PORT -i $HOME/.ssh/deploy_key -o BatchMode=yes"
-          for f in index.html grid-editor.html aihub-engine.js data/aihub-baseline.json; do
+          for f in index.html grid-editor.html aihub-engine.js aihub-stats.js data/aihub-baseline.json data/aihub-default-stats.json; do
             want=$(sha256sum "docs/$f" | cut -c1-64)
             got=$($SSH "$TARGET" "sha256sum '$DEPLOY_PATH/$f'" | cut -c1-64)
             if [ "$got" != "$want" ]; then echo "::error::서버의 $f 가 배포본과 다릅니다"; exit 1; fi

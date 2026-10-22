@@ -23,11 +23,13 @@ const params = E.defaultParams();
 
 // 1차: 세대 나누기 · 지표 요약 (조건과 무관)
 const sums = [];
-let t = Date.now(), failed = 0;
+let t = Date.now(), failed = 0, empty = 0;
 files.forEach((f, i) => {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(src, f), "utf8"));
-    for (const u of E.loadUnits(data, f, params)) sums.push({ file: f, s: E.summarizeUnit(u, E.analyzeUnit(u, params)) });
+    const units = E.loadUnits(data, f, params);
+    if (!units.length) empty++;   // 현관 라벨이 없어 세대를 나눌 수 없는 도면
+    for (const u of units) sums.push({ file: f, s: E.summarizeUnit(u, E.analyzeUnit(u, params)) });
   } catch (e) { failed++; console.error(f, e.message); }
   if (Date.now() - t > 5000) { console.error(`${i + 1}/${files.length} 파일 · 세대 ${sums.length}`); t = Date.now(); }
 });
@@ -36,17 +38,31 @@ files.forEach((f, i) => {
 const baseline = E.buildBaseline(sums.map(({ s }) => ({ unit: s.uid, type: s.type, ...s.features })));
 
 // 2차: 정답지까지 넣어 기본 평가 구조로 채점 → 통계
-const rows = sums.map(({ file, s }) => E.statRow(E.scoreCached(s, criteria, baseline), file, { source: "aihub" }));
+const scored = sums.map(({ file, s }) => { const r = E.scoreCached(s, criteria, baseline); return { r, row: E.statRow(r, file, { source: "aihub" }) }; });
+const rows = scored.map((x) => x.row);
 const stats = E.aggregate(rows, { params, criteria },
   { name: `AI 허브 전체 — 아파트 평면도 ${files.length.toLocaleString("ko-KR")}장`, memo: SOURCE_NOTE,
     baseline: { source: "default", n_units: baseline.n_units, type_counts: baseline.type_counts } });
-// 점수표는 세대별 점수만(지표·조건점수 열은 빼서 가볍게)
-stats.units = stats.units.map(u => ({ unit: u.unit, type: u.type, total: +u.total.toFixed(2), base: +u.base.toFixed(2),
-  penalty: +u.penalty.toFixed(2), gated: u.gated, grade: u.grade, pass: u.pass, source: "aihub" }));
+// 점수표는 열 방식으로 압축(키 이름 반복을 없앰) — 웹이 불러올 때 풀어 쓴다(loadDefaults).
+// 연구용 통계(분포·상관·기술통계)에 쓰도록 전역 지표 일부 · 정답지 영역 점수 · 근거 문서 지표 18개를 넣는다(유효숫자 4자리).
+const G = ["typicality", "n_bed", "n_bath", "n_spaces", "mean_depth_system", "max_depth_from_carrier", "mean_integration", "intelligibility", "ringiness"];
+const D = Object.keys(E.DOMAINS), F = E.SCORED;
+const r4 = (v) => (Number.isFinite(v) ? +v.toPrecision(4) : null), r2 = (v) => (Number.isFinite(v) ? +v.toFixed(2) : null);
+stats.units_packed = {
+  cols: ["unit", "type", "total", "base", "penalty", "gated", "grade", "pass", "source", ...G.map((k) => "g." + k), ...D.map((d) => "d." + d), ...F.map((k) => "f." + k)],
+  rows: scored.map(({ r, row }) => {
+    const typ = r.typicality, fe = r.features || {};
+    return [row.unit, row.type, r2(row.total), r2(row.base), r2(row.penalty), row.gated, row.grade, row.pass ? 1 : 0, "aihub",
+      ...G.map((k) => r4(row.global[k])), ...D.map((d) => r4(typ && typ.domains[d] ? typ.domains[d].score : null)),
+      ...F.map((k) => r4(Number.isFinite(fe[k]) ? fe[k] : typ && typ.features[k] ? typ.features[k].value : null))];
+  }),
+};
+stats.units = [];
+stats.summary.n_files_empty = empty;
 stats.id = "builtin-aihub";
 stats.builtin = true;
 
-const meta = { source: SOURCE_NOTE, files: files.length, units: sums.length, failed, built: new Date().toISOString() };
+const meta = { source: SOURCE_NOTE, files: files.length, units: sums.length, failed, empty, built: new Date().toISOString() };
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "aihub-baseline.json"), JSON.stringify({ ...baseline, meta }));
 fs.writeFileSync(path.join(outDir, "aihub-default-stats.json"), JSON.stringify(stats));
