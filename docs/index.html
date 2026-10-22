@@ -1,1712 +1,1291 @@
 <meta charset="utf-8">
-<title>도면 공간구문 스튜디오</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>도면 평가 스튜디오</title>
 <style>
+/* ═════════════════════════════════════════════════════════════════
+   Works Design System(MS DX팀) 토큰·프리미티브를 따른다.
+   폰트: Pretendard Variable(본문·숫자, tnum) · Red Hat Display(워드마크)
+   ═════════════════════════════════════════════════════════════════ */
+@font-face{font-family:"Pretendard Variable";font-weight:45 920;font-style:normal;font-display:swap;src:url("fonts/PretendardVariable.woff2") format("woff2")}
+@font-face{font-family:"Red Hat Display";font-weight:300 900;font-style:normal;font-display:swap;src:url("fonts/RedHatDisplay-VariableFont_wght.ttf") format("truetype")}
 :root{
-  --bg:#eceff1; --stage:#e2e7ea; --panel:#ffffff; --bar:#1e2a33; --bar-2:#28363f;
-  --ink:#16222b; --ink-2:#44586410; --text:#16222b; --text-2:#4a5c67; --muted:#778a94;
-  --line:#dae1e4; --line-2:#e9eef0;
-  --acc:#0d8f7c; --acc-soft:#e0f2ee; --warm:#b06a12; --violet:#8e3d9e;
-  --good:#12705f; --warn:#9a6a10; --bad:#a8451a;
-  --rail-ink:#93a6b1; --rail-on:#ffffff;
-  --sh:0 1px 2px rgba(22,34,43,.07),0 6px 18px -10px rgba(22,34,43,.2);
-}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#101820; --stage:#0b1219; --panel:#18232b; --bar:#0c141a; --bar-2:#152029;
-  --ink:#e4ecef; --text:#e4ecef; --text-2:#b3c3cc; --muted:#8598a3;
-  --line:#26343d; --line-2:#1d2730;
-  --acc:#17a68d; --acc-soft:#123029; --warm:#c67f22; --violet:#a555b5;
-  --good:#3fb89c; --warn:#d0a03c; --bad:#e08a5c;
-  --sh:0 1px 2px rgba(0,0,0,.5),0 8px 22px -12px rgba(0,0,0,.8);
-}}
-:root[data-theme="dark"]{
-  --bg:#101820; --stage:#0b1219; --panel:#18232b; --bar:#0c141a; --bar-2:#152029;
-  --ink:#e4ecef; --text:#e4ecef; --text-2:#b3c3cc; --muted:#8598a3;
-  --line:#26343d; --line-2:#1d2730;
-  --acc:#17a68d; --acc-soft:#123029; --warm:#c67f22; --violet:#a555b5;
-  --good:#3fb89c; --warn:#d0a03c; --bad:#e08a5c;
-  --sh:0 1px 2px rgba(0,0,0,.5),0 8px 22px -12px rgba(0,0,0,.8);
+  --color-primary-100:#004F59;--color-primary-200:#003640;--color-primary-50:#D3E6E8;
+  --color-secondary-100:#F47D30;--color-amber-100:#B8531A;
+  --color-gray-900:#101828;--color-gray-600:#4A5565;--color-gray-200:#A4A4A4;--color-gray-100:#D9D9D9;--color-gray-25:#F5F5F5;
+  --color-bg-0:#FFFFFF;--color-bg-1:#F9F9F9;--color-bg-2:#F5F7F8;--color-bg-canvas:#F7F8F9;
+  --color-text-primary:#222222;--color-text-secondary:#666666;--color-text-disabled:#A0A0A0;--color-text-on-dark:#FFFFFF;
+  --color-divider:#E0E0E0;
+  --color-success:#00A969;--color-warning:#FBC53C;--color-error:#DC3545;--color-info:#17A2B8;
+  --color-dim:rgba(0,0,0,.34);
+  --font-display:"Red Hat Display","Pretendard Variable",system-ui,sans-serif;
+  --font-body:"Pretendard Variable",Pretendard,system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --tracking-ko-px:-0.2px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:32px;--space-8:40px;--space-9:48px;
+  --radius-xs:4px;--radius-sm:8px;--radius-md:12px;--radius-pill:9999px;
+  --shadow-card:1px 2px 3px 0 rgba(0,0,0,.10);--shadow-popover:0 4px 12px 0 rgba(0,0,0,.08);
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-emphasized:cubic-bezier(.3,0,0,1);
+  --duration-fast:150ms;--duration-base:220ms;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font-size:13px;line-height:1.55;
-  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;
-  word-break:keep-all;-webkit-font-smoothing:antialiased;overflow:hidden}
-.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
-button,input,select,textarea{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{font-family:var(--font-body);font-size:14px;line-height:20px;letter-spacing:var(--tracking-ko-px);color:var(--color-text-primary);
+  background:var(--color-bg-canvas);-webkit-font-smoothing:antialiased;word-break:keep-all}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--color-primary-100);outline-offset:1px}
+.num{font-feature-settings:"tnum" 1;font-variant-numeric:tabular-nums}
+code{font-family:var(--font-body);font-feature-settings:"tnum" 1;background:var(--color-gray-25);border-radius:var(--radius-xs);padding:0 4px;font-size:.92em}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;display:inline-block;vertical-align:middle}
 
-/* ── 앱 골격 ─────────────────────────────── */
-.app{display:grid;grid-template-rows:46px 1fr;height:100vh}
-.bar{background:var(--bar);color:#dbe5ea;display:flex;align-items:center;gap:14px;padding:0 14px}
-.bar .logo{font-weight:600;font-size:14px;color:#fff;letter-spacing:-.01em;white-space:nowrap}
-.bar .logo span{color:var(--acc);font-weight:600}
-.bar .file{font-size:11.5px;color:#8ea1ac;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar .grp{display:flex;align-items:center;gap:7px}
-.bar .scalebox{display:flex;align-items:center;gap:5px;background:var(--bar-2);border-radius:4px;padding:3px 8px}
-.bar .scalebox label{font-size:10.5px;color:#8ea1ac}
-.bar input[type=number]{background:transparent;border:none;width:46px;text-align:right;
-  font-family:"IBM Plex Mono",monospace;font-size:12px;color:#fff;padding:0}
-.bar .m2{font-size:10.5px;color:#8ea1ac;font-family:"IBM Plex Mono",monospace}
-.scorechip{display:flex;align-items:center;gap:9px;background:var(--bar-2);border-radius:4px;padding:4px 11px}
-.scorechip .n{font-family:"IBM Plex Mono",monospace;font-size:18px;font-weight:600;line-height:1;color:#fff}
-.scorechip .g{font-size:14px;font-weight:600;line-height:1}
-.scorechip .lbl{font-size:9.5px;color:#8ea1ac;line-height:1.2}
-.g-A{color:#4ecfae} .g-B{color:#5bc0c8} .g-C{color:#e0b453} .g-D{color:#e08a6c}
-.tbtn{background:transparent;border:1px solid #37464f;color:#c3d1d8;border-radius:4px;
-  padding:4px 11px;font-size:11.5px;cursor:pointer;white-space:nowrap}
-.tbtn:hover{border-color:var(--acc);color:#fff}
-.tbtn.prim{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:500}
+/* ── 프리미티브 ───────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 var(--space-4);font-size:14px;font-weight:600;border-radius:5px;border:none;white-space:nowrap;
+  transition:background var(--duration-fast) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);user-select:none;text-decoration:none}
+.btn:disabled{cursor:not-allowed;opacity:.4}
+.btn-primary{background:var(--color-primary-100);color:var(--color-text-on-dark)}
+.btn-primary:hover:not(:disabled){background:var(--color-primary-200)}
+.btn-primary:active:not(:disabled),.btn-secondary:active:not(:disabled){transform:scale(.98)}
+.btn-secondary{background:var(--color-bg-0);color:var(--color-text-primary);box-shadow:inset 0 0 0 1px var(--color-gray-100)}
+.btn-secondary:hover:not(:disabled){background:var(--color-bg-2)}
+.btn-ghost{background:transparent;color:var(--color-text-secondary)}
+.btn-ghost:hover:not(:disabled){background:var(--color-bg-2);color:var(--color-text-primary)}
+.btn-danger{background:var(--color-error);color:var(--color-text-on-dark)}
+.btn-danger:hover:not(:disabled){filter:brightness(.92)}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.btn-icon{width:32px;padding:0}
+.btn-icon.btn-sm{width:28px}
+.input,.select{height:36px;padding:0 var(--space-3);border:1px solid var(--color-gray-100);border-radius:var(--radius-xs);font-size:13px;background:var(--color-bg-0);outline:none;min-width:0;
+  transition:border-color var(--duration-fast) var(--ease-standard),box-shadow var(--duration-fast) var(--ease-standard)}
+.input::placeholder{color:var(--color-text-disabled)}
+.input:hover,.select:hover{border-color:var(--color-gray-200)}
+.input:focus,.select:focus{border-color:var(--color-primary-100);box-shadow:0 0 0 3px rgba(0,79,89,.12)}
+.input-sm{height:28px;font-size:12px;padding:0 var(--space-2)}
+.select{appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center}
+.select.input-sm{padding-right:26px;background-position:right 8px center}
+input.num-in{width:72px;text-align:right;font-feature-settings:"tnum" 1}
+textarea.input{height:auto;padding:var(--space-2) var(--space-3);line-height:20px;resize:vertical;width:100%}
+textarea.code{font-feature-settings:"tnum" 1;font-size:12.5px;line-height:22px;min-height:320px;white-space:pre;overflow-x:auto}
+.input-search{display:inline-flex;align-items:center;gap:var(--space-2);height:36px;padding:0 var(--space-3);border:1px solid var(--color-gray-100);border-radius:var(--radius-xs);background:var(--color-bg-0);min-width:220px}
+.input-search:focus-within{border-color:var(--color-primary-100);box-shadow:0 0 0 3px rgba(0,79,89,.12)}
+.input-search input{border:none;outline:none;flex:1;font-size:13px;background:transparent;min-width:0}
+.input-search svg{color:var(--color-text-disabled)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-4)}
+.field-label{font-size:12px;font-weight:600;color:var(--color-text-secondary)}
+.field-hint{font-size:11px;color:var(--color-text-disabled);line-height:16px}
+.toggle{display:inline-flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:13px}
+.toggle input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:var(--radius-pill);background:var(--color-gray-100);cursor:pointer;position:relative;margin:0;flex-shrink:0;transition:background var(--duration-fast) var(--ease-standard)}
+.toggle input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left var(--duration-fast) var(--ease-standard)}
+.toggle input:checked{background:var(--color-primary-100)}
+.toggle input:checked::after{left:18px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;font-size:11px;font-weight:600;border-radius:10px;border:1px solid currentColor;line-height:1.45;white-space:nowrap}
+.badge-success{background:rgba(0,169,105,.12);color:#00804F;border-color:rgba(0,169,105,.45)}
+.badge-warning{background:rgba(251,197,60,.20);color:#8B6914;border-color:rgba(139,105,20,.40)}
+.badge-error{background:rgba(220,53,69,.12);color:#C42B3A;border-color:rgba(220,53,69,.45)}
+.badge-info{background:rgba(23,162,184,.12);color:#11798A;border-color:rgba(23,162,184,.45)}
+.badge-neutral{background:var(--color-bg-1);color:var(--color-text-secondary);border-color:var(--color-divider)}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:12px;font-weight:500;background:var(--color-bg-0);color:var(--color-text-secondary);border-radius:10px;border:1px solid var(--color-divider);cursor:pointer;user-select:none}
+.chip:hover{background:var(--color-bg-2)}
+.chip.is-active{background:var(--color-primary-100);color:#fff;border-color:var(--color-primary-100)}
+.card{background:var(--color-bg-0);border:1px solid var(--color-divider);border-radius:var(--radius-md)}
+.card-header{padding:var(--space-5) var(--space-6) var(--space-4);display:flex;align-items:center;gap:var(--space-3);border-bottom:1px solid var(--color-divider);flex-wrap:wrap}
+.card-title{font-size:16px;font-weight:700;margin:0;flex:1}
+.card-body{padding:var(--space-5) var(--space-6)}
+.card-body.flush{padding:0}
+.callout{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);background:var(--color-bg-0);border:1px solid var(--color-divider);font-size:13px;color:var(--color-text-secondary);margin-bottom:var(--space-4)}
+.callout svg{color:var(--color-text-secondary);margin-top:1px}
+.callout.is-warning{border-color:rgba(139,105,20,.35);background:rgba(251,197,60,.10)}
+.callout.is-warning svg{color:#8B6914}
+.callout b{color:var(--color-text-primary);font-weight:600}
+.toast-stack{position:fixed;bottom:var(--space-6);left:50%;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:var(--space-2);pointer-events:none;align-items:center;width:max-content;max-width:calc(100% - 32px)}
+.toast{background:var(--color-gray-900);color:#fff;padding:var(--space-3) var(--space-5);border-radius:var(--radius-sm);font-size:13px;box-shadow:var(--shadow-popover);pointer-events:auto;max-width:520px;animation:toast-in var(--duration-base) var(--ease-emphasized)}
+.toast.is-error{background:var(--color-error)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.modal-overlay{position:fixed;inset:0;background:var(--color-dim);z-index:1500;display:grid;place-items:center;padding:var(--space-4);animation:fade var(--duration-fast) var(--ease-standard)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{background:#fff;border-radius:var(--radius-md);width:min(440px,100%);box-shadow:var(--shadow-popover);display:flex;flex-direction:column;max-height:90vh}
+.modal-header{padding:var(--space-5) var(--space-6) var(--space-3);display:flex;align-items:center}
+.modal-title{font-size:18px;font-weight:600;margin:0;flex:1}
+.modal-body{padding:0 var(--space-6) var(--space-5);overflow-y:auto;font-size:14px;color:var(--color-text-secondary)}
+.modal-footer{padding:var(--space-4) var(--space-6);border-top:1px solid var(--color-divider);display:flex;justify-content:flex-end;gap:var(--space-2)}
 
-.body{display:grid;grid-template-columns:58px minmax(0,1fr) 336px;min-height:0}
-@media(max-width:940px){.body{grid-template-columns:52px minmax(0,1fr)}
-  .panel{position:absolute;right:0;top:46px;bottom:0;width:320px;z-index:30;box-shadow:var(--sh)}
-  .panel.hide{display:none}}
+/* ── 셸: GNB(상단) · SNB(좌측) ────────────────────────── */
+.app{display:grid;grid-template-rows:56px minmax(0,1fr);height:100vh}
+.topbar{background:var(--color-bg-0);border-bottom:1px solid var(--color-divider);display:flex;align-items:center;gap:var(--space-4);padding:0 var(--space-5) 0 var(--space-5)}
+.topbar-icon.menu-btn{display:none;border:none;background:transparent}
+.brand{display:flex;align-items:baseline;gap:10px;text-decoration:none;color:inherit;white-space:nowrap}
+.brand-word{font-family:var(--font-display);font-size:19px;font-weight:800;letter-spacing:-.035em;color:var(--color-primary-100);line-height:1}
+.brand-sub{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
+.topbar-spacer{flex:1}
+.dataset{display:flex;align-items:center;gap:var(--space-3);font-size:12px;color:var(--color-text-secondary);background:var(--color-bg-2);border-radius:var(--radius-pill);padding:5px 12px;white-space:nowrap}
+.dataset b{color:var(--color-text-primary);font-weight:700;font-feature-settings:"tnum" 1}
+.dataset i{width:1px;height:12px;background:var(--color-gray-100)}
+.topbar-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;justify-content:center;color:var(--color-text-secondary);text-decoration:none}
+.topbar-icon:hover{background:var(--color-bg-2);color:var(--color-text-primary)}
 
-/* ── 좌측 레일 ───────────────────────────── */
-.rail{background:var(--bar-2);display:flex;flex-direction:column;align-items:center;
-  padding:9px 0;gap:3px}
-.rbtn{width:44px;height:46px;border:none;background:transparent;color:var(--rail-ink);
-  border-radius:5px;cursor:pointer;display:grid;place-items:center;gap:2px;position:relative}
-.rbtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;
-  stroke-linecap:round;stroke-linejoin:round}
-.rbtn small{font-size:8.5px;letter-spacing:-.02em}
-.rbtn:hover{color:#dbe5ea;background:rgba(255,255,255,.06)}
-.rbtn.on{color:var(--rail-on);background:rgba(13,143,124,.22)}
-.rbtn.on::before{content:"";position:absolute;left:-9px;top:9px;bottom:9px;width:3px;
-  background:var(--acc);border-radius:0 2px 2px 0}
-.rbtn .badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:0}
+.sidebar{background:var(--color-bg-0);border-right:1px solid var(--color-divider);padding:var(--space-3) var(--space-3) var(--space-6);overflow-y:auto;display:flex;flex-direction:column}
+.nav-section{padding:16px 16px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--color-text-disabled);user-select:none}
+.nav-section:first-child{padding-top:4px}
+.nav-link{display:flex;align-items:center;gap:var(--space-3);padding:10px var(--space-4);border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--color-text-primary);text-decoration:none}
+.nav-link:hover{background:var(--color-bg-2)}
+.nav-link svg{color:var(--color-text-secondary);width:20px;height:20px}
+.nav-link .lbl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-link .cnt{font-size:11px;font-weight:600;color:var(--color-text-secondary);background:var(--color-bg-1);border:1px solid var(--color-divider);border-radius:10px;padding:0 6px;font-feature-settings:"tnum" 1}
+.nav-link.is-active{background:var(--color-primary-100);color:#fff}
+.nav-link.is-active svg{color:#fff}
+.nav-link.is-active .cnt{background:rgba(255,255,255,.16);border-color:transparent;color:#fff}
+.nav-foot{margin-top:auto;padding:var(--space-4) var(--space-4) 0;font-size:11px;color:var(--color-text-disabled);line-height:16px}
 
-/* ── 스테이지 ───────────────────────────── */
-.stage{position:relative;background:var(--stage);overflow:hidden;
-  background-image:linear-gradient(rgba(125,145,155,.10) 1px,transparent 1px),
-                   linear-gradient(90deg,rgba(125,145,155,.10) 1px,transparent 1px);
-  background-size:24px 24px}
-#viewport{position:absolute;inset:0;cursor:grab;touch-action:none}
-#viewport.grabbing{cursor:grabbing}
-#viewport.pick{cursor:crosshair}
-.layer{position:absolute;transform-origin:0 0;image-rendering:auto}
-#imgCanvas,#maskCanvas,#segCanvas{position:absolute;left:0;top:0}
-#maskCanvas,#segCanvas{pointer-events:none}
-#svgOverlay{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
-.zoomctl{position:absolute;left:12px;bottom:12px;display:flex;gap:4px;background:var(--panel);
-  border:1px solid var(--line);border-radius:5px;padding:4px;box-shadow:var(--sh);z-index:5}
-.zoomctl button{border:none;background:transparent;width:27px;height:25px;border-radius:3px;
-  cursor:pointer;color:var(--text-2);font-size:14px;line-height:1}
-.zoomctl button:hover{background:var(--line-2);color:var(--text)}
-.zoomctl .z{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);
-  display:grid;place-items:center;padding:0 6px;min-width:42px}
-.dropzone{position:absolute;inset:0;display:grid;place-items:center;z-index:10;pointer-events:none}
-.dropzone.active{background:rgba(13,143,124,.1);border:3px dashed var(--acc)}
-.dz-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:30px 36px;
-  text-align:center;box-shadow:var(--sh);pointer-events:auto;max-width:420px}
-.dz-card h2{margin:0 0 7px;font-size:16px;font-weight:600}
-.dz-card p{margin:0 0 16px;font-size:12px;color:var(--muted);line-height:1.6}
-.dz-card svg{width:38px;height:38px;stroke:var(--acc);fill:none;stroke-width:1.5;margin-bottom:11px}
-.hudtip{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--bar);
-  color:#dbe5ea;font-size:11.5px;padding:6px 13px;border-radius:5px;z-index:8;box-shadow:var(--sh)}
-.hudtip b{color:var(--acc)}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.page-header{background:var(--color-bg-0);border-bottom:1px solid var(--color-divider);padding:var(--space-5) var(--space-7) 0;flex-shrink:0}
+.breadcrumb{display:flex;align-items:center;gap:var(--space-2);font-size:13px;color:var(--color-text-disabled);margin-bottom:var(--space-1)}
+.breadcrumb a{color:var(--color-text-secondary);text-decoration:none}
+.breadcrumb a:hover{color:var(--color-primary-100)}
+.page-title-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4);min-width:0}
+.page-title{font-size:24px;font-weight:800;letter-spacing:-.5px;margin:0}
+.tabbar{display:flex;gap:var(--space-7);overflow-x:auto;scrollbar-width:none}
+.tab{padding:var(--space-2) 4px 12px;font-size:15px;font-weight:600;color:var(--color-text-disabled);border-bottom:3px solid transparent;margin-bottom:-1px;
+  display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.tab:hover{color:var(--color-text-secondary)}
+.tab.is-active{color:var(--color-primary-100);border-bottom-color:var(--color-primary-100);font-weight:700}
+.tab .cnt{background:var(--color-bg-1);color:var(--color-text-secondary);font-size:11px;font-weight:600;padding:2px 6px;border-radius:10px;font-feature-settings:"tnum" 1}
+.tab.is-active .cnt{background:var(--color-primary-50);color:var(--color-primary-200)}
+.main-content{flex:1;overflow-y:auto;padding:var(--space-6) var(--space-7) var(--space-9);min-height:0}
+.main-content.full{padding:0;overflow:hidden;display:flex;flex-direction:column}
 
-/* ── 우측 패널 ───────────────────────────── */
-.panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-.panel > header{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;
-  align-items:center;gap:8px;flex:none}
-.panel > header h2{margin:0;font-size:13px;font-weight:600;flex:1}
-.panel > header .st{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--acc);
-  border:1px solid var(--acc);border-radius:2px;padding:0 5px}
-.pbody{overflow-y:auto;padding:13px 14px 28px;flex:1;min-height:0}
-.pstep{display:none} .pstep.on{display:block}
+.toolbar{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-4)}
+.toolbar .spacer{flex:1}
+.section-gap{height:var(--space-6)}
 
-.fld{display:grid;gap:5px;margin-bottom:11px}
-.fld > label{font-size:11px;color:var(--text-2);display:flex;justify-content:space-between;align-items:center}
-.fld > label b{font-family:"IBM Plex Mono",monospace;color:var(--text);font-weight:500}
-.fld .desc{font-size:10.5px;color:var(--muted);line-height:1.45}
-input[type=range]{width:100%;accent-color:var(--acc);margin:0}
-input[type=text],input[type=number],select,textarea{background:var(--bg);border:1px solid var(--line);
-  border-radius:3px;padding:5px 7px;font-size:12px;width:100%}
-textarea{font-family:"IBM Plex Mono",monospace;font-size:11px;min-height:130px;resize:vertical;line-height:1.65}
-label.chk{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-2);cursor:pointer}
-input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
-.btn{background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:5px 10px;
-  font-size:11.5px;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:var(--acc);background:var(--acc-soft)}
-.btn.prim{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:500}
-.btn.prim:hover{filter:brightness(1.08)}
-.btn.sm{padding:3px 8px;font-size:10.5px}
-.btn.on{background:var(--acc);border-color:var(--acc);color:#fff}
-.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-.sechead{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
-.sechead span{font-size:10.5px;font-weight:600;color:var(--text-2);letter-spacing:.04em}
-.sechead i{flex:1;height:1px;background:var(--line)}
-.hintbox{background:var(--acc-soft);border:1px solid var(--acc);border-radius:3px;padding:8px 10px;
-  font-size:11px;line-height:1.55;color:var(--text-2);margin-bottom:11px}
-.hintbox b{color:var(--text)}
-.warnbox{background:color-mix(in srgb,var(--bad) 10%,transparent);border:1px solid var(--bad);
-  border-radius:3px;padding:8px 10px;font-size:11px;line-height:1.55;margin-bottom:11px;color:var(--text-2)}
-.warnbox b{color:var(--bad)}
-.empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.6}
+/* ── 통계 ───────────────────────────────────────── */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-3);margin-bottom:var(--space-4)}
+.kpi{background:var(--color-bg-0);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5)}
+.kpi .l{font-size:12px;color:var(--color-text-secondary)}
+.kpi .v{font-size:22px;font-weight:600;line-height:30px;margin-top:2px;font-feature-settings:"tnum" 1}
+.kpi .d{font-size:12px;color:var(--color-text-disabled);font-feature-settings:"tnum" 1}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:var(--space-4)}
+table.t{width:100%;border-collapse:collapse}
+table.t th{text-align:left;font-size:12px;font-weight:600;color:var(--color-text-secondary);padding:10px 16px;border-bottom:1px solid var(--color-divider);white-space:nowrap;background:var(--color-bg-0);position:sticky;top:0;z-index:1}
+table.t td{font-size:13px;padding:11px 16px;border-bottom:1px solid var(--color-gray-25);vertical-align:middle}
+table.t tr:last-child td{border-bottom:none}
+table.t .n{text-align:right;font-feature-settings:"tnum" 1;white-space:nowrap}
+table.t tbody tr.click{cursor:pointer}
+table.t tbody tr.click:hover td{background:var(--color-bg-2)}
+table.t tr.is-sel td{background:var(--color-primary-50)}
+table.t.compact th{padding:8px 10px}
+table.t.compact td{padding:7px 10px;font-size:12.5px}
+.tw{overflow-x:auto}
+.meter{display:inline-block;width:72px;height:6px;background:var(--color-primary-50);border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:8px}
+.meter b{display:block;height:100%;background:var(--color-primary-100);border-radius:3px}
+.hist{display:grid;grid-template-columns:32px 1fr;grid-template-rows:minmax(0,1fr) auto;gap:0 8px;height:220px;margin-top:var(--space-2)}
+.hist .yax{position:relative;font-size:11px;color:var(--color-text-disabled);font-feature-settings:"tnum" 1}
+.hist .yax span{position:absolute;right:0;transform:translateY(50%)}
+.hist .plot{position:relative;border-bottom:1px solid var(--color-gray-100);display:flex;align-items:flex-end;gap:2px}
+.hist .grid{position:absolute;left:0;right:0;height:1px;background:var(--color-gray-25)}
+.hist .col{flex:1;height:100%;display:flex;align-items:flex-end;justify-content:center;position:relative}
+.hist .col b{display:block;width:min(24px,80%);background:var(--color-primary-100);border-radius:4px 4px 0 0}
+.hist .col:hover b{background:var(--color-primary-200)}
+.hist .col .cap{position:absolute;bottom:calc(var(--h) + 4px);font-size:11px;color:var(--color-text-secondary);font-feature-settings:"tnum" 1}
+.hist .xax{grid-column:2;display:flex;gap:2px;font-size:11px;color:var(--color-text-disabled);margin-top:4px;font-feature-settings:"tnum" 1}
+.hist .xax span{flex:1;text-align:center}
+.grades{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:var(--space-4);font-size:12px;color:var(--color-text-secondary)}
+.grades b{color:var(--color-text-primary);font-weight:600;margin-right:4px}
+.tip{position:fixed;pointer-events:none;background:var(--color-gray-900);color:#fff;font-size:12px;padding:5px 9px;border-radius:var(--radius-xs);z-index:3000;box-shadow:var(--shadow-popover);white-space:nowrap;font-feature-settings:"tnum" 1}
+.empty-state{padding:var(--space-9) var(--space-6);text-align:center}
+.empty-state h3{margin:0 0 6px;font-size:16px;font-weight:700}
+.empty-state p{margin:0 auto var(--space-5);color:var(--color-text-secondary);font-size:13px;max-width:480px}
+.kv{display:flex;justify-content:space-between;gap:var(--space-4);padding:10px 0;border-bottom:1px solid var(--color-gray-25);font-size:13px}
+.kv:last-child{border-bottom:none}
+.kv>span:first-child{color:var(--color-text-secondary)}
 
-.scaleout{background:var(--acc-soft);border:1px solid var(--acc);border-radius:4px;
-  padding:10px 12px;margin-bottom:4px}
-.scaleout .big{font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600;line-height:1.2}
-.scaleout .big small{font-size:11px;font-weight:400;color:var(--text-2);margin-left:5px}
-.scaleout .sub{font-size:10.5px;color:var(--text-2);margin-top:5px;line-height:1.6;
-  font-family:"IBM Plex Mono",monospace}
+/* ── 도면 작업 공간 ─────────────────────────────────── */
+.ws{display:grid;grid-template-columns:272px minmax(0,1fr) 380px;flex:1;min-height:0}
+.ws-list{background:var(--color-bg-0);border-right:1px solid var(--color-divider);display:flex;flex-direction:column;min-height:0}
+.ws-list-head{padding:var(--space-3);border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:var(--space-2)}
+.ws-list-head .input-search{min-width:0;width:100%}
+.ws-list-body{overflow-y:auto;flex:1;padding:var(--space-2)}
+.frow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;min-width:0}
+.frow:hover{background:var(--color-bg-2)}
+.frow.is-sel{background:var(--color-primary-50)}
+.frow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.frow .meta{font-size:12px;color:var(--color-text-secondary);font-feature-settings:"tnum" 1;white-space:nowrap}
+.frow .x{opacity:0;border:none;background:transparent;color:var(--color-text-secondary);width:22px;height:22px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.frow:hover .x,.frow.is-sel .x,.frow .x:focus-visible{opacity:1}
+.frow .x:hover{background:var(--color-bg-0);color:var(--color-error)}
+.frow .x svg{width:14px;height:14px}
+.urow{display:flex;align-items:center;gap:8px;padding:7px 10px 7px 30px;border-radius:var(--radius-sm);cursor:pointer;font-size:12.5px;color:var(--color-text-secondary)}
+.urow:hover{background:var(--color-bg-2)}
+.urow.is-sel{color:var(--color-primary-100);font-weight:700}
+.urow .nm{flex:1;font-feature-settings:"tnum" 1}
+.urow .sc{font-weight:700;font-feature-settings:"tnum" 1}
+.tag{font-size:10px;font-weight:700;border-radius:4px;padding:0 5px;border:1px solid var(--color-divider);color:var(--color-text-secondary);background:var(--color-bg-1);letter-spacing:.02em}
+.canvas{position:relative;background:var(--color-bg-canvas);overflow:hidden;min-height:0;
+  background-image:linear-gradient(rgba(34,34,34,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(34,34,34,.04) 1px,transparent 1px);background-size:24px 24px}
+#plan{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none;user-select:none}
+#plan.grabbing{cursor:grabbing}
+#plan .room{cursor:pointer}
+#plan .room:hover{filter:brightness(1.04)}
+.cv-tools{position:absolute;left:var(--space-3);top:var(--space-3);right:var(--space-3);display:flex;gap:6px;flex-wrap:wrap;z-index:4;pointer-events:none}
+.cv-tools>*{pointer-events:auto}
+.cv-zoom{position:absolute;left:var(--space-3);bottom:var(--space-3);display:flex;gap:2px;background:#fff;border:1px solid var(--color-divider);border-radius:var(--radius-sm);padding:3px;box-shadow:var(--shadow-card);z-index:4}
+.cv-zoom button{border:none;background:transparent;width:30px;height:28px;border-radius:5px;color:var(--color-text-secondary);display:inline-flex;align-items:center;justify-content:center;padding:0}
+.cv-zoom button:hover{background:var(--color-bg-2);color:var(--color-text-primary)}
+.cv-legend{position:absolute;right:var(--space-3);bottom:var(--space-3);background:#fff;border:1px solid var(--color-divider);border-radius:var(--radius-sm);padding:6px 10px;box-shadow:var(--shadow-card);z-index:4;
+  display:flex;flex-wrap:wrap;gap:4px 12px;max-width:min(380px,calc(100% - 140px));font-size:11px;color:var(--color-text-secondary)}
+.cv-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.12)}
+.ws-side{background:var(--color-bg-0);border-left:1px solid var(--color-divider);overflow-y:auto;min-height:0}
+.ws-side-sec{padding:var(--space-5);border-bottom:1px solid var(--color-divider)}
+.ws-side-sec:last-child{border-bottom:none}
+.ws-side h3{margin:0 0 var(--space-3);font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.score-row{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.score-val{font-size:24px;font-weight:600;line-height:32px;font-feature-settings:"tnum" 1}
+.score-sub{font-size:12px;color:var(--color-text-secondary);font-feature-settings:"tnum" 1;margin-top:4px}
+.iss{font-size:13px;padding:8px 0;border-bottom:1px solid var(--color-gray-25);display:flex;gap:8px;align-items:flex-start}
+.iss:last-child{border-bottom:none}
+.iss .badge{flex-shrink:0;margin-top:1px}
+details.more>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--color-text-secondary);list-style:none;display:flex;align-items:center;gap:6px;padding:4px 0}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary svg{transition:transform var(--duration-fast) var(--ease-standard);width:16px;height:16px}
+details.more[open]>summary svg{transform:rotate(90deg)}
 
-/* 방 목록 */
-.rooms{display:grid;gap:4px}
-.rm{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;padding:6px 7px;
-  border:1px solid var(--line);border-radius:4px;cursor:pointer;background:var(--bg)}
-.rm:hover{border-color:var(--acc)}
-.rm.on{border-color:var(--acc);background:var(--acc-soft)}
-.rm .sw{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.16)}
-.rm .nm{font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rm .nm small{display:block;color:var(--muted);font-size:9.5px;font-family:"IBM Plex Mono",monospace}
-.rm .ar{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);text-align:right}
-.rmedit{border:1px solid var(--acc);border-radius:4px;padding:9px;margin:5px 0;background:var(--bg);display:grid;gap:7px}
+/* ── 평가 구조 · 판정 변수 ──────────────────────────── */
+.crow{padding:var(--space-4) var(--space-6);border-bottom:1px solid var(--color-divider)}
+.crow:last-child{border-bottom:none}
+.crow.off .crow-main>*:not(.toggle),.crow.off .crow-sub{opacity:.5}
+.crow-main,.crow-head{display:grid;grid-template-columns:44px minmax(130px,1fr) minmax(170px,1.4fr) minmax(250px,1.7fr) minmax(250px,1.6fr) 32px;gap:var(--space-3);align-items:center}
+.crow-main>.grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.crow-main>.select{width:100%}
+.crow-main .lbl{font-size:12px;color:var(--color-text-secondary);white-space:nowrap}
+.crow-sub{display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-2);padding-left:56px;flex-wrap:wrap}
+.crow-sub .why{flex:1;min-width:200px;border:none;border-bottom:1px dashed var(--color-gray-100);border-radius:0;height:28px;padding:0;font-size:12px;color:var(--color-text-secondary);background:transparent}
+.crow-sub .why:focus{box-shadow:none;border-bottom-color:var(--color-primary-100)}
+.crow-live{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);font-feature-settings:"tnum" 1;white-space:nowrap}
+.crow-head{padding:10px var(--space-6);font-size:12px;font-weight:600;color:var(--color-text-secondary);border-bottom:1px solid var(--color-divider)}
+.eff-weight{color:var(--color-primary-100)} .eff-penalty{color:var(--color-amber-100)} .eff-gate{color:#C42B3A}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:var(--space-2) var(--space-6);align-items:center;padding:var(--space-4) var(--space-6);border-bottom:1px solid var(--color-gray-25)}
+.prow:last-child{border-bottom:none}
+.prow .t{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.prow .h{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.prow .ctl{display:flex;justify-content:flex-end}
+.prow .ctl .input,.prow .ctl .select{width:180px}
+.psec{padding:var(--space-3) var(--space-6);font-size:12px;font-weight:700;color:var(--color-text-secondary);border-bottom:1px solid var(--color-divider);background:var(--color-bg-1)}
+.psec:first-child{border-radius:var(--radius-md) var(--radius-md) 0 0}
 
-/* 조건 */
-.crit{border:1px solid var(--line);border-radius:4px;margin-bottom:5px;background:var(--bg)}
-.crit.off{opacity:.5}
-.crit .ch{display:grid;grid-template-columns:auto 1fr auto auto;gap:7px;align-items:center;padding:6px 8px;cursor:pointer}
-.crit .nm{font-size:11px;min-width:0}
-.crit .sc{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600}
-.crit .meter{height:3px;background:var(--line-2);border-radius:2px;overflow:hidden}
-.crit .meter i{display:block;height:100%}
-.crit .why{font-size:10px;color:var(--muted);padding:0 8px 7px;line-height:1.45;display:none}
-.crit.open .why{display:block}
+/* 끌어놓기 · 진행 · 메뉴 */
+.dropzone{position:fixed;inset:0;z-index:1800;background:rgba(0,79,89,.08);border:3px dashed var(--color-primary-100);display:grid;place-items:center;pointer-events:none}
+.dropzone div{background:#fff;border-radius:var(--radius-md);padding:var(--space-5) var(--space-7);box-shadow:var(--shadow-popover);font-weight:600}
+.progress{position:fixed;left:50%;bottom:var(--space-6);transform:translateX(-50%);z-index:1900;background:#fff;border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-popover);
+  padding:var(--space-4) var(--space-5);width:min(420px,calc(100% - 32px))}
+.progress .bar{height:6px;background:var(--color-primary-50);border-radius:3px;overflow:hidden;margin:var(--space-2) 0 6px}
+.progress .bar b{display:block;height:100%;background:var(--color-primary-100);transition:width var(--duration-fast) var(--ease-standard)}
+.menu{position:absolute;z-index:1600;background:#fff;border:1px solid var(--color-divider);border-radius:var(--radius-sm);box-shadow:var(--shadow-popover);padding:4px;min-width:220px}
+.menu button{display:flex;align-items:flex-start;gap:10px;width:100%;border:none;background:transparent;padding:9px 12px;border-radius:5px;font-size:13px;text-align:left;font-weight:600}
+.menu button:hover{background:var(--color-bg-2)}
+.menu button small{display:block;font-size:11px;color:var(--color-text-secondary);font-weight:400}
 
-/* 결과 */
-.kv{display:grid;grid-template-columns:1fr auto;gap:3px 9px;font-size:11.5px;margin-bottom:3px}
-.kv dt{color:var(--text-2);min-width:0}
-.kv dd{margin:0;font-family:"IBM Plex Mono",monospace;font-weight:500;text-align:right}
-.tw{overflow-x:auto;margin:6px 0}
-table{border-collapse:collapse;width:100%;font-size:11px}
-th{text-align:left;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
-  font-weight:600;padding:0 7px 5px 0;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:5px 7px 5px 0;border-bottom:1px solid var(--line-2)}
-td.n,th.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-.srow{display:grid;grid-template-columns:1fr 38px 56px;gap:8px;align-items:center;padding:6px 0;
-  border-bottom:1px solid var(--line-2)}
-.srow .lab{font-size:11px;min-width:0}
-.srow .lab small{display:block;color:var(--muted);font-size:9.5px}
-.srow .v{font-family:"IBM Plex Mono",monospace;font-size:11px;text-align:right}
-.srow .bar2{height:6px;background:var(--line-2);border-radius:3px;overflow:hidden}
-.srow .bar2 i{display:block;height:100%;border-radius:3px}
-.legend{display:flex;flex-wrap:wrap;gap:3px 11px;font-size:10px;color:var(--text-2);margin-top:7px}
-.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-.tabs2{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:10px;overflow-x:auto}
-.tab2{border:none;background:none;padding:6px 9px;font-size:11px;color:var(--muted);cursor:pointer;
-  border-bottom:2px solid transparent;white-space:nowrap}
-.tab2.on{color:var(--text);border-bottom-color:var(--acc);font-weight:600}
-.pane2{display:none} .pane2.on{display:block}
+/* 좁은 화면 */
+@media (max-width:1440px){
+  .shell{grid-template-columns:64px minmax(0,1fr)}
+  .sidebar{padding:var(--space-3) var(--space-2)}
+  .nav-section,.nav-link .lbl,.nav-link .cnt,.nav-foot{display:none}
+  .nav-link{justify-content:center;padding:10px}
+  .crow-main{grid-template-columns:44px minmax(120px,1fr) minmax(160px,1.4fr) 32px}
+  .crow-main>.grp{grid-column:2/4}
+  .crow-head{display:none}
+}
+@media (max-width:1200px){
+  .main-content.full{overflow-y:auto;display:block}
+  .ws{grid-template-columns:240px minmax(0,1fr);grid-template-rows:minmax(420px,64vh) auto}
+  .ws-side{grid-column:1/-1;border-left:none;border-top:1px solid var(--color-divider);max-height:none;overflow:visible}
+  .dataset .opt{display:none}
+}
+@media (max-width:720px){
+  .app{height:auto;min-height:100vh}
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:0;top:56px;bottom:0;width:240px;z-index:1400;box-shadow:var(--shadow-popover);transform:translateX(-100%);transition:transform var(--duration-base) var(--ease-standard);padding:var(--space-3)}
+  .sidebar.open{transform:none}
+  .sidebar .nav-section,.sidebar .nav-link .lbl,.sidebar .nav-link .cnt,.sidebar .nav-foot{display:block}
+  .sidebar .nav-link{justify-content:flex-start;padding:10px var(--space-4)}
+  .topbar-icon.menu-btn{display:inline-flex}
+  .topbar{padding:0 var(--space-4)}
+  .brand-sub,.dataset{display:none}
+  .page-header{padding:var(--space-4) var(--space-4) 0}
+  .main-content{padding:var(--space-4) var(--space-4) var(--space-8)}
+  .main-content.full{overflow:visible}
+  .ws{grid-template-columns:1fr;grid-template-rows:auto}
+  .ws-list{max-height:36vh;border-right:none;border-bottom:1px solid var(--color-divider)}
+  .canvas{height:60vh}
+  .ws-side{max-height:none}
+  .prow{grid-template-columns:1fr}.prow .ctl{justify-content:flex-start}
+  .crow{padding:var(--space-4)}.crow-sub{padding-left:0}
+  .crow-main{grid-template-columns:44px 1fr 32px}.crow-main>.select,.crow-main>.grp{grid-column:2/3}
+  .input-search{min-width:0;flex:1}
+}
 </style>
 
 <div class="app">
-<!-- ═══════════ 상단 바 ═══════════ -->
-<div class="bar">
-  <div class="logo">도면 <span>공간구문</span> 스튜디오</div>
-  <div class="file" id="fileName">도면 이미지를 올려 시작하세요</div>
-  <div class="grp">
-    <div class="scalebox">
-      <label for="pyeongSel">평형</label>
-      <select id="pyeongSel"></select>
-      <span class="m2" id="m2txt"></span>
-    </div>
-    <a class="tbtn" href="aihub.html" style="text-decoration:none" title="AI 허브 라벨 JSON으로 도면을 그리고 평가 구조·통계를 다루는 스튜디오">JSON 평가 스튜디오 →</a>
-    <button class="tbtn" id="btnOpen">이미지 열기</button>
-    <input type="file" id="fileInput" accept="image/*" hidden>
-    <div class="scorechip">
-      <div><div class="n" id="scoreNum">—</div><div class="lbl">점수</div></div>
-      <div><div class="g g-C" id="gradeTxt">—</div><div class="lbl" id="gradeSub">대기</div></div>
+  <header class="topbar">
+    <button class="topbar-icon menu-btn" id="menuBtn" aria-label="메뉴"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="#/stats"><span class="brand-word">SPACESYNTAX</span><span class="brand-sub">도면 평가 스튜디오</span></a>
+    <div class="topbar-spacer"></div>
+    <div class="dataset" id="dataset" title="불러온 데이터"></div>
+    <a class="topbar-icon" href="https://github.com/Imperfective/floorplan-spacesyntax#d-ai-허브-라벨json-평가-모델" target="_blank" rel="noopener" title="사용 설명서(README)" aria-label="사용 설명서">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 2-2.5 3.5"/><path d="M12 17.5v.01"/></svg></a>
+  </header>
+  <div class="shell">
+    <nav class="sidebar" id="sidebar" aria-label="메뉴"></nav>
+    <div class="main">
+      <div class="page-header" id="pageHeader"></div>
+      <div class="main-content" id="content"></div>
     </div>
   </div>
 </div>
-
-<div class="body">
-  <!-- ═══════════ 좌측 레일 ═══════════ -->
-  <nav class="rail" id="rail">
-    <button class="rbtn on" data-step="s1" title="도면 이미지">
-      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-5 4 4 3-2 4 4"/></svg>
-      <small>이미지</small></button>
-    <button class="rbtn" data-step="s2" title="벽 검출">
-      <svg viewBox="0 0 24 24"><path d="M3 21V7l9-4 9 4v14"/><path d="M3 12h18M12 3v18"/></svg>
-      <small>벽</small></button>
-    <button class="rbtn" data-step="s3" title="방 추출">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>
-      <small>방</small></button>
-    <button class="rbtn" data-step="s4" title="Space Syntax 조건">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.2"/><circle cx="5" cy="19.5" r="2.2"/><circle cx="19" cy="19.5" r="2.2"/><path d="M12 6.7v4.6M12 11.3L6.4 17.8M12 11.3l5.6 6.5"/></svg>
-      <small>조건</small></button>
-    <button class="rbtn" data-step="s5" title="결과·채점">
-      <svg viewBox="0 0 24 24"><path d="M4 19V10M10 19V5M16 19v-6M22 19H2"/></svg>
-      <small>결과</small></button>
-  </nav>
-
-  <!-- ═══════════ 스테이지 ═══════════ -->
-  <div class="stage">
-    <div id="viewport">
-      <div class="layer" id="layer">
-        <canvas id="imgCanvas"></canvas>
-        <canvas id="maskCanvas"></canvas>
-        <canvas id="segCanvas"></canvas>
-        <svg id="svgOverlay" xmlns="http://www.w3.org/2000/svg"></svg>
-      </div>
-    </div>
-    <div class="dropzone" id="dropzone">
-      <div class="dz-card" id="dzCard">
-        <svg viewBox="0 0 24 24"><path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4"/></svg>
-        <h2>도면 이미지를 올려 주세요</h2>
-        <p>PNG·JPG 평면도를 끌어다 놓거나 아래 버튼을 누르세요.<br>
-           벽을 찾아 방을 나누고, 좌표와 공간구문 지표를 뽑아 채점합니다.</p>
-        <div class="row" style="justify-content:center">
-          <button class="btn prim" id="dzOpen">이미지 선택</button>
-          <button class="btn" id="dzSample">예시 도면으로 보기</button>
-        </div>
-      </div>
-    </div>
-    <div class="hudtip" id="hudtip" style="display:none"></div>
-    <div class="zoomctl">
-      <button id="zOut" title="축소">−</button>
-      <div class="z" id="zTxt">100%</div>
-      <button id="zIn" title="확대">＋</button>
-      <button id="zFit" title="화면에 맞춤">⤢</button>
-    </div>
-  </div>
-
-  <!-- ═══════════ 우측 패널 ═══════════ -->
-  <aside class="panel" id="panel">
-    <header><span class="st" id="stepNo">1</span><h2 id="stepTitle">도면 이미지</h2></header>
-    <div class="pbody">
-
-      <!-- ① 이미지 -->
-      <div class="pstep on" id="s1">
-        <div class="hintbox">평면도 이미지를 올리면 <b>벽 → 방 → 문</b> 순서로 자동 분석합니다.
-          선으로만 그린 CAD 도면과 색이 칠해진 렌더 도면 모두 지원합니다.</div>
-        <div class="row"><button class="btn prim" id="btnOpen2">이미지 선택</button>
-          <button class="btn" id="btnSample2">예시 도면</button></div>
-        <div class="sechead"><span>이미지 정보</span><i></i></div>
-        <dl class="kv" id="imgInfo"><dt>불러온 이미지 없음</dt><dd>—</dd></dl>
-        <div class="sechead"><span>평수 · 축척</span><i></i></div>
-        <div class="hintbox">도면이 <b>몇 평인지</b>를 여기서 정합니다.
-          검출된 실내 전체를 이 면적으로 보고, 방마다의 평수와 문 폭(m)을 모두 여기서 환산합니다.</div>
-        <div class="row" style="margin-bottom:9px">
-          <button class="btn on" id="mdSupply" style="flex:1">공급 평형</button>
-          <button class="btn" id="mdM2" style="flex:1">전용 ㎡</button>
-          <button class="btn" id="mdPy" style="flex:1">전용 평</button>
-        </div>
-        <div id="scSupply">
-          <div class="fld"><label for="supplySel">평형 고르기</label>
-            <select id="supplySel"></select></div>
-          <div class="fld"><label for="ratio">전용률 <b id="ratioEcho">75%</b></label>
-            <input type="range" id="ratio" min="55" max="95" step="1" value="75">
-            <p class="desc">공급면적 대비 전용면적의 비율. 아파트는 보통 70~80%입니다.
-              도면에 적힌 전용면적과 맞지 않으면 이 값을 조정하세요.</p></div>
-        </div>
-        <div id="scM2" style="display:none">
-          <div class="fld"><label for="netM2">전용면적 (㎡)</label>
-            <input type="number" id="netM2" min="5" max="1000" step="0.1" value="84.3"></div>
-        </div>
-        <div id="scPy" style="display:none">
-          <div class="fld"><label for="netPy">전용면적 (평)</label>
-            <input type="number" id="netPy" min="2" max="300" step="0.1" value="25.5"></div>
-        </div>
-        <div class="scaleout" id="scaleOut"></div>
-        <div class="sechead"><span>방별 면적</span><i></i></div>
-        <div class="tw"><table id="areaTable"></table></div>
-      </div>
-
-      <!-- ② 벽 검출 -->
-      <div class="pstep" id="s2">
-        <div class="sechead"><span>벽을 잡는 방법</span><i></i></div>
-        <div class="row" style="margin-bottom:9px">
-          <button class="btn on" id="modeColor" style="flex:1">벽 색 지정</button>
-          <button class="btn" id="modeDark" style="flex:1">어두운 선</button>
-        </div>
-        <div id="colorOpts">
-          <div class="hintbox">스포이드를 켜고 <b>도면의 벽을 클릭</b>하세요. 그 색과 비슷한 픽셀을 벽으로 봅니다.
-            색이 칠해진 렌더 도면에 적합합니다.</div>
-          <div class="row" style="margin-bottom:9px">
-            <button class="btn" id="btnPick">스포이드 켜기</button>
-            <span class="sw" id="pickSw" style="width:24px;height:24px;border:1px solid var(--line);border-radius:3px;background:#8a97a8"></span>
-            <span class="mono" id="pickTxt" style="font-size:10.5px;color:var(--muted)"></span>
-          </div>
-          <div class="fld"><label for="tol">색 허용 범위 <b id="tolEcho">52</b></label>
-            <input type="range" id="tol" min="6" max="160" step="2" value="52"></div>
-        </div>
-        <div id="darkOpts" style="display:none">
-          <div class="hintbox">밝기가 기준보다 어두운 픽셀을 벽으로 봅니다. <b>검은 선으로 그린 도면</b>에 적합합니다.</div>
-          <div class="fld"><label for="darkT">밝기 기준 <b id="darkEcho">0.55</b></label>
-            <input type="range" id="darkT" min="0.1" max="0.95" step="0.01" value="0.55"></div>
-        </div>
-        <div class="sechead"><span>방 나누기</span><i></i></div>
-        <div class="fld"><label for="dilR">문 틈 봉하기 <b id="dilEcho">6</b> px</label>
-          <input type="range" id="dilR" min="0" max="24" step="1" value="6">
-          <p class="desc">벽을 이만큼 부풀려 문 틈을 일시적으로 막고 방을 나눕니다.
-            <b>문 폭의 절반</b>보다 크게 잡으세요. 너무 크면 작은 방이 사라집니다.</p></div>
-        <div class="fld"><label for="minCore">최소 방 크기 <b id="coreEcho">0.4</b>%</label>
-          <input type="range" id="minCore" min="0.05" max="5" step="0.05" value="0.4">
-          <p class="desc">전체 면적 대비 이보다 작은 덩어리는 방으로 보지 않습니다.</p></div>
-        <div class="fld"><label for="minDoor">문으로 인정할 최소 폭 <b id="doorEcho">5</b> px</label>
-          <input type="range" id="minDoor" min="1" max="40" step="1" value="5">
-          <p class="desc">두 방이 벽 없이 맞닿은 길이가 이보다 짧으면 문이 아니라고 봅니다.</p></div>
-        <div class="sechead"><span>보기</span><i></i></div>
-        <div style="display:grid;gap:6px">
-          <label class="chk"><input type="checkbox" id="showMask"> 벽 마스크 겹쳐 보기</label>
-          <label class="chk"><input type="checkbox" id="showSeg" checked> 방 영역 색칠</label>
-          <label class="chk"><input type="checkbox" id="showGraph" checked> 그래프(문·연결선) 표시</label>
-          <label class="chk"><input type="checkbox" id="showImg" checked> 원본 이미지 표시</label>
-        </div>
-        <div class="fld" style="margin-top:9px"><label for="ovAlpha">덧칠 투명도 <b id="alphaEcho">45</b>%</label>
-          <input type="range" id="ovAlpha" min="10" max="95" step="5" value="45"></div>
-        <div class="row" style="margin-top:11px">
-          <button class="btn prim" id="btnRedetect" style="flex:1">다시 검출</button>
-          <button class="btn" id="btnAuto" title="문 틈 폭을 자동으로 찾아 방이 가장 잘 나뉘는 값을 고릅니다">자동 보정</button>
-        </div>
-      </div>
-
-      <!-- ③ 방 -->
-      <div class="pstep" id="s3">
-        <div id="roomHint" class="hintbox">방을 눌러 이름과 용도를 지정하세요.
-          용도는 공간구문 조건에서 <b>대상</b>으로 쓰입니다.</div>
-        <div class="row" style="margin-bottom:9px">
-          <button class="btn sm" id="btnAutoName">용도 자동 추정</button>
-          <button class="btn sm" id="btnSetEntrance">현관 지정</button>
-        </div>
-        <div class="rooms" id="roomList"></div>
-        <div class="sechead"><span>문 · 연결</span><i></i></div>
-        <div class="tw"><table id="doorTable"></table></div>
-      </div>
-
-      <!-- ④ 조건 -->
-      <div class="pstep" id="s4">
-        <div class="fld">
-          <label for="critPreset">조건 세트</label>
-          <select id="critPreset"></select>
-        </div>
-        <div class="hintbox">한 줄에 조건 하나.
-          <b>대상.지표 연산자 목표값 [.. 최악값] [w=가중치]</b><br>
-          대상은 방 용도 키 또는 전역을 뜻하는 <code>@</code>. <code>&lt;=</code> 작을수록 좋음,
-          <code>&gt;=</code> 클수록 좋음, <code>==</code> 목표 ±허용.</div>
-        <textarea id="dsl" spellcheck="false"></textarea>
-        <div class="row" style="margin-top:7px">
-          <button class="btn prim" id="parseDsl">데이터화 →</button>
-          <button class="btn" id="dslHelp">지표 목록</button>
-        </div>
-        <div id="dslMsg" style="font-size:10.5px;margin-top:6px"></div>
-        <div id="dslHelpBox" style="display:none;margin-top:9px;font-size:10px;color:var(--muted);
-             background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:8px 9px;line-height:1.7"></div>
-        <div class="sechead"><span>데이터화된 조건</span><i></i>
-          <button class="btn sm" id="addCrit">＋</button></div>
-        <div id="critList"></div>
-      </div>
-
-      <!-- ⑤ 결과 -->
-      <div class="pstep" id="s5">
-        <div class="tabs2">
-          <button class="tab2 on" data-pane2="p2score">채점</button>
-          <button class="tab2" data-pane2="p2rooms">좌표</button>
-          <button class="tab2" data-pane2="p2global">지표</button>
-          <button class="tab2" data-pane2="p2export">내보내기</button>
-        </div>
-        <div class="pane2 on" id="p2score"></div>
-        <div class="pane2" id="p2rooms"></div>
-        <div class="pane2" id="p2global"></div>
-        <div class="pane2" id="p2export"></div>
-      </div>
-
-    </div>
-  </aside>
+<div class="toast-stack" id="toasts" aria-live="polite"></div>
+<div class="tip" id="tip" hidden></div>
+<div class="dropzone" id="dropzone" hidden><div>놓으면 도면 JSON을 불러옵니다</div></div>
+<div class="progress" id="progress" hidden>
+  <div style="display:flex;align-items:center;gap:8px"><b id="progText" style="flex:1;font-size:13px">불러오는 중</b><button class="btn btn-ghost btn-sm" id="progCancel">멈춤</button></div>
+  <div class="bar"><b id="progBar" style="width:0%"></b></div>
+  <div class="field-hint" id="progSub"></div>
 </div>
-</div>
+<input type="file" id="fileIn" accept=".json,application/json" multiple hidden>
+<input type="file" id="dirIn" webkitdirectory directory multiple hidden>
+<input type="file" id="cfgIn" accept=".json,.txt" hidden>
+<input type="file" id="baseIn" accept=".json" hidden>
+<input type="file" id="statIn" accept=".json" hidden>
 
+<!-- 서버가 .js를 1년 immutable 캐시한다. 배포(deploy.yml·deploy.sh) 때 v가 엔진 해시로 자동 교체된다 -->
+<script src="aihub-engine.js?v=20261022"></script>
 <script>
 "use strict";
-/* ══════════════════════════════════════════════════════════════════════
-   도면 공간구문 스튜디오
-   ① 도면 PNG → 벽 픽셀 검출 → 방 분할 → 좌표 데이터화
-   ② 사용자가 입력한 Space Syntax 조건을 그 데이터에 자동 적용 → 채점
-   모든 계산은 브라우저에서 일어난다. 이미지는 외부로 나가지 않는다.
-   ══════════════════════════════════════════════════════════════════════ */
-const $ = (s, r) => (r || document).querySelector(s);
-const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const fmt = (v, d = 3) => (v == null || !isFinite(v)) ? "—" : (+v).toFixed(d);
-const esc = (s) => String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
-const PYEONG_M2 = 3.3057851;
-const OUTSIDE = -999;
+const E = window.AIHub;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (v, d = 3) => v == null || !Number.isFinite(+v) ? "—" : String(+(+v).toPrecision(d));
+const fx = (v, d = 1) => v == null || !Number.isFinite(+v) ? "—" : (+v).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const int = (v) => v == null ? "—" : (+v).toLocaleString("ko-KR");
+const pct = (v) => v == null ? "—" : (v * 100).toFixed(v >= .995 || v === 0 ? 0 : 1) + "%";
+const short = (n) => String(n).replace(/\.json$/i, "").replace(/^APT_FP_/, "");
+const pad2 = (n) => String(n).padStart(2, "0");
+const dt = (iso) => { const d = new Date(iso); return isNaN(d) ? "—" : `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const tick = () => new Promise(r => setTimeout(r, 0));
 
-/* ── 방 용도 사전 ─────────────────────────────────────────── */
-const TYPES = [
-  { key: "hall",    label: "현관·복도", color: "#b9c0c6" },
-  { key: "living",  label: "거실",      color: "#8ecae6" },
-  { key: "kitchen", label: "주방·식당", color: "#ffb703" },
-  { key: "master",  label: "안방",      color: "#a8dadc" },
-  { key: "bed",     label: "침실",      color: "#bde0fe" },
-  { key: "bath",    label: "욕실",      color: "#cdb4db" },
-  { key: "store",   label: "다용도실",  color: "#c7c7a6" },
-  { key: "balcony", label: "발코니",    color: "#d9e4d0" },
-  { key: "etc",     label: "기타",      color: "#d7d7d7" },
-];
-const typeOf = k => TYPES.find(t => t.key === k) || TYPES[TYPES.length - 1];
+/* 아이콘 — Works Lucide 세트(1.5px stroke) */
+const ICON = {
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  plan: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h9M12 3v18M12 15h9"/>',
+  sliders: '<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.5 1.5 0 0 0 .3 1.6l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.5 1.5 0 0 0-2.5.6V20a2 2 0 1 1-4 0v-.1a1.5 1.5 0 0 0-2.6-.9l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.5 1.5 0 0 0-.9-2.6H4a2 2 0 1 1 0-4h.1a1.5 1.5 0 0 0 .9-2.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.5 1.5 0 0 0 2.6-.9V4a2 2 0 1 1 4 0v.1a1.5 1.5 0 0 0 2.6.9l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.5 1.5 0 0 0 .9 2.6H20a2 2 0 1 1 0 4h-.1a1.5 1.5 0 0 0-.5.4z"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2.5h7A1.5 1.5 0 0 1 19 9v8.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/>',
+  ext: '<path d="M14 5h5v5"/><path d="M19 5 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/>',
+  search: '<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  download: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/>',
+  upload: '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 20h16"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',
+  alert: '<path d="M10.3 4 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17v.01"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+  chevR: '<path d="m9 18 6-6-6-6"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+};
+const ico = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ""}</svg>`;
 
-/* ── 상태 ─────────────────────────────────────────────────── */
+const KIND_COLOR = { living: "#F2D99B", bed: "#B7D2EA", kitchen: "#F1BFA0", entry: "#CFC1E6", bath: "#A9DCD5",
+  balcony: "#DCE6CB", dress: "#EACAD8", ac: "#DADADA", etc: "#E7E3DA", multi: "#CFE0BE" };
+const GRADE_BADGE = (g) => ({ A: "badge-success", B: "badge-info", C: "badge-warning" }[g[0]] || "badge-error");
+const gradeFill = (g) => ({ A: "#00804F", B: "#11798A", C: "#8B6914" }[g[0]] || "#C42B3A");
+
+/* ═════════════════════════════════════ 상태 */
 const ST = {
-  img: null, iw: 0, ih: 0,          // 원본 이미지
-  ww: 0, wh: 0,                      // 작업 해상도
-  px: null,                          // 작업 해상도 RGBA
-  wall: null,                        // 벽 마스크
-  lab: null,                         // 방 라벨맵
-  regions: [], doors: [],
-  rooms: new Map(),                  // id → {id,name,type,area,cx,cy,bbox,isOutside}
-  carrier: null, entranceDoor: null,
-  params: { mode: "color", wallColor: [138, 151, 168], tol: 52, darkT: 0.55,
-            dilateR: 6, minCorePct: 0.4, minDoorPx: 5 },
-  view: { z: 1, x: 0, y: 0 },
-  show: { mask: false, seg: true, graph: true, img: true, alpha: 0.45 },
-  scale: { mode: "supply", supply: 34, ratio: 0.75, netM2: 34 * 3.3057851 * 0.75 },
-  picking: false, selected: null,
-  criteria: [], critSet: "주거 일반", analysis: null, vga: null,
+  files: [], seq: 0,
+  route: { page: "stats", tab: "summary", id: null },
+  fileId: null, unitIdx: -1, room: null,
+  criteria: E.parseDSL(E.PRESETS["시공가능성 + 공간구문"]).criteria,
+  params: E.defaultParams(),
+  baseline: null, baseSource: "auto",
+  layers: { fill: true, names: true, doors: true, graph: false, flags: true, dim: true },
+  view: null, extent: null, extentFor: null,
+  snaps: [], busy: false, cancel: false,
+  statType: "", fileQuery: "", archQuery: "", unitSort: "name",
 };
+const curFile = () => ST.files.find(f => f.id === ST.fileId) || null;
+const curResult = () => { const f = curFile(); return f && f.results ? f.results[ST.unitIdx] || null : null; };
+const allUnits = () => ST.files.flatMap(f => (f.results || []).map((r, ui) => ({ f, ui, r })));
+const cleanParams = () => Object.fromEntries(Object.entries(ST.params).filter(([, v]) => v != null));
 
-/* ══════════════════════════════════════════════════════════
-   1. 이미지 처리 · 벽 마스크
-   ══════════════════════════════════════════════════════════ */
-const MAX_WORK = 900;
-
-function loadImage(src, name) {
-  const im = new Image();
-  im.onload = () => {
-    ST.img = im; ST.iw = im.naturalWidth; ST.ih = im.naturalHeight;
-    const sc = Math.min(1, MAX_WORK / Math.max(ST.iw, ST.ih));
-    ST.ww = Math.max(40, Math.round(ST.iw * sc));
-    ST.wh = Math.max(40, Math.round(ST.ih * sc));
-    const c = document.createElement("canvas");
-    c.width = ST.ww; c.height = ST.wh;
-    const g = c.getContext("2d", { willReadFrequently: true });
-    g.drawImage(im, 0, 0, ST.ww, ST.wh);
-    ST.px = g.getImageData(0, 0, ST.ww, ST.wh).data;
-    $("#fileName").textContent = name || "도면";
-    $("#dropzone").style.display = "none";
-    guessWallColor();
-    autoCalibrate();
-    drawBase(); detect();
-    if ([...ST.rooms.values()].filter(r => !r.isOutside).length >= 2) autoName();
-    syncDetectUI(); renderAll(); fitView();
-    setStep("s2");
-  };
-  im.onerror = () => alert("이미지를 불러오지 못했습니다.");
-  im.src = src;
-}
-
-/* 테두리에서 가장 흔한 '진한' 색을 벽 색 초기값으로 추정 */
-function guessWallColor() {
-  const d = ST.px, W = ST.ww, H = ST.wh, hist = new Map();
-  const put = (i) => {
-    const r = d[i], g = d[i + 1], b = d[i + 2];
-    const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    if (l > 0.82 || d[i + 3] < 40) return;         // 너무 밝거나 투명하면 제외
-    const k = `${r >> 4},${g >> 4},${b >> 4}`;
-    const e = hist.get(k) || { n: 0, r: 0, g: 0, b: 0 };
-    e.n++; e.r += r; e.g += g; e.b += b; hist.set(k, e);
-  };
-  for (let x = 0; x < W; x++) { put((x) * 4); put(((H - 1) * W + x) * 4); }
-  for (let y = 0; y < H; y++) { put((y * W) * 4); put((y * W + W - 1) * 4); }
-  for (let y = 0; y < H; y += 3) for (let x = 0; x < W; x += 3) put((y * W + x) * 4);
-  let best = null;
-  for (const e of hist.values()) if (!best || e.n > best.n) best = e;
-  if (best) {
-    ST.params.wallColor = [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
+/* ═════════════════════════════════════ 처리 (나눠서 — 많아도 멈추지 않게) */
+function analyzeFile(f) {
+  f.type = E.labelType(f.data, f.name);
+  f.units = []; f.analyses = []; f.results = []; f.struct = null; f.issues = [];
+  if (f.type === "SPA") {
+    f.units = E.loadUnits(f.data, f.name, ST.params);
+    f.analyses = f.units.map(u => E.analyzeUnit(u, ST.params));
+  } else if (f.type === "STR") {
+    f.struct = E.loadStruct(f.data, f.name);
+    f.issues = E.structChecks(f.struct, ST.params.door_window_min_overlap);
   }
-  syncPick();
 }
-
-function buildWallMask() {
-  const d = ST.px, N = ST.ww * ST.wh, m = new Uint8Array(N), P = ST.params;
-  if (P.mode === "color") {
-    const [wr, wg, wb] = P.wallColor, t2 = P.tol * P.tol;
-    for (let i = 0, p = 0; i < N; i++, p += 4) {
-      if (d[p + 3] < 40) { m[i] = 0; continue; }
-      const dr = d[p] - wr, dg = d[p + 1] - wg, db = d[p + 2] - wb;
-      m[i] = (dr * dr + dg * dg + db * db) <= t2 ? 1 : 0;
-    }
-  } else {
-    const t = P.darkT * 255;
-    for (let i = 0, p = 0; i < N; i++, p += 4) {
-      if (d[p + 3] < 40) { m[i] = 0; continue; }
-      m[i] = (0.2126 * d[p] + 0.7152 * d[p + 1] + 0.0722 * d[p + 2]) < t ? 1 : 0;
+async function runJobs(label, jobs) {
+  ST.busy = true; ST.cancel = false;
+  $("#progress").hidden = false; $("#progBar").style.width = "0%"; $("#progText").textContent = label; $("#progSub").textContent = "";
+  let t = performance.now(), done = 0;
+  for (const j of jobs) {
+    if (ST.cancel) break;
+    try { await j.fn(); } catch (e) { console.error(j.name, e); toast(`${j.name}: 읽지 못했습니다 — ${e.message}`, true); }
+    done++;
+    if (performance.now() - t > 40) {
+      $("#progText").textContent = `${label} ${int(done)} / ${int(jobs.length)}`;
+      $("#progBar").style.width = (done / jobs.length * 100) + "%";
+      $("#progSub").textContent = j.name;
+      await tick(); t = performance.now();
     }
   }
-  return m;
+  $("#progress").hidden = true; ST.busy = false;
+  return done;
+}
+async function ingest(items) {
+  const jobs = items.map(it => ({ name: it.name, fn: async () => {
+    const data = it.data || JSON.parse(await it.file.text());
+    if (!data || !Array.isArray(data.annotations)) throw new Error("COCO 라벨 형식이 아닙니다");
+    const old = ST.files.find(f => f.name === it.name);
+    const rec = old || { id: "f" + (++ST.seq), name: it.name };
+    rec.data = data; analyzeFile(rec);
+    if (!old) ST.files.push(rec);
+  } }));
+  const before = ST.files.length;
+  const n = await runJobs("불러오는 중", jobs);
+  if (ST.baseSource === "auto") rebuildBaseline();
+  rescore(false);
+  toast(`파일 ${int(n)}개를 처리했습니다${ST.cancel ? "(중간에 멈춤)" : ""} · 새 파일 ${int(ST.files.length - before)}개 · 세대 ${int(allUnits().length)}개`);
+  const first = ST.files.find(x => x.name === items[0].name);
+  if (items.length === 1 && first) { selectFile(first.id); go(`#/plans/${first.id}`); }
+  else if (ST.route.page === "plans") { if (!curFile() && first) selectFile(first.id); render(); }
+  else go("#/stats");
+}
+async function reprocessAll() {
+  await runJobs("다시 계산하는 중", ST.files.map(f => ({ name: f.name, fn: () => analyzeFile(f) })));
+  if (ST.baseSource === "auto") rebuildBaseline();
+  const f = curFile(); if (f) ST.unitIdx = f.units.length ? Math.min(Math.max(ST.unitIdx, 0), f.units.length - 1) : -1;
+  ST.room = null;
+  rescore();
+}
+function rebuildBaseline() {
+  const rows = [];
+  for (const f of ST.files) f.units.forEach((u, i) => rows.push({ unit: u.uid, type: E.typeKey(u), ...f.analyses[i].f }));
+  ST.baseline = rows.length >= 3 ? E.buildBaseline(rows) : null;
+}
+function rescore(draw = true) {
+  for (const f of ST.files) {
+    f.results = f.units.map((u, i) => E.scoreUnit(u, f.analyses[i], ST.criteria, ST.baseline));
+    if (f.type === "STR") f.sheetScore = E.scoreAll(ST.criteria, { global: { door_window_overlaps: f.issues.length }, rooms: {} });
+  }
+  if (draw) render();
 }
 
-/* ══════════════════════════════════════════════════════════
-   2. 분할 — 벽 팽창으로 문 틈을 봉해 방을 나누고, 되자라기로 복원
-   ══════════════════════════════════════════════════════════ */
-/* 벽까지의 거리를 한 번만 계산해 둔다 (Chamfer 3-4 근사).
-   이렇게 하면 팽창 반경을 바꿔도 다시 계산할 필요가 없다 — O(N·r)이 O(N)이 된다. */
-function distTransform(wall, w, h) {
-  const N = w * h, INF = 1e9, d = new Float32Array(N);
-  for (let i = 0; i < N; i++) d[i] = wall[i] ? 0 : INF;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x; let v = d[i];
-    if (x > 0) { const t = d[i - 1] + 3; if (t < v) v = t; }
-    if (y > 0) { const t = d[i - w] + 3; if (t < v) v = t; }
-    if (x > 0 && y > 0) { const t = d[i - w - 1] + 4; if (t < v) v = t; }
-    if (x < w - 1 && y > 0) { const t = d[i - w + 1] + 4; if (t < v) v = t; }
-    d[i] = v;
-  }
-  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
-    const i = y * w + x; let v = d[i];
-    if (x < w - 1) { const t = d[i + 1] + 3; if (t < v) v = t; }
-    if (y < h - 1) { const t = d[i + w] + 3; if (t < v) v = t; }
-    if (x < w - 1 && y < h - 1) { const t = d[i + w + 1] + 4; if (t < v) v = t; }
-    if (x > 0 && y < h - 1) { const t = d[i + w - 1] + 4; if (t < v) v = t; }
-    d[i] = v;
-  }
-  for (let i = 0; i < N; i++) d[i] /= 3;
-  return d;
+/* ═════════════════════════════════════ 파일 고르기 · 끌어놓기(폴더 포함) */
+const isJson = (n) => /\.json$/i.test(n);
+function pickFiles(list) {
+  const items = [...list].filter(f => isJson(f.name)).map(f => ({ name: f.name, file: f }));
+  if (!items.length) return toast("JSON 파일이 없습니다", true);
+  ingest(items);
 }
-
-function components(open, w, h, minArea) {
-  const lab = new Int32Array(w * h).fill(-1), comps = [], q = new Int32Array(w * h);
-  for (let s = 0; s < w * h; s++) {
-    if (!open[s] || lab[s] >= 0) continue;
-    const id = comps.length;
-    let head = 0, tail = 0; q[tail++] = s; lab[s] = id;
-    let area = 0, border = false, sx = 0, sy = 0;
-    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
-    while (head < tail) {
-      const p = q[head++], x = p % w, y = (p / w) | 0;
-      area++; sx += x; sy += y;
-      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) border = true;
-      if (x > 0 && open[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; q[tail++] = p - 1; }
-      if (x < w - 1 && open[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; q[tail++] = p + 1; }
-      if (y > 0 && open[p - w] && lab[p - w] < 0) { lab[p - w] = id; q[tail++] = p - w; }
-      if (y < h - 1 && open[p + w] && lab[p + w] < 0) { lab[p + w] = id; q[tail++] = p + w; }
+async function entriesToFiles(entries) {
+  const out = [];
+  const walk = async (en) => {
+    if (en.isFile) { if (isJson(en.name)) out.push(await new Promise((res, rej) => en.file(res, rej))); }
+    else if (en.isDirectory) {
+      const rd = en.createReader();
+      for (;;) { const b = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!b.length) break; for (const x of b) await walk(x); }
     }
-    comps.push({ id, area, border, cx: sx / area, cy: sy / area, bbox: [x0, y0, x1, y1] });
-  }
-  return { lab, comps, keep: comps.filter(c => c.area >= minArea) };
-}
-
-function growLabels(coreLab, open, w, h) {
-  const lab = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h);
-  let head = 0, tail = 0;
-  for (let i = 0; i < w * h; i++) if (coreLab[i] >= 0 && open[i]) { lab[i] = coreLab[i]; q[tail++] = i; }
-  while (head < tail) {
-    const p = q[head++], x = p % w, y = (p / w) | 0, id = lab[p];
-    if (x > 0 && open[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; q[tail++] = p - 1; }
-    if (x < w - 1 && open[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; q[tail++] = p + 1; }
-    if (y > 0 && open[p - w] && lab[p - w] < 0) { lab[p - w] = id; q[tail++] = p - w; }
-    if (y < h - 1 && open[p + w] && lab[p + w] < 0) { lab[p + w] = id; q[tail++] = p + w; }
-  }
-  return lab;
-}
-
-/* 벽 없이 맞닿은 구간 = 문. 접촉 길이와 중점을 함께 구한다. */
-function findDoors(lab, open, w, h, minPx) {
-  const m = new Map();
-  const add = (a, b, x, y) => {
-    if (a < 0 || b < 0 || a === b) return;
-    const k = a < b ? a + "|" + b : b + "|" + a;
-    const e = m.get(k) || { a: Math.min(a, b), b: Math.max(a, b), px: 0, sx: 0, sy: 0 };
-    e.px++; e.sx += x; e.sy += y; m.set(k, e);
   };
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const p = y * w + x; if (!open[p]) continue;
-    if (x < w - 1 && open[p + 1]) add(lab[p], lab[p + 1], x + .5, y);
-    if (y < h - 1 && open[p + w]) add(lab[p], lab[p + w], x, y + .5);
+  for (const en of entries) await walk(en);
+  return out;
+}
+
+/* ═════════════════════════════════════ 라우팅 (URL로 페이지·탭을 잡는다) */
+const PAGES = {
+  stats:    { title: "통계", icon: "chart", tabs: [["summary", "요약"], ["criteria", "조건·점검"], ["measures", "지표"], ["units", "세대 목록"]] },
+  plans:    { title: "도면", icon: "plan" },
+  criteria: { title: "평가 구조", icon: "sliders", tabs: [["list", "조건"], ["dsl", "문법 편집"]] },
+  params:   { title: "판정 변수", icon: "settings" },
+  baseline: { title: "정답지", icon: "check" },
+  archive:  { title: "보관 기록", icon: "folder" },
+};
+function parseHash() {
+  const p = (location.hash || "#/stats").replace(/^#\/?/, "").split("/").map(s => { try { return decodeURIComponent(s); } catch { return s; } });
+  const page = PAGES[p[0]] ? p[0] : "stats";
+  const r = { page, tab: null, id: null };
+  if (page === "stats" || page === "criteria") r.tab = (PAGES[page].tabs.find(t => t[0] === p[1]) || PAGES[page].tabs[0])[0];
+  if (page === "plans" || page === "archive") r.id = p[1] || null;
+  if (page === "archive" && r.id) r.tab = (PAGES.stats.tabs.find(t => t[0] === p[2]) || PAGES.stats.tabs[0])[0];
+  return r;
+}
+function go(hash) { if (location.hash === hash) onRoute(); else location.hash = hash; }
+function onRoute() {
+  ST.route = parseHash();
+  if (ST.route.page === "plans") {
+    const want = ST.route.id && ST.files.some(f => f.id === ST.route.id) ? ST.route.id : (curFile() ? ST.fileId : ST.files[0]?.id);
+    if (want && want !== ST.fileId) selectFile(want);
   }
-  return [...m.values()].filter(e => e.px >= minPx)
-    .map(e => ({ a: e.a, b: e.b, px: e.px, cx: e.sx / e.px, cy: e.sy / e.px }));
+  $("#sidebar").classList.remove("open");
+  render();
+  $("#content").scrollTop = 0;
+}
+function selectFile(id) {
+  ST.fileId = id; ST.room = null;
+  const f = curFile(); ST.unitIdx = f && f.results.length ? 0 : -1;
 }
 
-/* 주어진 팽창 반경으로 한 번 분할해 본다 */
-function segmentWith(dist, open, w, h, r, minArea) {
-  const N = w * h;
-  const core = new Uint8Array(N);
-  for (let i = 0; i < N; i++) core[i] = (open[i] && dist[i] > r) ? 1 : 0;
-  const { lab: coreLab, keep } = components(core, w, h, minArea);
-  const keepIds = new Set(keep.map(c => c.id));
-  const filtered = new Int32Array(N).fill(-1);
-  for (let i = 0; i < N; i++) if (coreLab[i] >= 0 && keepIds.has(coreLab[i])) filtered[i] = coreLab[i];
-  return { lab: growLabels(filtered, open, w, h), keep };
+/* ═════════════════════════════════════ 셸 */
+function renderShell() {
+  const n = allUnits().length, files = ST.files.length;
+  const avg = n ? allUnits().reduce((s, x) => s + x.r.score.total, 0) / n : null;
+  $("#dataset").innerHTML = files ? `<span>도면 <b>${int(files)}</b></span><i></i><span>세대 <b>${int(n)}</b></span>${avg != null ? `<i class="opt"></i><span class="opt">평균 <b>${fx(avg)}</b>점</span>` : ""}` : `<span>불러온 도면 없음</span>`;
+  const nav = (page, label, cnt) => `<a class="nav-link${ST.route.page === page ? " is-active" : ""}" href="#/${page}" title="${label}"${ST.route.page === page ? ' aria-current="page"' : ""}>${ico(PAGES[page].icon)}<span class="lbl">${label}</span>${cnt ? `<span class="cnt">${int(cnt)}</span>` : ""}</a>`;
+  $("#sidebar").innerHTML = `
+    <div class="nav-section">분석</div>
+    ${nav("stats", "통계", n)}${nav("plans", "도면", files)}
+    <div class="nav-section">평가 설정</div>
+    ${nav("criteria", "평가 구조", ST.criteria.filter(c => c.enabled).length)}${nav("params", "판정 변수")}${nav("baseline", "정답지")}
+    <div class="nav-section">기록</div>
+    ${nav("archive", "보관 기록", ST.snaps.length)}
+    <div class="nav-section">도구</div>
+    <a class="nav-link" href="image.html" title="이미지 분석 스튜디오">${ico("ext")}<span class="lbl">이미지 분석 스튜디오</span></a>
+    <div class="nav-foot">라벨 파일은 브라우저 밖으로 나가지 않습니다. 보관 기록은 이 브라우저에만 저장됩니다.</div>`;
+}
+function renderHeader(title, crumbs, tabs, extra = "") {
+  const crumb = crumbs.map(c => Array.isArray(c) ? `<a href="${c[1]}">${esc(c[0])}</a>` : `<span>${esc(c)}</span>`).join(`<span>/</span>`);
+  $("#pageHeader").innerHTML = `<div class="breadcrumb">${crumb}</div>
+    <div class="page-title-row"><h1 class="page-title">${esc(title)}</h1>${extra}</div>
+    ${tabs ? `<nav class="tabbar" aria-label="${esc(title)} 탭">${tabs.map(([k, l, href, cnt]) => `<a class="tab${k === ST.route.tab ? " is-active" : ""}" href="${href}"${k === ST.route.tab ? ' aria-current="page"' : ""}>${esc(l)}${cnt != null ? `<span class="cnt">${int(cnt)}</span>` : ""}</a>`).join("")}</nav>` : ""}`;
+  document.title = `${title} · 도면 평가 스튜디오`;
+}
+function render() {
+  renderShell();
+  const r = ST.route, c = $("#content");
+  c.className = "main-content" + (r.page === "plans" && ST.files.length ? " full" : "");
+  ({ stats: pageStats, plans: pagePlans, criteria: pageCriteria, params: pageParams, baseline: pageBaseline, archive: pageArchive })[r.page]();
 }
 
-/* 문 틈 폭은 도면마다 다르다 — 방이 가장 잘 나뉘는 반경을 자동으로 찾는다.
-   외부(테두리에 닿는 영역)가 화면을 통째로 먹으면 봉하기에 실패한 것이다. */
-function autoCalibrate() {
-  if (!ST.px) return;
-  const w = ST.ww, h = ST.wh, N = w * h;
-  const wall = buildWallMask();
-  const open = new Uint8Array(N);
-  for (let i = 0; i < N; i++) open[i] = wall[i] ? 0 : 1;
-  const dist = distTransform(wall, w, h);
-  const minArea = Math.max(24, Math.round(N * ST.params.minCorePct / 100));
-  const maxR = Math.max(8, Math.round(Math.min(w, h) / 6));
-  let best = null;
-  for (let r = 2; r <= maxR; r += Math.max(1, Math.round(maxR / 20))) {
-    const { keep } = segmentWith(dist, open, w, h, r, minArea);
-    if (!keep.length) continue;
-    const outside = keep.filter(c => c.border).sort((a, b) => b.area - a.area)[0];
-    const rooms = keep.filter(c => c !== outside);
-    const outFrac = outside ? outside.area / N : 1;
-    if (!rooms.length) continue;
-    // 방이 많을수록 좋고, 외부가 화면을 다 먹으면 실패로 본다
-    const score = rooms.length - (outFrac > 0.55 ? 100 : 0);
-    if (!best || score > best.score) best = { r, score, n: rooms.length };
+/* ── 통계 ── */
+function liveStats(type = "") {
+  const rows = allUnits().filter(x => !type || x.r.type === type).map(({ f, r }) => E.statRow(r, f.name));
+  const b = ST.baseline;
+  return E.aggregate(rows, { params: cleanParams(), criteria: ST.criteria },
+    { baseline: b ? { source: ST.baseSource, n_units: b.n_units, type_counts: b.type_counts } : null });
+}
+function emptyData(title, desc) {
+  return `<div class="card"><div class="empty-state"><h3>${title}</h3><p>${desc}</p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" data-act="openMenu">${ico("upload")}도면 불러오기</button><button class="btn btn-secondary" data-act="sample">예시 도면으로 보기</button></div></div></div>`;
+}
+function pageStats() {
+  const types = [...new Set(allUnits().map(x => x.r.type))].sort();
+  if (ST.statType && !types.includes(ST.statType)) ST.statType = "";
+  const S = liveStats(ST.statType);
+  renderHeader("통계", ["분석"], PAGES.stats.tabs.map(([k, l]) => [k, l, `#/stats/${k}`, k === "units" ? S.summary.n_units : null]));
+  const c = $("#content");
+  if (!allUnits().length) { c.innerHTML = emptyData("불러온 도면이 없습니다", "AI 허브 ‘건축 도면 데이터’의 라벨 JSON(SPA·STR·OBJ·OCR)을 여러 개 또는 폴더째 불러오면, 세대마다 채점한 결과가 이 화면에 모입니다. 화면 아무 곳에나 끌어다 놓아도 됩니다."); return; }
+  c.innerHTML = `<div class="toolbar">
+      <select class="select" id="statType" style="width:auto" aria-label="유형">${[["", "전체 유형"], ...types.map(t => [t, t])].map(([v, l]) => `<option value="${v}"${v === ST.statType ? " selected" : ""}>${l}</option>`).join("")}</select>
+      <span class="field-hint">유형 = 침실 수 R · 화장실 수 B (평형 대용)</span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" data-act="csv">${ico("download")}CSV</button>
+      <button class="btn btn-secondary" data-act="dlLive">${ico("download")}통계 JSON</button>
+      <button class="btn btn-primary" data-act="saveSnap">현재 통계 보관</button>
+    </div>${statsBody(S, ST.route.tab, true)}`;
+}
+function histogram(h, total) {
+  const max = Math.max(1, ...h.map(b => b.n));
+  const mag = Math.pow(10, Math.floor(Math.log10(max)));
+  const step = max <= 5 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : mag * (max / mag > 5 ? 2 : 1);
+  const top = Math.ceil(max / step) * step, ticks = [];
+  for (let v = 0; v <= top; v += step) ticks.push(v);
+  return `<div class="hist" role="img" aria-label="총점 10점 구간별 세대 수">
+    <div class="yax">${ticks.map(v => `<span style="bottom:${v / top * 100}%">${int(v)}</span>`).join("")}</div>
+    <div class="plot">${ticks.slice(1).map(v => `<i class="grid" style="bottom:${v / top * 100}%"></i>`).join("")}
+      ${h.map(b => { const hh = b.n / top * 100; return `<div class="col" data-tip="${b.lo}~${b.hi === 100 ? 100 : b.hi - 0.1}점 · ${int(b.n)}세대 (${total ? (b.n / total * 100).toFixed(1) : 0}%)" style="--h:${hh}%"><b style="height:${hh}%"></b>${b.n ? `<span class="cap">${int(b.n)}</span>` : ""}</div>`; }).join("")}
+    </div>
+    <div class="xax">${h.map(b => `<span>${b.lo}</span>`).join("")}</div>
+  </div>`;
+}
+/* 통계 본문 — 현재 통계와 보관 기록이 같이 쓴다 */
+function statsBody(S, tab, live) {
+  const sm = S.summary, sc = sm.score;
+  if (tab === "summary") {
+    const kpis = [
+      ["세대", int(sm.n_units), `파일 ${int(sm.n_files)}개`],
+      ["평균 점수", fx(sc.mean), `중앙값 ${fx(sc.median)} · 표준편차 ${fx(sc.sd)}`],
+      ["시공 가능", pct(sm.feasibility_pass_rate), "오류 없는 세대 비율"],
+      ["필수 조건 탈락", pct(sm.gated_rate), "총점 0점 처리된 세대"],
+      ["평균 감점", fx(sm.mean_penalty, 2), `평균 기본점 ${fx(sm.mean_base)}`],
+    ].map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+    const types = `<table class="t"><thead><tr><th>유형</th><th class="n">세대</th><th class="n">평균</th><th class="n">중앙값</th><th class="n">최저</th><th class="n">최고</th><th>시공 가능</th></tr></thead><tbody>
+      ${S.by_type.map(t => `<tr><td><b>${esc(t.type)}</b></td><td class="n">${int(t.n)}</td><td class="n">${fx(t.mean)}</td><td class="n">${fx(t.median)}</td><td class="n">${fx(t.min)}</td><td class="n">${fx(t.max)}</td>
+        <td class="num" style="white-space:nowrap"><span class="meter"><b style="width:${t.pass_rate * 100}%"></b></span>${pct(t.pass_rate)}</td></tr>`).join("")}</tbody></table>`;
+    return `<div class="kpis">${kpis}</div>
+      <div class="grid2">
+        <div class="card"><div class="card-header"><h2 class="card-title">총점 분포</h2><span class="field-hint">10점 구간 · 막대에 올리면 비율</span></div>
+          <div class="card-body">${histogram(sm.histogram, sm.n_units)}
+          <div class="grades">등급 ${Object.entries(sm.grades).map(([g, k]) => `<span><b>${g}</b><span class="num">${int(k)}</span></span>`).join("")}</div></div></div>
+        <div class="card"><div class="card-header"><h2 class="card-title">유형별</h2></div><div class="card-body flush tw">${types}</div></div>
+      </div>`;
   }
-  if (best && best.score > -50) ST.params.dilateR = best.r;
-}
-
-function detect() {
-  if (!ST.px) return;
-  const w = ST.ww, h = ST.wh, N = w * h, P = ST.params;
-  ST.wall = buildWallMask();
-  const open = new Uint8Array(N);
-  for (let i = 0; i < N; i++) open[i] = ST.wall[i] ? 0 : 1;
-  const minArea = Math.max(24, Math.round(N * P.minCorePct / 100));
-  ST.dist = distTransform(ST.wall, w, h);
-  ST.lab = segmentWith(ST.dist, open, w, h, P.dilateR, minArea).lab;
-
-  // 영역 통계 다시 계산 (되자란 뒤)
-  const stat = new Map();
-  for (let i = 0; i < N; i++) {
-    const id = ST.lab[i]; if (id < 0) continue;
-    const x = i % w, y = (i / w) | 0;
-    const e = stat.get(id) || { id, area: 0, sx: 0, sy: 0, x0: 1e9, y0: 1e9, x1: -1, y1: -1, border: false };
-    e.area++; e.sx += x; e.sy += y;
-    if (x < e.x0) e.x0 = x; if (x > e.x1) e.x1 = x;
-    if (y < e.y0) e.y0 = y; if (y > e.y1) e.y1 = y;
-    if (x === 0 || y === 0 || x === w - 1 || y === h - 1) e.border = true;
-    stat.set(id, e);
+  if (tab === "criteria") {
+    const crit = `<table class="t"><thead><tr><th>조건</th><th>반영</th><th class="n">평균 조건점수</th><th>만점 비율</th><th class="n">건너뜀</th></tr></thead><tbody>
+      ${S.criteria.map(c => `<tr><td class="num">${esc(c.dsl)}</td><td><span class="eff-${c.effect}" style="font-weight:600">${(E.EFFECTS[c.effect] || c.effect).replace(/\(.*\)/, "")}</span></td><td class="n">${fmt(c.mean_score)}</td>
+        <td class="num" style="white-space:nowrap"><span class="meter"><b style="width:${(c.full_rate || 0) * 100}%"></b></span>${pct(c.full_rate)}</td><td class="n">${int(c.skipped)}</td></tr>`).join("")}</tbody></table>`;
+    const iss = `<table class="t"><thead><tr><th>점검</th><th class="n">해당 세대</th><th class="n">비율</th><th class="n">건수</th></tr></thead><tbody>
+      ${S.issues.map(i => `<tr><td><span class="badge badge-neutral">${i.id}</span> ${esc(i.name)}</td><td class="n">${int(i.units)}</td><td class="n">${pct(sm.n_units ? i.units / sm.n_units : null)}</td><td class="n">${int(i.count)}</td></tr>`).join("")}</tbody></table>`;
+    return `<div class="card"><div class="card-header"><h2 class="card-title">조건별 결과</h2>${live ? `<a class="btn btn-ghost btn-sm" href="#/criteria">평가 구조 편집</a>` : ""}</div><div class="card-body flush tw">${crit}</div></div>
+      <div class="section-gap"></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">시공 가능성 점검</h2></div><div class="card-body flush tw">${iss}</div></div>`;
   }
-  ST.regions = [...stat.values()].map(e => ({
-    id: e.id, area: e.area, cx: e.sx / e.area, cy: e.sy / e.area,
-    bbox: [e.x0, e.y0, e.x1 + 1, e.y1 + 1], isOutside: e.border,
-  })).sort((a, b) => b.area - a.area);
-
-  // 테두리에 닿는 영역 중 가장 큰 것을 '외부'로 삼는다
-  const out = ST.regions.filter(r => r.isOutside).sort((a, b) => b.area - a.area)[0];
-  ST.regions.forEach(r => r.isOutside = out ? r.id === out.id : false);
-  ST.carrier = out ? out.id : null;
-
-  ST.doors = findDoors(ST.lab, open, w, h, P.minDoorPx);
-
-  // 방 메타 유지/생성
-  const prev = ST.rooms; ST.rooms = new Map();
-  let n = 0;
-  for (const r of ST.regions) {
-    if (r.isOutside) { ST.rooms.set(r.id, { id: r.id, name: "외부", type: "etc", isOutside: true, ...r }); continue; }
-    n++;
-    const old = prev.get(r.id);
-    ST.rooms.set(r.id, {
-      id: r.id, name: old?.name || ("실 " + n), type: old?.type || "etc",
-      isOutside: false, ...r,
-    });
+  if (tab === "measures") {
+    return `<div class="card"><div class="card-header"><h2 class="card-title">전역 지표 요약</h2></div><div class="card-body flush tw">
+      <table class="t"><thead><tr><th>지표</th><th class="n">n</th><th class="n">평균</th><th class="n">중앙값</th><th class="n">표준편차</th><th class="n">최저</th><th class="n">최고</th></tr></thead><tbody>
+      ${Object.entries(S.measures).filter(([, d]) => d.n).map(([k, d]) => `<tr><td>${esc((E.MEASURES[k] || {}).label || k)} <span class="field-hint">@${k}</span></td><td class="n">${int(d.n)}</td><td class="n">${fmt(d.mean)}</td><td class="n">${fmt(d.median)}</td><td class="n">${fmt(d.sd)}</td><td class="n">${fmt(d.min)}</td><td class="n">${fmt(d.max)}</td></tr>`).join("")}
+      </tbody></table></div></div>
+      <div class="section-gap"></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">이 통계를 낸 조건·변수</h2></div><div class="card-body">
+        <pre class="num" style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:22px">${esc(S.config.dsl)}</pre>
+        <div class="field-hint" style="margin-top:12px">${esc(Object.entries(S.config.params || {}).map(([k, v]) => `${k}=${v}`).join(" · "))}</div>
+        <div class="field-hint">정답지: ${S.baseline ? `${S.baseline.source === "auto" ? "불러온 세대" : "파일"} ${int(S.baseline.n_units)}세대` : "없음"}</div></div></div>`;
   }
-  ST.selected = null;
-  analyzeAll();
-}
-</script>
-
-<script>
-"use strict";
-/* ══════════════════════════════════════════════════════════
-   3. 공간구문 그래프 — Hillier & Hanson (1984)
-   ══════════════════════════════════════════════════════════ */
-function buildGraph() {
-  const adj = new Map();
-  for (const r of ST.regions) adj.set(r.id, new Set());
-  for (const d of ST.doors) {
-    if (!adj.has(d.a) || !adj.has(d.b)) continue;
-    adj.get(d.a).add(d.b); adj.get(d.b).add(d.a);
-  }
-  return { nodes: ST.regions.map(r => r.id), adj };
-}
-function bfs(adj, src) {
-  const d = new Map([[src, 0]]); let q = [src];
-  while (q.length) { const nx = [];
-    for (const v of q) for (const u of adj.get(v) || []) if (!d.has(u)) { d.set(u, d.get(v) + 1); nx.push(u); }
-    q = nx; }
-  return d;
-}
-const diamond = k => k < 4 ? NaN : 2 * (k * (Math.log2((k + 2) / 3) - 1) + 1) / ((k - 1) * (k - 2));
-function brandes(nodes, adj) {
-  const cb = new Map(nodes.map(v => [v, 0]));
-  for (const s of nodes) {
-    const stack = [], preds = new Map(nodes.map(v => [v, []]));
-    const sigma = new Map(nodes.map(v => [v, 0])), dist = new Map(nodes.map(v => [v, -1]));
-    sigma.set(s, 1); dist.set(s, 0); const q = [s];
-    while (q.length) { const v = q.shift(); stack.push(v);
-      for (const w of adj.get(v) || []) {
-        if (dist.get(w) < 0) { dist.set(w, dist.get(v) + 1); q.push(w); }
-        if (dist.get(w) === dist.get(v) + 1) { sigma.set(w, sigma.get(w) + sigma.get(v)); preds.get(w).push(v); } } }
-    const delta = new Map(nodes.map(v => [v, 0]));
-    while (stack.length) { const w = stack.pop();
-      for (const v of preds.get(w)) delta.set(v, delta.get(v) + sigma.get(v) / sigma.get(w) * (1 + delta.get(w)));
-      if (w !== s) cb.set(w, cb.get(w) + delta.get(w)); } }
-  const n = nodes.length, norm = n > 2 ? (n - 1) * (n - 2) : 1;
-  return new Map([...cb].map(([v, x]) => [v, x / norm]));
-}
-function r2(xs, ys) {
-  const n = xs.length; if (n < 3) return NaN;
-  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
-  let sxy = 0, sxx = 0, syy = 0;
-  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
-  return (sxx <= 0 || syy <= 0) ? NaN : (sxy * sxy) / (sxx * syy);
-}
-function diffFactor(ras) {
-  const v = ras.filter(x => isFinite(x) && x > 0); if (v.length < 2) return NaN;
-  const t = v.reduce((a, b) => a + b, 0);
-  return -v.reduce((a, x) => a + (x / t) * Math.log(x / t), 0) / Math.log(v.length);
+  const rows = S.units.slice().sort((a, b) => ST.unitSort === "asc" ? a.total - b.total : ST.unitSort === "desc" ? b.total - a.total : a.unit.localeCompare(b.unit));
+  const LIM = 2000;
+  return `<div class="toolbar"><select class="select" id="unitSort" style="width:auto" aria-label="정렬">${[["name", "이름순"], ["asc", "점수 낮은 순"], ["desc", "점수 높은 순"]].map(([v, l]) => `<option value="${v}"${v === ST.unitSort ? " selected" : ""}>${l}</option>`).join("")}</select>
+      ${live ? `<span class="field-hint">행을 누르면 그 세대의 도면을 엽니다.</span>` : ""}</div>
+    <div class="card"><div class="card-body flush tw" style="max-height:calc(100vh - 320px);min-height:240px;overflow:auto">
+    <table class="t"><thead><tr><th>세대</th><th>유형</th><th class="n">총점</th><th>등급</th><th class="n">기본점</th><th class="n">감점</th><th>시공</th></tr></thead><tbody>
+    ${rows.slice(0, LIM).map(u => `<tr class="${live ? "click" : ""}" data-unit="${esc(u.unit)}"><td class="num">${esc(short(u.unit))}</td><td>${esc(u.type)}</td><td class="n"><b>${fx(u.total)}</b></td><td><span class="badge ${GRADE_BADGE(u.grade)}">${u.grade}</span></td>
+      <td class="n">${fx(u.base)}</td><td class="n">${fx(u.penalty)}</td><td>${u.pass ? `<span class="badge badge-neutral">가능</span>` : `<span class="badge badge-error">불가</span>`}</td></tr>`).join("")}
+    </tbody></table></div></div>${rows.length > LIM ? `<div class="field-hint" style="margin-top:8px">처음 ${int(LIM)}세대만 표시합니다. 전체는 통계 JSON에 들어 있습니다.</div>` : ""}`;
 }
 
-/* ══════════════════════════════════════════════════════════
-   4. 가시성 분석 (VGA) — 실내 격자 위 직선 시선
-   ══════════════════════════════════════════════════════════ */
-function runVGA(targetCells = 420) {
-  const w = ST.ww, h = ST.wh, lab = ST.lab, wall = ST.wall;
-  if (!lab) return null;
-  let interior = 0;
-  for (let i = 0; i < w * h; i++) if (lab[i] >= 0 && lab[i] !== ST.carrier) interior++;
-  if (interior < 50) return null;
-  const cs = Math.max(4, Math.round(Math.sqrt(interior / targetCells)));   // 셀 한 변(px)
-  const gw = Math.ceil(w / cs), gh = Math.ceil(h / cs);
-  const cells = [];
-  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
-    const px = Math.min(w - 1, Math.round((gx + .5) * cs)), py = Math.min(h - 1, Math.round((gy + .5) * cs));
-    const id = lab[py * w + px];
-    if (id >= 0 && id !== ST.carrier) cells.push({ px, py, room: id });
+/* ── 도면 ── */
+function pagePlans() {
+  const f = curFile(), r = curResult();
+  renderHeader("도면", ["분석"], null, f ? `<span class="badge badge-neutral">${f.type}</span><span class="field-hint" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw">${esc(f.name)}</span>` : "");
+  const c = $("#content");
+  if (!ST.files.length) { c.innerHTML = emptyData("불러온 도면이 없습니다", "라벨 JSON을 불러오면 파일마다 도면을 그리고, 세대를 나눠 채점합니다. 파일 여러 개나 폴더를 한꺼번에 불러올 수 있습니다."); return; }
+  const listScroll = $("#fileList") ? $("#fileList").scrollTop : 0;
+  const q = ST.fileQuery.trim().toLowerCase();
+  const list = ST.files.filter(x => !q || x.name.toLowerCase().includes(q));
+  const LIM = 500;
+  const listHtml = list.slice(0, LIM).map(x => {
+    const n = x.results.length, avg = n ? x.results.reduce((s, y) => s + y.score.total, 0) / n : null;
+    const meta = x.type === "SPA" ? `${n}세대${avg != null ? ` · ${fx(avg, 0)}` : ""}` : x.type === "STR" ? `겹침 ${x.issues.length}` : "";
+    const units = x.id === ST.fileId && x.results.length ? x.results.map((y, ui) => `<div class="urow${ui === ST.unitIdx ? " is-sel" : ""}" data-u="${ui}"><span class="nm">#${ui} ${esc(y.type)}</span><span class="sc" style="color:${gradeFill(y.score.grade)}">${fx(y.score.total, 0)}</span></div>`).join("") : "";
+    return `<div class="frow${x.id === ST.fileId ? " is-sel" : ""}" data-f="${x.id}" title="${esc(x.name)}"><span class="tag">${x.type}</span><span class="nm">${esc(short(x.name))}</span><span class="meta">${meta}</span><button class="x" data-close="${x.id}" title="목록에서 빼기" aria-label="${esc(short(x.name))} 목록에서 빼기">${ico("x")}</button></div>${units}`;
+  }).join("") + (list.length > LIM ? `<div class="field-hint" style="padding:8px 10px">… ${int(list.length - LIM)}개 더 — 검색으로 좁혀 주세요.</div>` : "");
+  c.innerHTML = `<div class="ws">
+    <aside class="ws-list" aria-label="파일 목록">
+      <div class="ws-list-head">
+        <button class="btn btn-primary" data-act="openMenu" style="width:100%">${ico("upload")}도면 불러오기</button>
+        <label class="input-search">${ico("search")}<input id="fileQ" placeholder="파일 이름 검색" value="${esc(ST.fileQuery)}" aria-label="파일 이름 검색"></label>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span class="field-hint">파일 ${int(ST.files.length)}개${q ? ` 중 ${int(list.length)}개` : ""}</span><button class="btn btn-ghost btn-sm" data-act="closeAll">모두 빼기</button></div>
+      </div>
+      <div class="ws-list-body" id="fileList">${listHtml || `<div class="field-hint" style="padding:10px">검색 결과가 없습니다.</div>`}</div>
+    </aside>
+    <section class="canvas" aria-label="도면">
+      <svg id="plan" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${f ? esc(f.name) + " 도면" : "도면"}"></svg>
+      <div class="cv-tools">${[["fill", "실 색"], ["names", "실 이름"], ["doors", "추정 문"], ["graph", "연결 그래프"], ["flags", "문제 표시"], ["dim", "선택 세대 강조"]].map(([k, l]) => `<button class="chip${ST.layers[k] ? " is-active" : ""}" data-l="${k}" aria-pressed="${ST.layers[k]}">${l}</button>`).join("")}</div>
+      <div class="cv-zoom"><button id="zIn" title="확대" aria-label="확대">${ico("plus")}</button><button id="zOut" title="축소" aria-label="축소">${ico("minus")}</button><button id="zFit" title="화면에 맞추기" aria-label="화면에 맞추기">${ico("fit")}</button></div>
+      <div class="cv-legend" id="legend"></div>
+    </section>
+    <aside class="ws-side" aria-label="세대 결과">${sidePanel(f, r)}</aside>
+  </div>`;
+  $("#fileList").scrollTop = listScroll;
+  drawPlan(); wireCanvas();
+}
+function sidePanel(f, r) {
+  if (!f) return `<div class="ws-side-sec"><div class="field-hint">왼쪽에서 파일을 고르세요.</div></div>`;
+  if (f.type === "STR") {
+    const s = f.sheetScore;
+    return `<div class="ws-side-sec"><h3>구조 시트</h3><div class="score-row"><span class="score-val">${fx(s.total)}점</span><span class="badge ${GRADE_BADGE(s.grade)}">${s.grade}</span></div>
+      <div class="score-sub">세대가 없어 <code>@door_window_overlaps</code> 조건만 적용합니다.</div></div>
+      <div class="ws-side-sec"><h3>문·창 겹침 <span class="badge ${f.issues.length ? "badge-error" : "badge-neutral"}">${f.issues.length}건</span></h3>
+        ${f.issues.map(i => `<div class="iss"><span class="badge badge-error">F8</span><span>${esc(i.message)}</span></div>`).join("") || `<div class="field-hint">겹친 곳이 없습니다.</div>`}
+        <div class="kv" style="margin-top:8px"><span>문 · 창 · 벽</span><span class="num">${int(f.struct.door.length)} · ${int(f.struct.window.length)} · ${int(f.struct.wall.length)}</span></div></div>`;
   }
-  const n = cells.length;
-  if (n < 8 || n > 1400) { if (n > 1400) return runVGA(Math.round(targetCells * 0.6)); return null; }
-  const vis = Array.from({ length: n }, () => []);
-  const step = Math.max(2, cs * 0.7);
-  for (let a = 0; a < n; a++) {
-    const A = cells[a];
-    for (let b = a + 1; b < n; b++) {
-      const B = cells[b];
-      const dx = B.px - A.px, dy = B.py - A.py, dist = Math.hypot(dx, dy);
-      const m = Math.max(2, Math.ceil(dist / step));
-      let ok = true;
-      for (let t = 1; t < m; t++) {
-        const f = t / m, x = (A.px + dx * f) | 0, y = (A.py + dy * f) | 0;
-        const p = y * w + x;
-        if (wall[p] || lab[p] < 0 || lab[p] === ST.carrier) { ok = false; break; }
+  if (!r) return `<div class="ws-side-sec"><h3>${f.type} 라벨</h3><div class="field-hint">${f.type === "SPA" ? "이 시트에서 나눌 수 있는 세대가 없습니다." : "그림만 그립니다. 채점은 SPA(공간) 라벨로 합니다."}</div></div>`;
+  const s = r.score, u = f.units[ST.unitIdx];
+  const critRows = s.rows.map(row => {
+    const c = row.criterion, t = c.scope === "room" ? `${c.room}.${c.measure}` : `@${c.measure}`;
+    const eff = c.effect === "weight" ? `w ${fmt(c.weight)}` : c.effect === "penalty" ? (row.deduct ? `<span class="eff-gate">−${fx(row.deduct)}</span>` : "0") : (row.gated ? `<span class="eff-gate">탈락</span>` : "통과");
+    return `<tr><td><div class="num" style="font-size:12px">${esc(t)}</div><div class="field-hint">${esc(E.MEASURES[c.measure].label)}${row.room ? " · " + esc(r.measures.rooms[row.room].name) : ""}</div></td>
+      <td class="n">${fmt(row.value)}</td><td class="n">${row.score == null ? "—" : row.score.toFixed(2)}</td><td class="n">${eff}</td></tr>`;
+  }).join("");
+  const RM = [["area_ratio", "면적비"], ["step_depth", "깊이"], ["integration_rank", "통합 순위"], ["connectivity", "문"], ["aspect", "장단변비"], ["daylight_m", "채광(m)"]];
+  const sel = ST.room && r.measures.rooms[ST.room];
+  return `<div class="ws-side-sec">
+      <h3>세대 #${ST.unitIdx} <span class="badge badge-neutral">${esc(r.type)}</span></h3>
+      <div class="score-row"><span class="score-val">${fx(s.total)}점</span><span class="badge ${GRADE_BADGE(s.grade)}">${s.grade}</span>${r.feasibility.pass ? `<span class="badge badge-neutral">시공 가능</span>` : `<span class="badge badge-error">시공 불가</span>`}</div>
+      <div class="score-sub">기본점 ${fx(s.base)} − 감점 ${fx(s.penalty)}${s.gated ? ` · 필수 조건 ${s.gated}개 탈락으로 0점` : ""}${s.skipped ? ` · 값 없는 조건 ${s.skipped}개 건너뜀` : ""}</div>
+      <div class="score-sub">세대 약 ${int(Math.round(u.area / u.px_per_m ** 2))}㎡(추정) · 추정 문 ${int(r.doors.length)}개${u.dropped.length ? ` · 샤프트로 제외 ${u.dropped.length}개` : ""}</div>
+    </div>
+    <div class="ws-side-sec"><h3>시공 가능성 점검</h3>
+      ${r.issues.map(i => `<div class="iss"><span class="badge ${i.level === "error" ? "badge-error" : i.level === "warn" ? "badge-warning" : "badge-neutral"}">${i.id}</span><span>${esc(i.message)}</span></div>`).join("") || `<div class="field-hint">걸린 항목이 없습니다.</div>`}</div>
+    <div class="ws-side-sec"><h3>조건별</h3><div class="tw"><table class="t compact"><thead><tr><th>조건</th><th class="n">값</th><th class="n">점수</th><th class="n">반영</th></tr></thead><tbody>${critRows}</tbody></table></div></div>
+    ${sel ? `<div class="ws-side-sec"><h3>${esc(sel.name)} <button class="btn btn-ghost btn-sm" data-act="unroom" style="margin-left:auto">선택 해제</button></h3>${Object.entries(sel).filter(([k]) => E.MEASURES[k]).map(([k, v]) => `<div class="kv"><span>${esc(E.MEASURES[k].label)}</span><span class="num">${fmt(v)}</span></div>`).join("")}</div>` : ""}
+    <div class="ws-side-sec"><h3>실별 지표</h3><div class="field-hint" style="margin:-6px 0 8px">행이나 도면의 실을 누르면 선택합니다.</div><div class="tw"><table class="t compact"><thead><tr><th>실</th>${RM.map(([k, l]) => `<th class="n" title="${esc(E.MEASURES[k].label)}">${l}</th>`).join("")}</tr></thead><tbody>
+      ${Object.keys(r.measures.rooms).map(k => `<tr class="click${k === ST.room ? " is-sel" : ""}" data-room="${k}"><td>${esc(r.measures.rooms[k].name)}</td>${RM.map(([m]) => `<td class="n">${fmt(r.measures.rooms[k][m], 2)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>
+    <div class="ws-side-sec"><details class="more"><summary>${ico("chevR")}전역 지표</summary>${Object.entries(r.measures.global).map(([k, v]) => `<div class="kv"><span>${esc(E.MEASURES[k].label)}</span><span class="num">${fmt(v)}</span></div>`).join("")}</details>
+      ${r.typicality ? `<details class="more" style="margin-top:8px"><summary>${ico("chevR")}정답지 근접도 (${esc(r.typicality.reference)})</summary><div class="tw"><table class="t compact"><thead><tr><th>특징</th><th class="n">값</th><th class="n">중앙값</th><th class="n">z</th></tr></thead><tbody>
+        ${Object.entries(r.typicality.features).map(([k, t]) => `<tr><td>${esc(E.FEATURES[k])}</td><td class="n">${fmt(t.value)}</td><td class="n">${fmt(t.median)}</td><td class="n" style="${Math.abs(t.z) > 2 ? "color:#C42B3A;font-weight:600" : ""}">${t.z.toFixed(1)}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</div>`;
+}
+function extentOf(f) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const a of f.data.annotations) {
+    if (a.category_id === 12 || !a.bbox) continue;
+    const [x, y, w, h] = a.bbox;
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h);
+  }
+  if (!isFinite(x0)) return [0, 0, 100, 100];
+  const pad = Math.max(x1 - x0, y1 - y0) * .04;
+  return [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
+}
+const P = (poly) => poly.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+function drawPlan() {
+  const svg = $("#plan"), f = curFile(); if (!svg) return;
+  if (!f) { svg.innerHTML = ""; $("#legend").hidden = true; return; }
+  if (ST.extentFor !== f.id || !ST.extent) { ST.extent = extentOf(f); ST.extentFor = f.id; ST.view = ST.extent.slice(); }
+  const [ex, ey, ew, eh] = ST.extent, fs = Math.max(ew, eh) / 110, sw = Math.max(ew, eh) / 900;
+  const L = ST.layers, out = [`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" fill="#FFFFFF"/>`];
+  const RED = "#DC3545", TEAL = "#004F59", DOOR = "#F47D30";
+  if (f.type === "SPA") {
+    const inUnit = new Set(); f.units.forEach(u => Object.values(u.spaces).forEach(s => inUnit.add(s.ann)));
+    for (const a of f.data.annotations) {
+      if (!a.segmentation || !a.segmentation[0] || !a.segmentation[0].length || a.category_id === 12 || inUnit.has(a.id)) continue;
+      const core = E.CORE_CATS[a.category_id], sp = E.SPACE_CATS[a.category_id]; if (!core && !sp) continue;
+      out.push(`<polygon points="${P(E.pts(a.segmentation[0]))}" fill="${core ? "#E0E0E0" : "#F2F0EC"}" stroke="#A4A4A4" stroke-width="${sw}" stroke-dasharray="${sw * 4} ${sw * 3}"><title>${esc(core || sp[1])} (세대 밖 · 제외)</title></polygon>`);
+    }
+    f.units.forEach((u, ui) => {
+      const r = f.results[ui], dim = L.dim && ui !== ST.unitIdx, flagged = new Set();
+      if (r && L.flags) {
+        r.issues.forEach(i => { if (i.level !== "info") i.rooms.forEach(k => flagged.add(k)); });
+        r.score.rows.forEach(row => { if (row.room && row.score != null && row.score < 1 && row.criterion.effect !== "weight") flagged.add(row.room); });
       }
-      if (ok) { vis[a].push(b); vis[b].push(a); }
+      const g = [`<g opacity="${dim ? .32 : 1}">`];
+      for (const [k, s] of Object.entries(u.spaces)) {
+        const sel = ui === ST.unitIdx && ST.room === k;
+        g.push(`<polygon class="room" data-u="${ui}" data-k="${k}" points="${P(s.poly)}" fill="${L.fill ? KIND_COLOR[s.kind] : "#FFFFFF"}" stroke="${sel ? TEAL : "#666666"}" stroke-width="${sel ? sw * 4 : sw}"><title>${esc(s.name)} · 세대 대비 ${(s.area / u.area * 100).toFixed(1)}%</title></polygon>`);
+      }
+      for (const k of flagged) if (u.spaces[k]) g.push(`<polygon points="${P(u.spaces[k].poly)}" fill="none" stroke="${RED}" stroke-width="${sw * 3}" pointer-events="none"/>`);
+      if (r && L.graph) {
+        for (const [a, b] of r.doors) { const ca = u.spaces[a].centroid, cb = u.spaces[b].centroid; g.push(`<line x1="${ca[0]}" y1="${ca[1]}" x2="${cb[0]}" y2="${cb[1]}" stroke="${TEAL}" stroke-width="${sw * 1.8}" stroke-opacity=".55" pointer-events="none"/>`); }
+        for (const k of Object.keys(r.adj)) { const c = u.spaces[k].centroid; g.push(`<circle cx="${c[0]}" cy="${c[1]}" r="${fs * .25}" fill="${TEAL}" pointer-events="none"/>`); }
+      }
+      if (r && L.doors) for (const [a, b] of r.doors) {
+        const m = u.contactMid.get(a < b ? `${a}|${b}` : `${b}|${a}`);
+        if (m) g.push(`<rect x="${m[0] - fs * .3}" y="${m[1] - fs * .3}" width="${fs * .6}" height="${fs * .6}" rx="${fs * .12}" fill="${DOOR}" stroke="#fff" stroke-width="${sw}" pointer-events="none"/>`);
+      }
+      if (L.names) for (const s of Object.values(u.spaces)) {
+        const [cx, cy] = s.centroid, small = s.bbox[2] < fs * 3 || s.bbox[3] < fs * 1.8, size = fs * (small ? .55 : .8);
+        g.push(`<text x="${cx}" y="${cy}" font-size="${size}" text-anchor="middle" fill="#222222" font-weight="600" pointer-events="none">${esc(s.name)}</text>`);
+        if (!small) g.push(`<text x="${cx}" y="${cy + size * 1.15}" font-size="${size * .75}" text-anchor="middle" fill="#666666" pointer-events="none">${(s.area / u.area * 100).toFixed(0)}%</text>`);
+      }
+      const xs = Object.values(u.spaces).flatMap(s => s.poly.map(p => p[0])), ys = Object.values(u.spaces).flatMap(s => s.poly.map(p => p[1]));
+      const bx0 = Math.min(...xs), by0 = Math.min(...ys), bx1 = Math.max(...xs), by1 = Math.max(...ys), m = fs * .6, on = ui === ST.unitIdx;
+      g.push(`<rect x="${bx0 - m}" y="${by0 - m}" width="${bx1 - bx0 + 2 * m}" height="${by1 - by0 + 2 * m}" rx="${fs * .3}" fill="none" stroke="${on ? TEAL : "#A4A4A4"}" stroke-width="${sw * (on ? 3 : 1.5)}" ${on ? "" : `stroke-dasharray="${sw * 8} ${sw * 5}"`} pointer-events="none"/>`);
+      if (r) g.push(`<text x="${bx0 - m}" y="${by0 - m * 1.8}" font-size="${fs}" font-weight="700" fill="${on ? TEAL : "#666666"}" class="ulabel" data-u="${ui}" style="cursor:pointer">#${ui} ${r.type} · ${fx(r.score.total, 0)}점 ${r.score.grade}</text>`);
+      g.push("</g>"); out.push(g.join(""));
+    });
+    $("#legend").innerHTML = Object.entries(KIND_COLOR).map(([k, c]) => `<span><i style="background:${c}"></i>${E.KIND_NAME[k]}</span>`).join("")
+      + `<span><i style="background:${DOOR}"></i>추정 문</span><span><i style="background:none;border:2px solid ${RED}"></i>문제</span>`;
+  } else if (f.type === "STR") {
+    const bad = new Set(f.issues.flatMap(i => [i.door, i.window])), order = { 11: 0, 10: 1, 9: 2 };
+    for (const a of f.data.annotations.filter(a => E.STR_CATS[a.category_id] && a.segmentation && a.segmentation[0] && a.segmentation[0].length).sort((a, b) => order[a.category_id] - order[b.category_id])) {
+      const kind = E.STR_CATS[a.category_id], hit = bad.has(a.id), poly = P(E.pts(a.segmentation[0]));
+      const attr = Object.entries(a.attributes || {}).filter(([k]) => k !== "occluded" && k !== "rotation").map(([, v]) => v).join(" ");
+      if (kind === "wall") out.push(`<polygon points="${poly}" fill="#4A5565"><title>벽 ${esc(attr)}</title></polygon>`);
+      else out.push(`<polygon points="${poly}" fill="${hit ? RED : kind === "door" ? DOOR : "#62B2FD"}" fill-opacity=".9" stroke="#fff" stroke-width="${sw}"><title>${kind === "door" ? "문" : "창"} #${a.id} ${esc(attr)}</title></polygon>`);
     }
-  }
-  const dk = diamond(n), out = [];
-  for (let c = 0; c < n; c++) {
-    const seen = vis[c];
-    const dep = new Int32Array(n).fill(-1); dep[c] = 0;
-    let q = [c], tot = 0, cnt = 0;
-    while (q.length) { const nx = [];
-      for (const v of q) for (const u of vis[v]) if (dep[u] < 0) { dep[u] = dep[v] + 1; tot += dep[u]; cnt++; nx.push(u); }
-      q = nx; }
-    const md = cnt ? tot / cnt : NaN;
-    const ra = n > 2 ? 2 * (md - 1) / (n - 2) : NaN;
-    const rra = isFinite(dk) && dk ? ra / dk : NaN;
-    out.push({ ...cells[c], conn: seen.length,
-      integ: (rra && isFinite(rra) && rra > 0) ? 1 / rra : NaN, md });
-  }
-  const fin = out.filter(o => isFinite(o.integ));
-  return { cells: out, cs,
-    global: {
-      mean_visual_integration: fin.reduce((a, o) => a + o.integ, 0) / (fin.length || 1),
-      mean_visual_connectivity: out.reduce((a, o) => a + o.conn, 0) / n,
-      visual_intelligibility: r2(fin.map(o => o.conn), fin.map(o => o.integ)),
-    } };
-}
-
-/* ══════════════════════════════════════════════════════════
-   5. 전체 분석
-   ══════════════════════════════════════════════════════════ */
-/* 한국 평형 — 공급 평형과 전용면적을 함께 다룬다.
-   "34평형"은 보통 공급면적이고, 도면에 적히는 전용면적은 그 70~80%다. */
-const SUPPLY_LIST = [8, 10, 13, 15, 17, 19, 21, 24, 25, 27, 29, 32, 34, 36, 39, 43, 45, 49, 53, 59, 65];
-const interiorPx = () => ST.regions.filter(r => !r.isOutside).reduce((a, r) => a + r.area, 0) || 1;
-const netM2 = () => ST.scale.netM2;
-const netPyeong = () => ST.scale.netM2 / PYEONG_M2;
-const supplyPyeong = () => ST.scale.netM2 / PYEONG_M2 / ST.scale.ratio;
-function recomputeScale() {
-  const sc = ST.scale;
-  if (sc.mode === "supply") sc.netM2 = sc.supply * PYEONG_M2 * sc.ratio;
-}
-function pxToM2(px) { return px / interiorPx() * netM2(); }
-const pxToM = (p) => p * Math.sqrt(netM2() / interiorPx());
-
-function analyzeAll() {
-  if (!ST.regions.length) { ST.analysis = null; return; }
-  const G = buildGraph();
-  const k = G.nodes.length, dk = diamond(k), ch = brandes(G.nodes, G.adj);
-  const carrierDepth = ST.carrier != null ? bfs(G.adj, ST.carrier) : new Map();
-  const nodes = new Map();
-  for (const v of G.nodes) {
-    const d = bfs(G.adj, v);
-    const reach = [...d].filter(([u]) => u !== v).map(([, x]) => x);
-    const td = reach.reduce((a, b) => a + b, 0), md = k > 1 ? td / (k - 1) : NaN;
-    const ra = k > 2 ? 2 * (md - 1) / (k - 2) : NaN;
-    const rra = isFinite(dk) && dk ? ra / dk : NaN;
-    let cv = 0; for (const u of G.adj.get(v)) { const dg = G.adj.get(u).size; if (dg) cv += 1 / dg; }
-    nodes.set(v, { connectivity: G.adj.get(v).size, total_depth: td, mean_depth: md, RA: ra, RRA: rra,
-      integration: (rra && isFinite(rra) && rra > 0) ? 1 / rra : NaN,
-      control_value: cv, choice: ch.get(v),
-      step_depth: carrierDepth.has(v) ? carrierDepth.get(v) : null,
-      disconnected: reach.length < k - 1 });
-  }
-  const inner = [...nodes].filter(([v]) => v !== ST.carrier);
-  const rank = inner.filter(([, m]) => isFinite(m.integration)).sort((a, b) => b[1].integration - a[1].integration);
-  rank.forEach(([v], i) => nodes.get(v).integration_rank = i + 1);
-
-  ST.vga = runVGA();
-  if (ST.vga) {
-    const per = new Map();
-    for (const c of ST.vga.cells) {
-      const e = per.get(c.room) || { n: 0, i: 0, c: 0 };
-      e.n++; if (isFinite(c.integ)) e.i += c.integ; e.c += c.conn; per.set(c.room, e);
+    $("#legend").innerHTML = `<span><i style="background:#4A5565"></i>벽</span><span><i style="background:${DOOR}"></i>문</span><span><i style="background:#62B2FD"></i>창</span><span><i style="background:${RED}"></i>문·창 겹침</span>`;
+  } else {
+    for (const a of f.data.annotations) {
+      if (!a.bbox || a.category_id === 12) continue;
+      const [x, y, w, h] = a.bbox;
+      if (f.type === "OBJ") out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#F5F7F8" stroke="#666666" stroke-width="${sw}"/><text x="${x + w / 2}" y="${y + h / 2}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" fill="#222222">${esc(E.OBJ_CATS[a.category_id] || "?")}</text>`);
+      else out.push(`<text x="${x}" y="${y + h}" font-size="${Math.max(h, fs * .6)}" fill="#222222">${esc((a.attributes || {}).OCR || "")}</text>`);
     }
-    for (const [id, e] of per) if (nodes.has(id)) {
-      nodes.get(id).visual_integration = e.i / e.n;
-      nodes.get(id).visual_connectivity = e.c / e.n;
-    }
+    $("#legend").innerHTML = `<span>${f.type === "OBJ" ? "위생·주방 기구 위치" : "도면 글자(OCR)"}</span>`;
   }
-  const withInt = inner.map(([, m]) => m).filter(m => isFinite(m.integration));
-  const global = {
-    node_count: k, room_count: inner.length,
-    edge_count: [...G.adj.values()].reduce((a, s) => a + s.size, 0) / 2,
-    mean_depth_system: inner.reduce((a, [, m]) => a + (isFinite(m.mean_depth) ? m.mean_depth : 0), 0) / (inner.length || 1),
-    mean_integration: withInt.reduce((a, m) => a + m.integration, 0) / (withInt.length || 1),
-    max_depth_from_carrier: carrierDepth.size ? Math.max(...[...carrierDepth].filter(([v]) => v !== ST.carrier).map(([, d]) => d)) : null,
-    intelligibility: r2(withInt.map(m => m.connectivity), withInt.map(m => m.integration)),
-    difference_factor: diffFactor(inner.map(([, m]) => m.RA)),
-    disconnected_rooms: inner.filter(([, m]) => m.disconnected).length,
-    ...(ST.vga ? ST.vga.global : {}),
-  };
-  ST.analysis = { G, nodes, global };
-}
-
-/* ══════════════════════════════════════════════════════════
-   6. Space Syntax 조건 — 입력 → 데이터화 → 채점
-   ══════════════════════════════════════════════════════════ */
-const MEASURES = {
-  mean_depth_system:      { label: "시스템 평균깊이", scope: "global", span: 1.6, hint: "모든 실 쌍의 평균 이동 횟수. 낮을수록 얕다." },
-  max_depth_from_carrier: { label: "현관 최대깊이",   scope: "global", span: 3,   hint: "현관에서 가장 깊은 실까지 문을 몇 번 지나는가." },
-  intelligibility:        { label: "명료성 r²",       scope: "global", span: .6,  hint: "연결도와 통합도의 상관. 길찾기 쉬움." },
-  difference_factor:      { label: "차이계수 H*",     scope: "global", span: .3,  hint: "공간 위계의 고름. 1에 가까울수록 평평." },
-  mean_integration:       { label: "평균 통합도",     scope: "global", span: 1.5, hint: "전체 실의 통합도 평균." },
-  edge_count:             { label: "문 개수",         scope: "global", span: 6,   hint: "그래프의 연결 수." },
-  room_count:             { label: "방 개수",         scope: "global", span: 4,   hint: "검출된 실의 수." },
-  disconnected_rooms:     { label: "고립된 실 수",    scope: "global", span: 2,   hint: "현관에서 닿을 수 없는 실. 0이어야 한다." },
-  mean_visual_integration:{ label: "평균 시각 통합도", scope: "global", span: 5,  hint: "VGA 기준. 눈으로 닿기 쉬운 정도." },
-  visual_intelligibility: { label: "시각 명료성",     scope: "global", span: .6,  hint: "시각 연결도와 시각 통합도의 상관." },
-  integration:      { label: "통합도",      scope: "room", span: 2,   hint: "1/RRA. 클수록 전체에서 접근하기 쉬운 중심." },
-  integration_rank: { label: "통합도 순위", scope: "room", span: 4,   hint: "1이면 가장 통합적인 실." },
-  mean_depth:       { label: "평균깊이",    scope: "room", span: 1.2, hint: "다른 모든 실까지의 평균 이동 횟수." },
-  connectivity:     { label: "연결도",      scope: "room", span: 4,   hint: "직접 이어진 실의 수 = 문의 개수." },
-  control_value:    { label: "제어값",      scope: "room", span: 1.2, hint: "1보다 크면 주변을 통제하는 위치." },
-  choice:           { label: "선택도",      scope: "room", span: .3,  hint: "최단 경로가 통과하는 빈도." },
-  step_depth:       { label: "현관 깊이",   scope: "room", span: 3,   hint: "현관에서 이 실까지 문을 몇 번 지나는가." },
-  visual_integration:{ label: "시각 통합도", scope: "room", span: 5,  hint: "그 실 안에서 잰 VGA 통합도 평균." },
-  area_m2:          { label: "면적(㎡)",    scope: "room", span: 10,  hint: "축척을 적용한 실 면적." },
-};
-
-const c0 = (o) => Object.assign({ mode: "range", weight: 1, enabled: true }, o);
-const CRIT_PRESETS = {
-  "주거 일반": () => [
-    c0({ scope: "room", room: "hall", measure: "step_depth", best: 1, worst: 4, weight: 2, why: "현관은 외부에서 바로 닿아야 한다." }),
-    c0({ scope: "room", room: "living", measure: "integration_rank", best: 1, worst: 5, weight: 2, why: "거실이 가장 통합적인 공간이어야 한다." }),
-    c0({ scope: "room", room: "master", measure: "integration", best: 0.7, worst: 3, weight: 1.5, why: "안방은 통합도가 낮아야(격리) 한다." }),
-    c0({ scope: "global", measure: "mean_depth_system", best: 1.4, worst: 3, weight: 1, why: "평면 전체가 얕을수록 이동이 편하다." }),
-    c0({ scope: "global", measure: "intelligibility", best: 0.9, worst: 0.2, weight: 1, why: "국소 연결만 보고 전체 구조를 짐작할 수 있어야." }),
-    c0({ scope: "global", measure: "disconnected_rooms", best: 0, worst: 2, weight: 2.5, why: "닿을 수 없는 실이 있으면 도면으로 성립하지 않는다." }),
-  ],
-  "프라이버시 우선": () => [
-    c0({ scope: "room", room: "master", measure: "step_depth", mode: "target", target: 3, tol: 1, weight: 2.5, why: "안방은 현관에서 세 단계쯤 떨어져야." }),
-    c0({ scope: "room", room: "bed", measure: "step_depth", mode: "target", target: 3, tol: 1.5, weight: 2, why: "침실도 현관 동선에서 물러나야." }),
-    c0({ scope: "room", room: "bath", measure: "integration", best: 0.8, worst: 3, weight: 1.5, why: "욕실이 너무 통합적이면 사생활이 노출된다." }),
-    c0({ scope: "room", room: "hall", measure: "step_depth", best: 1, worst: 3, weight: 1.5, why: "현관 자체는 얕아야." }),
-    c0({ scope: "global", measure: "disconnected_rooms", best: 0, worst: 2, weight: 2.5, why: "고립된 실 금지." }),
-  ],
-  "무장애 접근": () => [
-    c0({ scope: "global", measure: "mean_depth_system", best: 1.2, worst: 3, weight: 2.5, why: "이동 단계가 적어야." }),
-    c0({ scope: "global", measure: "max_depth_from_carrier", best: 2, worst: 5, weight: 2.5, why: "가장 깊은 실까지도 두 단계 안." }),
-    c0({ scope: "room", room: "hall", measure: "connectivity", best: 5, worst: 1, weight: 2, why: "복도가 많은 실과 직접 이어져야." }),
-    c0({ scope: "global", measure: "disconnected_rooms", best: 0, worst: 1, weight: 3, why: "모든 실이 도달 가능해야." }),
-    c0({ scope: "global", measure: "intelligibility", best: 0.9, worst: 0.3, weight: 1.5, why: "길찾기가 쉬워야." }),
-  ],
-  "가시성 중심 (상업·전시)": () => [
-    c0({ scope: "global", measure: "mean_visual_integration", best: 9, worst: 3, weight: 3, why: "시야가 잘 통해야." }),
-    c0({ scope: "global", measure: "visual_intelligibility", best: 0.95, worst: 0.3, weight: 2, why: "보이는 대로 이해되는 공간." }),
-    c0({ scope: "room", room: "living", measure: "visual_integration", best: 9, worst: 3, weight: 1.5, why: "주 공간의 시각 통합도." }),
-    c0({ scope: "global", measure: "disconnected_rooms", best: 0, worst: 2, weight: 2, why: "고립된 실 금지." }),
-  ],
-};
-
-let SEQ = 0;
-function parseDSL(text) {
-  const out = [], errors = [];
-  text.split("\n").forEach((raw, ln) => {
-    const line = raw.replace(/#.*$/, "").trim(); if (!line) return;
-    const m = line.match(/^([A-Za-z0-9_@]+)\s*\.?\s*([A-Za-z0-9_]*)\s*(<=|>=|==)\s*([-\d.]+)\s*(?:(?:\.\.|±)\s*([-\d.]+))?\s*(?:w\s*=\s*([\d.]+))?$/);
-    if (!m) { errors.push(`${ln + 1}행: 해석 불가 — "${raw.trim()}"`); return; }
-    let [, target, measure, op, val, second, weight] = m;
-    if (target.startsWith("@")) { measure = measure || target.slice(1); target = "@"; }
-    const meta = MEASURES[measure];
-    if (!meta) { errors.push(`${ln + 1}행: 알 수 없는 지표 "${measure}"`); return; }
-    if (meta.scope === "room" && target === "@") { errors.push(`${ln + 1}행: "${measure}"는 실 단위입니다.`); return; }
-    if (meta.scope === "global" && target !== "@") { errors.push(`${ln + 1}행: "${measure}"는 전역 지표입니다. @${measure}`); return; }
-    if (meta.scope === "room" && !TYPES.some(t => t.key === target)) {
-      errors.push(`${ln + 1}행: 알 수 없는 용도 "${target}" (${TYPES.map(t => t.key).join(", ")})`); return; }
-    const v = parseFloat(val), span = meta.span || 1;
-    const cr = { id: ++SEQ, scope: meta.scope, room: meta.scope === "room" ? target : null,
-      measure, weight: weight ? parseFloat(weight) : 1, enabled: true, why: meta.hint };
-    if (op === "==") { cr.mode = "target"; cr.target = v; cr.tol = second != null ? parseFloat(second) : span / 3; }
-    else { cr.mode = "range"; cr.best = v; cr.worst = second != null ? parseFloat(second) : (op === "<=" ? v + span : v - span); }
-    out.push(cr);
-  });
-  return { criteria: out, errors };
-}
-function toDSL(cs) {
-  return cs.map(cr => {
-    const t = cr.scope === "room" ? `${cr.room}.${cr.measure}` : `@${cr.measure}`;
-    const w = cr.weight !== 1 ? ` w=${cr.weight}` : "", off = cr.enabled ? "" : "# ";
-    if (cr.mode === "target") return `${off}${t} == ${cr.target} ± ${cr.tol}${w}`;
-    return `${off}${t} ${cr.worst > cr.best ? "<=" : ">="} ${cr.best} .. ${cr.worst}${w}`;
-  }).join("\n");
-}
-
-const roomsOfType = (t) => [...ST.rooms.values()].filter(r => !r.isOutside && r.type === t);
-
-function rawMeasure(cr, roomId) {
-  const A = ST.analysis; if (!A) return null;
-  if (cr.scope === "global") { const v = A.global[cr.measure]; return (v == null || !isFinite(v)) ? null : v; }
-  if (cr.measure === "area_m2") { const r = ST.rooms.get(roomId); return r ? pxToM2(r.area) : null; }
-  const nd = A.nodes.get(roomId); if (!nd) return null;
-  const v = nd[cr.measure];
-  return (v == null || !isFinite(v)) ? null : v;
-}
-function scoreOne(cr, v) {
-  if (v == null) return null;
-  let s = cr.mode === "target"
-    ? 1 - Math.abs(v - cr.target) / Math.max(cr.tol, 1e-9)
-    : (v - cr.worst) / ((cr.best - cr.worst) || 1e-9);
-  return clamp(s, 0, 1);
-}
-/* 같은 용도의 방이 여럿이면 가장 나쁜 쪽을 쓴다 — "그 용도의 방이 모두 만족" */
-function scoreCriterion(cr) {
-  if (cr.scope === "global") { const v = rawMeasure(cr, null); return { value: v, score: scoreOne(cr, v), n: 1 }; }
-  const rs = roomsOfType(cr.room);
-  if (!rs.length) return { value: null, score: null, n: 0, note: "해당 용도의 방 없음" };
-  let worst = null;
-  for (const r of rs) {
-    const v = rawMeasure(cr, r.id), s = scoreOne(cr, v);
-    if (s == null) continue;
-    if (!worst || s < worst.score) worst = { value: v, score: s, room: r };
-  }
-  return worst ? { ...worst, n: rs.length } : { value: null, score: null, n: rs.length };
-}
-function scoreAll() {
-  const rows = ST.criteria.filter(c => c.enabled).map(cr => ({ cr, ...scoreCriterion(cr) }));
-  const ok = rows.filter(r => r.score != null);
-  const ws = ok.reduce((a, r) => a + r.cr.weight, 0);
-  return { rows, total: ws ? ok.reduce((a, r) => a + r.cr.weight * r.score, 0) / ws * 100 : null,
-           counted: ok.length, skipped: rows.length - ok.length };
-}
-function gradeOf(t) {
-  if (t == null) return { g: "—", cls: "g-C", sub: "조건 없음" };
-  if (t >= 95) return { g: "A+", cls: "g-A", sub: "조건을 거의 완전히 만족" };
-  if (t >= 90) return { g: "A", cls: "g-A", sub: "매우 잘 만족" };
-  if (t >= 85) return { g: "B+", cls: "g-B", sub: "대체로 양호" };
-  if (t >= 80) return { g: "B", cls: "g-B", sub: "양호, 개선 여지" };
-  if (t >= 70) return { g: "C+", cls: "g-C", sub: "일부 조건 미달" };
-  if (t >= 60) return { g: "C", cls: "g-C", sub: "여러 조건 미달" };
-  if (t >= 45) return { g: "D", cls: "g-D", sub: "구조적 재검토 필요" };
-  return { g: "F", cls: "g-D", sub: "조건을 거의 만족 못함" };
-}
-</script>
-
-<script>
-"use strict";
-/* ══════════════════════════════════════════════════════════
-   7. 캔버스 · 오버레이 렌더링
-   ══════════════════════════════════════════════════════════ */
-const PALETTE = ["#8ecae6","#ffb703","#a8dadc","#bde0fe","#cdb4db","#c7c7a6","#f4a3a3","#b6d7a8",
-                 "#f6c68a","#9fd8cb","#d3bcdd","#c9d6df"];
-function roomColor(r, i) {
-  if (r.isOutside) return "#5d6f79";
-  const t = typeOf(r.type);
-  return t.key === "etc" ? PALETTE[i % PALETTE.length] : t.color;
-}
-function sizeCanvases() {
-  for (const id of ["#imgCanvas", "#maskCanvas", "#segCanvas"]) {
-    const c = $(id); c.width = ST.ww; c.height = ST.wh;
-    c.style.width = ST.ww + "px"; c.style.height = ST.wh + "px";
-  }
-  const sv = $("#svgOverlay");
-  sv.setAttribute("width", ST.ww); sv.setAttribute("height", ST.wh);
-  sv.setAttribute("viewBox", `0 0 ${ST.ww} ${ST.wh}`);
-  $("#layer").style.width = ST.ww + "px"; $("#layer").style.height = ST.wh + "px";
-}
-function drawBase() {
-  sizeCanvases();
-  const g = $("#imgCanvas").getContext("2d");
-  g.clearRect(0, 0, ST.ww, ST.wh);
-  if (ST.img && ST.show.img) g.drawImage(ST.img, 0, 0, ST.ww, ST.wh);
-}
-function drawMask() {
-  const c = $("#maskCanvas"), g = c.getContext("2d");
-  g.clearRect(0, 0, ST.ww, ST.wh);
-  if (!ST.wall || !ST.show.mask) return;
-  const im = g.createImageData(ST.ww, ST.wh), d = im.data;
-  for (let i = 0, p = 0; i < ST.ww * ST.wh; i++, p += 4)
-    if (ST.wall[i]) { d[p] = 232; d[p + 1] = 76; d[p + 2] = 60; d[p + 3] = 150; }
-  g.putImageData(im, 0, 0);
-}
-function drawSeg() {
-  const c = $("#segCanvas"), g = c.getContext("2d");
-  g.clearRect(0, 0, ST.ww, ST.wh);
-  if (!ST.lab || !ST.show.seg) return;
-  const cols = new Map();
-  ST.regions.forEach((r, i) => {
-    const h = roomColor(ST.rooms.get(r.id) || r, i);
-    cols.set(r.id, [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
-  });
-  const a = Math.round(ST.show.alpha * 255);
-  const im = g.createImageData(ST.ww, ST.wh), d = im.data;
-  for (let i = 0, p = 0; i < ST.ww * ST.wh; i++, p += 4) {
-    const id = ST.lab[i]; if (id < 0) continue;
-    const col = cols.get(id); if (!col) continue;
-    const sel = ST.selected === id;
-    d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2];
-    d[p + 3] = id === ST.carrier ? Math.round(a * 0.35) : (sel ? Math.min(255, a + 70) : a);
-  }
-  g.putImageData(im, 0, 0);
-}
-function drawOverlay() {
-  const sv = $("#svgOverlay");
-  if (!ST.regions.length) { sv.innerHTML = ""; return; }
-  const A = ST.analysis;
-  const S = 1 / Math.max(ST.view.z, .35);          // 줌에 반비례해 라벨 크기 유지
-  let g = "";
-  if (ST.show.graph && A) {
-    for (const d of ST.doors) {
-      const ra = ST.regions.find(r => r.id === d.a), rb = ST.regions.find(r => r.id === d.b);
-      if (!ra || !rb) continue;
-      const isEnt = d.a === ST.carrier || d.b === ST.carrier;
-      g += `<line x1="${ra.cx.toFixed(1)}" y1="${ra.cy.toFixed(1)}" x2="${rb.cx.toFixed(1)}" y2="${rb.cy.toFixed(1)}"
-             stroke="${isEnt ? "#e63946" : "#1e2a33"}" stroke-width="${1.4 * S}" stroke-opacity=".32"
-             stroke-dasharray="${isEnt ? `${5 * S},${3 * S}` : "none"}"/>`;
-      g += `<circle cx="${d.cx.toFixed(1)}" cy="${d.cy.toFixed(1)}" r="${3.4 * S}"
-             fill="#fff" stroke="${isEnt ? "#e63946" : "#0d8f7c"}" stroke-width="${1.6 * S}"/>`;
-    }
-  }
-  ST.regions.forEach((r, i) => {
-    const rm = ST.rooms.get(r.id); if (!rm) return;
-    if (rm.isOutside) return;                      // 외부는 라벨을 달지 않는다
-    const nd = ST.analysis?.nodes.get(r.id);
-    const sel = ST.selected === r.id;
-    const name = rm.name;
-    const area = `${pxToM2(r.area).toFixed(1)}㎡ · ${(pxToM2(r.area) / PYEONG_M2).toFixed(1)}평`;
-    const fs = 11.5 * S, fs2 = 8.8 * S;
-    const wpx = Math.max(name.length * fs, area.length * fs2 * 0.62) + 14 * S;
-    const hpx = fs + fs2 + 13 * S;
-    const x = r.cx, y = r.cy;
-    if (sel) g += `<rect x="${r.bbox[0]}" y="${r.bbox[1]}" width="${r.bbox[2]-r.bbox[0]}" height="${r.bbox[3]-r.bbox[1]}"
-           fill="none" stroke="#0d8f7c" stroke-width="${2*S}" stroke-dasharray="${5*S},${3.5*S}"/>`;
-    g += `<g>
-      <rect x="${(x - wpx/2).toFixed(1)}" y="${(y - hpx/2).toFixed(1)}" width="${wpx.toFixed(1)}" height="${hpx.toFixed(1)}"
-            rx="${3*S}" fill="rgba(255,255,255,.88)" stroke="${sel ? "#0d8f7c" : "rgba(30,42,51,.22)"}" stroke-width="${S}"/>
-      <text x="${x.toFixed(1)}" y="${(y - hpx/2 + 5.5*S + fs*0.78).toFixed(1)}" text-anchor="middle"
-            font-size="${fs.toFixed(1)}" font-weight="600" fill="#16222b">${esc(name)}</text>
-      <text x="${x.toFixed(1)}" y="${(y + hpx/2 - 5*S).toFixed(1)}" text-anchor="middle"
-            font-size="${fs2.toFixed(1)}" fill="#5d6f79" font-family="IBM Plex Mono,monospace">${area}</text>
-    </g>`;
-    if (nd && nd.step_depth != null) {
-      const bx = x + wpx/2, by = y - hpx/2;
-      g += `<g><circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${7.5*S}" fill="#0d8f7c"/>
-        <text x="${bx.toFixed(1)}" y="${by.toFixed(1)}" text-anchor="middle" dominant-baseline="central"
-          font-size="${8*S}" font-weight="600" fill="#fff" font-family="IBM Plex Mono,monospace">${nd.step_depth}</text></g>`;
-    }
-    if (nd && nd.disconnected) {
-      g += `<text x="${x.toFixed(1)}" y="${(y + hpx/2 + 11*S).toFixed(1)}" text-anchor="middle"
-        font-size="${fs2.toFixed(1)}" font-weight="600" fill="#a8451a"
-        style="paint-order:stroke;stroke:rgba(255,255,255,.9);stroke-width:${2.5*S}px">닿을 수 없음</text>`;
-    }
-  });
-  sv.innerHTML = g;
-}
-function paint() { drawBase(); drawMask(); drawSeg(); drawOverlay(); }
-
-/* ── 뷰 변환 ── */
-function applyView() {
-  const v = ST.view;
-  $("#layer").style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`;
-  $("#zTxt").textContent = Math.round(v.z * 100) + "%";
-  drawOverlay();
-}
-function fitView() {
-  const st = $("#viewport").getBoundingClientRect();
-  if (!ST.ww) return;
-  const z = Math.min((st.width - 48) / ST.ww, (st.height - 48) / ST.wh);
-  ST.view.z = clamp(z, 0.08, 6);
-  ST.view.x = (st.width - ST.ww * ST.view.z) / 2;
-  ST.view.y = (st.height - ST.wh * ST.view.z) / 2;
+  $("#legend").hidden = false;
+  svg.setAttribute("font-family", "Pretendard Variable, Pretendard, sans-serif");
+  svg.innerHTML = out.join("");
   applyView();
 }
-function zoomAt(f, cx, cy) {
-  const v = ST.view, z2 = clamp(v.z * f, 0.08, 8);
-  const k = z2 / v.z;
-  v.x = cx - (cx - v.x) * k; v.y = cy - (cy - v.y) * k; v.z = z2;
-  applyView();
+function fitView() { if (ST.extent) { ST.view = ST.extent.slice(); applyView(); } }
+function applyView() { const s = $("#plan"); if (s && ST.view) s.setAttribute("viewBox", ST.view.map(v => v.toFixed(1)).join(" ")); }
+function zoomAt(k, cx, cy) {
+  const svg = $("#plan"); if (!svg || !ST.view) return;
+  const r = svg.getBoundingClientRect(); if (!r.width) return;
+  const [x, y, w, h] = ST.view, s = Math.max(w / r.width, h / r.height);
+  const ox = (r.width * s - w) / 2, oy = (r.height * s - h) / 2;
+  const px = x - ox + (cx ?? r.width / 2) * s, py = y - oy + (cy ?? r.height / 2) * s;
+  ST.view = [px - (px - x) / k, py - (py - y) / k, w / k, h / k]; applyView();
 }
-function screenToImage(e) {
-  const r = $("#viewport").getBoundingClientRect(), v = ST.view;
-  return { x: (e.clientX - r.left - v.x) / v.z, y: (e.clientY - r.top - v.y) / v.z };
-}
-
-/* ══════════════════════════════════════════════════════════
-   8. 예시 도면 생성 (외부 자산 없이 절차적으로 그린다)
-   ══════════════════════════════════════════════════════════ */
-function sampleImage() {
-  const W = 760, H = 560, c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  g.fillStyle = "#f4f2ee"; g.fillRect(0, 0, W, H);
-  const WALL = "#7f8d9c", T = 12;
-  const wall = (x, y, w, h) => { g.fillStyle = WALL; g.fillRect(x, y, w, h); };
-  const gap  = (x, y, w, h) => { g.fillStyle = "#f4f2ee"; g.fillRect(x, y, w, h); };
-  const floor = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
-  // 바닥
-  floor(60, 60, 640, 440, "#efe6d8");
-  floor(60, 60, 300, 200, "#e9dcc6");   // 안방
-  floor(372, 60, 328, 200, "#e6d6bf");  // 거실
-  floor(60, 272, 180, 228, "#dfe3e4");  // 욕실
-  floor(252, 272, 200, 228, "#eae2d2"); // 주방
-  floor(464, 272, 236, 228, "#e4e8ea"); // 작은방
-  // 외벽
-  wall(60, 60, 640, T); wall(60, 500 - T, 640, T);
-  wall(60, 60, T, 440); wall(700 - T, 60, T, 440);
-  // 내벽
-  wall(360, 60, T, 200);            // 안방 | 거실
-  wall(60, 260, 640, T);            // 위 | 아래
-  wall(240, 272, T, 228);           // 욕실 | 주방
-  wall(452, 272, T, 228);           // 주방 | 작은방
-  // 문 틈
-  gap(360, 130, T, 46);             // 안방 ↔ 거실
-  gap(150, 260, 52, T);             // 안방 ↔ 욕실
-  gap(292, 260, 52, T);             // 거실 ↔ 주방
-  gap(520, 260, 52, T);             // 거실 ↔ 작은방
-  gap(240, 370, T, 46);             // 욕실 ↔ 주방
-  gap(60, 300, T, 50);              // 현관문 (외부 ↔ 욕실쪽 복도)
-  // 가구 느낌의 얼룩 (분할을 방해하지 않는 밝은 색)
-  g.globalAlpha = .5; g.fillStyle = "#d8cbb4";
-  g.fillRect(120, 100, 150, 90); g.fillRect(430, 110, 180, 70);
-  g.fillRect(290, 320, 120, 60); g.fillRect(520, 320, 130, 80);
-  g.globalAlpha = 1;
-  return c.toDataURL("image/png");
-}
-</script>
-
-<script>
-"use strict";
-/* ══════════════════════════════════════════════════════════
-   9. 패널 렌더링
-   ══════════════════════════════════════════════════════════ */
-const STEP_TITLE = { s1: "도면 이미지", s2: "벽 검출·방 나누기", s3: "방 · 용도", s4: "Space Syntax 조건", s5: "결과 · 채점" };
-function setStep(id) {
-  $$(".rbtn").forEach(b => b.classList.toggle("on", b.dataset.step === id));
-  $$(".pstep").forEach(p => p.classList.toggle("on", p.id === id));
-  $("#stepNo").textContent = id.slice(1);
-  $("#stepTitle").textContent = STEP_TITLE[id] || "";
-  $("#panel").classList.remove("hide");
-}
-function syncScale() {
-  recomputeScale();
-  const sc = ST.scale;
-  // 상단 바 셀렉트
-  const top = $("#pyeongSel");
-  if (!top.options.length) SUPPLY_LIST.forEach(v => top.add(new Option(v + "평형", v)));
-  top.value = String(sc.mode === "supply" ? sc.supply : Math.round(supplyPyeong()));
-  top.disabled = sc.mode !== "supply";
-  $("#m2txt").innerHTML = `전용 <b style="color:#fff">${netM2().toFixed(1)}㎡</b> · ${netPyeong().toFixed(1)}평`;
-
-  // 단계 ① 입력부
-  const sel = $("#supplySel");
-  sel.innerHTML = SUPPLY_LIST.map(v =>
-    `<option value="${v}" ${v === sc.supply ? "selected" : ""}>${v}평형 — 전용 약 ${(v * PYEONG_M2 * sc.ratio).toFixed(0)}㎡ (${(v * sc.ratio).toFixed(1)}평)</option>`).join("");
-  $("#ratio").value = Math.round(sc.ratio * 100);
-  $("#ratioEcho").textContent = Math.round(sc.ratio * 100) + "%";
-  $("#netM2").value = netM2().toFixed(1);
-  $("#netPy").value = netPyeong().toFixed(1);
-
-  const ipx = interiorPx(), has = ST.regions.length > 0;
-  $("#scaleOut").innerHTML = `
-    <div class="big">${netPyeong().toFixed(1)}평<small>전용 ${netM2().toFixed(1)}㎡</small></div>
-    <div class="sub">공급 기준 약 ${supplyPyeong().toFixed(0)}평형 (전용률 ${Math.round(sc.ratio * 100)}%)<br>
-      ${has ? `실내 ${ipx.toLocaleString()}px · 1m = ${(1 / Math.sqrt(netM2() / ipx)).toFixed(1)}px
-        · 픽셀당 ${(netM2() / ipx * 10000).toFixed(2)}c㎡` : "도면을 불러오면 픽셀 환산을 계산합니다"}</div>`;
-
-  // 방별 면적 표
-  const t = $("#areaTable");
-  const rooms = ST.regions.filter(r => !r.isOutside);
-  if (!rooms.length) { t.innerHTML = `<tr><td class="empty">도면을 불러오세요</td></tr>`; return; }
-  const tot = rooms.reduce((a, r) => a + r.area, 0);
-  t.innerHTML = `<thead><tr><th>실</th><th class="n">㎡</th><th class="n">평</th><th class="n">비율</th></tr></thead><tbody>`
-    + rooms.map(r => {
-        const rm = ST.rooms.get(r.id); if (!rm) return "";
-        const m2 = pxToM2(r.area);
-        return `<tr><td>${esc(rm.name)}</td><td class="n">${m2.toFixed(1)}</td>
-          <td class="n">${(m2 / PYEONG_M2).toFixed(1)}</td>
-          <td class="n" style="color:var(--muted)">${(r.area / tot * 100).toFixed(0)}%</td></tr>`;
-      }).join("")
-    + `<tr style="font-weight:600"><td>합계</td><td class="n">${netM2().toFixed(1)}</td>
-       <td class="n">${netPyeong().toFixed(1)}</td><td class="n">100%</td></tr></tbody>`;
-}
-
-function syncDetectUI() {
-  const maxR = Math.max(12, Math.round(Math.min(ST.ww, ST.wh) / 6));
-  const sl = $("#dilR"); sl.max = maxR;
-  sl.value = ST.params.dilateR; $("#dilEcho").textContent = ST.params.dilateR;
-  const maxD = Math.max(20, Math.round(Math.min(ST.ww, ST.wh) / 8));
-  const sd = $("#minDoor"); sd.max = maxD;
-  sd.value = ST.params.minDoorPx; $("#doorEcho").textContent = ST.params.minDoorPx;
-  $("#tol").value = ST.params.tol; $("#tolEcho").textContent = ST.params.tol;
-}
-
-function syncPick() {
-  const [r, g, b] = ST.params.wallColor;
-  $("#pickSw").style.background = `rgb(${r},${g},${b})`;
-  $("#pickTxt").textContent = `rgb(${r}, ${g}, ${b})`;
-}
-function renderImgInfo() {
-  $("#imgInfo").innerHTML = ST.img
-    ? `<dt>원본 크기</dt><dd>${ST.iw} × ${ST.ih}px</dd>
-       <dt>분석 해상도</dt><dd>${ST.ww} × ${ST.wh}px</dd>
-       <dt>검출된 방</dt><dd>${[...ST.rooms.values()].filter(r => !r.isOutside).length}개</dd>
-       <dt>검출된 문</dt><dd>${ST.doors.length}개</dd>`
-    : `<dt>불러온 이미지 없음</dt><dd>—</dd>`;
-}
-function renderRooms() {
-  const list = $("#roomList");
-  const rs = ST.regions.map((r, i) => ({ r, i, rm: ST.rooms.get(r.id) })).filter(x => x.rm);
-  if (!rs.length) { list.innerHTML = `<p class="empty">아직 검출된 방이 없습니다.<br>② 단계에서 벽 검출을 조정해 보세요.</p>`; return; }
-  list.innerHTML = rs.map(({ r, i, rm }) => {
-    const nd = ST.analysis?.nodes.get(r.id);
-    const sel = ST.selected === r.id;
-    const body = `<div class="rm ${sel ? "on" : ""}" data-rid="${r.id}">
-      <span class="sw" style="background:${roomColor(rm, i)}"></span>
-      <span class="nm">${esc(rm.name)}<small>${rm.isOutside ? "외부(carrier)" : typeOf(rm.type).label
-        + (nd && nd.step_depth != null ? ` · 깊이 ${nd.step_depth}` : "")
-        + (nd && nd.disconnected ? " · 고립" : "")}</small></span>
-      <span class="ar">${rm.isOutside ? "—" : pxToM2(r.area).toFixed(1) + "㎡<br>" + (pxToM2(r.area) / PYEONG_M2).toFixed(1) + "평"}</span>
-    </div>`;
-    if (!sel || rm.isOutside) return body;
-    return body + `<div class="rmedit">
-      <div class="fld" style="margin:0"><label>이름</label>
-        <input type="text" id="edName" value="${esc(rm.name)}"></div>
-      <div class="fld" style="margin:0"><label>용도 <b>조건의 대상으로 쓰입니다</b></label>
-        <select id="edType">${TYPES.map(t => `<option value="${t.key}" ${rm.type === t.key ? "selected" : ""}>${t.label} (${t.key})</option>`).join("")}</select></div>
-    </div>`;
-  }).join("");
-}
-function renderDoors() {
-  const t = $("#doorTable");
-  if (!ST.doors.length) { t.innerHTML = `<tr><td class="empty">문이 검출되지 않았습니다</td></tr>`; return; }
-  t.innerHTML = `<thead><tr><th>연결</th><th class="n">폭</th><th class="n">좌표</th></tr></thead><tbody>` +
-    ST.doors.map(d => {
-      const a = ST.rooms.get(d.a), b = ST.rooms.get(d.b);
-      if (!a || !b) return "";
-      const ent = d.a === ST.carrier || d.b === ST.carrier;
-      return `<tr><td>${ent ? "🚪 " : ""}${esc(a.name)} ↔ ${esc(b.name)}</td>
-        <td class="n">${pxToM(d.px).toFixed(2)}m</td>
-        <td class="n">${d.cx.toFixed(0)},${d.cy.toFixed(0)}</td></tr>`;
-    }).join("") + `</tbody>`;
-}
-function renderCrit() {
-  const sc = ST.analysis ? scoreAll() : null;
-  const byId = new Map((sc?.rows || []).map(r => [r.cr.id, r]));
-  $("#critList").innerHTML = ST.criteria.map(cr => {
-    const r = byId.get(cr.id);
-    const pct = r && r.score != null ? Math.round(r.score * 100) : null;
-    const col = pct == null ? "var(--muted)" : pct >= 80 ? "var(--good)" : pct >= 55 ? "var(--warn)" : "var(--bad)";
-    const tgt = cr.scope === "room" ? typeOf(cr.room).label : "전역";
-    const cond = cr.mode === "target" ? `= ${cr.target}±${cr.tol}`
-      : `${cr.worst > cr.best ? "≤" : "≥"} ${cr.best}`;
-    return `<div class="crit ${cr.enabled ? "" : "off"}" data-cid="${cr.id}">
-      <div class="ch"><input type="checkbox" ${cr.enabled ? "checked" : ""} data-en>
-        <span class="nm">${esc(tgt)} · ${esc(MEASURES[cr.measure].label)}
-          <span style="color:var(--muted)">${cond}</span></span>
-        <span style="color:var(--muted);font-size:9.5px">w${cr.weight}</span>
-        <span class="sc" style="color:${col}">${pct == null ? "—" : pct}</span></div>
-      <div class="meter"><i style="width:${pct || 0}%;background:${col}"></i></div>
-      <p class="why">${esc(cr.why || MEASURES[cr.measure].hint)}${r && r.note ? " — " + esc(r.note) : ""}
-        ${r && r.value != null ? ` <b>측정 ${fmt(r.value, 2)}</b>` : ""}</p></div>`;
-  }).join("") || `<p class="empty">조건이 없습니다.<br>위 문법 창에 입력하고 “데이터화 →”를 누르세요.</p>`;
-}
-function renderScore() {
-  const sc = ST.analysis ? scoreAll() : null;
-  const t = sc ? sc.total : null, gr = gradeOf(t);
-  $("#scoreNum").textContent = t == null ? "—" : Math.round(t);
-  $("#gradeTxt").textContent = gr.g; $("#gradeTxt").className = "g " + gr.cls;
-  $("#gradeSub").textContent = gr.sub;
-  if (!sc) { $("#p2score").innerHTML = `<p class="empty">도면을 불러오면 채점합니다.</p>`; return; }
-  const g = ST.analysis.global;
-  let warn = "";
-  if (g.disconnected_rooms > 0) warn += `<div class="warnbox"><b>고립된 실 ${g.disconnected_rooms}개</b> — 현관에서 닿을 수 없습니다. ② 단계에서 “문 틈 봉하기”를 줄이거나 “문 최소 폭”을 낮춰 보세요.</div>`;
-  if (ST.rooms.size < 3) warn += `<div class="warnbox"><b>방이 너무 적게 잡혔습니다</b> — 벽 색/밝기 기준을 조정해 보세요.</div>`;
-  $("#p2score").innerHTML = warn + sc.rows.map(r => {
-    const pct = r.score == null ? null : Math.round(r.score * 100);
-    const col = pct == null ? "var(--muted)" : pct >= 80 ? "var(--good)" : pct >= 55 ? "var(--warn)" : "var(--bad)";
-    const tgt = r.cr.scope === "room" ? typeOf(r.cr.room).label : "전역";
-    return `<div class="srow"><div class="lab"><b>${esc(tgt)} · ${esc(MEASURES[r.cr.measure].label)}</b>
-      <small>${r.cr.mode === "target" ? `목표 ${r.cr.target}±${r.cr.tol}` : `${r.cr.worst > r.cr.best ? "≤" : "≥"} ${r.cr.best} (0점 ${r.cr.worst})`}
-        · 측정 ${fmt(r.value, 2)}${r.n > 1 ? ` · ${r.n}개 중 최저` : ""} · w${r.cr.weight}</small></div>
-      <div class="v" style="color:${col}">${pct == null ? "—" : pct}</div>
-      <div class="bar2"><i style="width:${pct || 0}%;background:${col}"></i></div></div>`;
-  }).join("") + `<p class="desc" style="margin-top:10px;color:var(--muted);font-size:10.5px">
-    최종 = Σ(가중치×조건점수)÷Σ(가중치). 적용 ${sc.counted}개${sc.skipped ? ` · 측정불가 ${sc.skipped}개` : ""}.
-    같은 용도의 방이 여럿이면 <b>가장 낮은 점수</b>를 씁니다.</p>`;
-}
-function renderResults() {
-  const A = ST.analysis;
-  if (!A) { ["#p2rooms", "#p2global", "#p2export"].forEach(s => $(s).innerHTML = `<p class="empty">도면을 불러오세요.</p>`); return; }
-  const rows = ST.regions.filter(r => !r.isOutside).map(r => {
-    const rm = ST.rooms.get(r.id), nd = A.nodes.get(r.id);
-    return `<tr><td>${esc(rm.name)}<br><span style="color:var(--muted);font-size:9.5px">${typeOf(rm.type).label}</span></td>
-      <td class="n">${r.cx.toFixed(0)}, ${r.cy.toFixed(0)}</td>
-      <td class="n">${pxToM2(r.area).toFixed(1)}</td>
-      <td class="n">${nd.step_depth ?? "—"}</td><td class="n">${nd.connectivity}</td>
-      <td class="n">${fmt(nd.integration, 2)}</td><td class="n">${nd.integration_rank ?? "—"}</td>
-      <td class="n">${fmt(nd.control_value, 2)}</td><td class="n">${fmt(nd.choice, 3)}</td>
-      <td class="n">${fmt(nd.visual_integration, 2)}</td></tr>`;
-  }).join("");
-  $("#p2rooms").innerHTML = `<div class="tw"><table><thead><tr><th>실</th><th class="n">중심(px)</th>
-    <th class="n">㎡</th><th class="n">깊이</th><th class="n">연결</th><th class="n">통합도</th>
-    <th class="n">순위</th><th class="n">제어</th><th class="n">선택</th><th class="n">시각</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>`;
-  $("#p2global").innerHTML = `<dl class="kv">` + Object.entries(MEASURES)
-    .filter(([, m]) => m.scope === "global")
-    .map(([k, m]) => A.global[k] == null ? "" :
-      `<dt title="${esc(m.hint)}">${esc(m.label)}</dt><dd>${typeof A.global[k] === "number" ? fmt(A.global[k], 3) : A.global[k]}</dd>`)
-    .join("") + `</dl>`;
-
-  const sc = scoreAll();
-  const payload = {
-    scale: { mode: ST.scale.mode, net_m2: +netM2().toFixed(2), net_pyeong: +netPyeong().toFixed(2),
-             supply_pyeong: +supplyPyeong().toFixed(1), exclusive_ratio: ST.scale.ratio,
-             interior_px: interiorPx(), px_per_meter: +(1 / Math.sqrt(netM2() / interiorPx())).toFixed(2) },
-    detection: { ...ST.params, work: [ST.ww, ST.wh] },
-    score: { total: sc.total == null ? null : +sc.total.toFixed(2), grade: gradeOf(sc.total).g,
-      breakdown: sc.rows.map(r => ({ target: r.cr.scope === "room" ? r.cr.room : "@", measure: r.cr.measure,
-        value: r.value, score: r.score == null ? null : +(r.score * 100).toFixed(1), weight: r.cr.weight })) },
-    criteria: ST.criteria.map(({ id, ...x }) => x),
-    global: A.global,
-    rooms: ST.regions.filter(r => !r.isOutside).map(r => {
-      const rm = ST.rooms.get(r.id), nd = A.nodes.get(r.id);
-      return { id: r.id, name: rm.name, type: rm.type,
-        centroid_px: [+r.cx.toFixed(1), +r.cy.toFixed(1)], bbox_px: r.bbox,
-        area_px: r.area, area_m2: +pxToM2(r.area).toFixed(2), area_pyeong: +(pxToM2(r.area) / PYEONG_M2).toFixed(2),
-        connectivity: nd.connectivity, step_depth: nd.step_depth, mean_depth: +fmt(nd.mean_depth, 5),
-        RRA: isFinite(nd.RRA) ? +fmt(nd.RRA, 5) : null,
-        integration: isFinite(nd.integration) ? +fmt(nd.integration, 5) : null,
-        integration_rank: nd.integration_rank ?? null,
-        control_value: +fmt(nd.control_value, 5), choice: +fmt(nd.choice, 5),
-        visual_integration: isFinite(nd.visual_integration) ? +fmt(nd.visual_integration, 4) : null };
-    }),
-    doors: ST.doors.map(d => ({ a: ST.rooms.get(d.a)?.name, b: ST.rooms.get(d.b)?.name,
-      width_m: +pxToM(d.px).toFixed(3), coord_px: [+d.cx.toFixed(1), +d.cy.toFixed(1)],
-      is_entrance: d.a === ST.carrier || d.b === ST.carrier })),
-  };
-  const cols = ["name","type","centroid_px","area_m2","area_pyeong","connectivity","step_depth",
-                "mean_depth","RRA","integration","integration_rank","control_value","choice","visual_integration"];
-  const csv = [cols.join(","), ...payload.rooms.map(r => cols.map(c =>
-    Array.isArray(r[c]) ? `"${r[c].join(" ")}"` : (r[c] ?? "")).join(","))].join("\n");
-  $("#p2export").innerHTML = `
-    <p style="font-size:10.5px;color:var(--muted);margin:0 0 8px">복사해서 엑셀·스크립트로 옮기세요.</p>
-    <div class="sechead"><span>전체 결과 JSON</span><i></i><button class="btn sm" data-copy="#exJson">복사</button></div>
-    <textarea id="exJson" readonly spellcheck="false" style="min-height:150px">${esc(JSON.stringify(payload, null, 1))}</textarea>
-    <div class="sechead"><span>실별 좌표·지표 CSV</span><i></i><button class="btn sm" data-copy="#exCsv">복사</button></div>
-    <textarea id="exCsv" readonly spellcheck="false" style="min-height:110px">${esc(csv)}</textarea>`;
-}
-function renderAll() {
-  syncScale(); renderImgInfo(); renderRooms(); renderDoors();
-  renderCrit(); renderScore(); renderResults(); paint();
-}
-
-/* ══════════════════════════════════════════════════════════
-   10. 용도 자동 추정
-   ══════════════════════════════════════════════════════════ */
-function autoName() {
-  const A = ST.analysis; if (!A) return;
-  const inner = ST.regions.filter(r => !r.isOutside);
-  if (!inner.length) return;
-  const adjOut = new Set(ST.doors.filter(d => d.a === ST.carrier || d.b === ST.carrier)
-    .map(d => d.a === ST.carrier ? d.b : d.a));
-  const bySize = inner.slice().sort((a, b) => b.area - a.area);
-  const taken = new Set();
-  const give = (r, type, name) => { if (!r || taken.has(r.id)) return;
-    const rm = ST.rooms.get(r.id); rm.type = type; rm.name = name; taken.add(r.id); };
-  // 현관: 외부와 이어진 실 중 가장 작은 것
-  const entry = inner.filter(r => adjOut.has(r.id)).sort((a, b) => a.area - b.area)[0];
-  give(entry, "hall", "현관·복도");
-  const rest = bySize.filter(r => !taken.has(r.id));
-  const names = [["living", "거실"], ["master", "안방"], ["kitchen", "주방·식당"], ["bed", "작은방"]];
-  rest.forEach((r, i) => { if (i < names.length) give(r, names[i][0], names[i][1]); });
-  const left = bySize.filter(r => !taken.has(r.id)).sort((a, b) => a.area - b.area);
-  if (left[0]) give(left[0], "bath", "욕실");
-  if (left[1]) give(left[1], "store", "다용도실");
-  left.slice(2).forEach((r, i) => give(r, "bed", "방 " + (i + 1)));
-  analyzeAll(); renderAll();
-}
-</script>
-
-<script>
-"use strict";
-/* ══════════════════════════════════════════════════════════
-   11. 이벤트 · 초기화
-   ══════════════════════════════════════════════════════════ */
-let detTimer = null;
-const reDetect = () => { clearTimeout(detTimer); detTimer = setTimeout(() => { detect(); renderAll(); }, 130); };
-const quickPaint = () => { drawBase(); drawMask(); drawSeg(); drawOverlay(); };
-
-function openFile(f) {
-  if (!f) return;
-  if (!/^image\//.test(f.type)) { alert("이미지 파일(PNG·JPG)을 올려 주세요."); return; }
-  const rd = new FileReader();
-  rd.onload = () => loadImage(String(rd.result), f.name);
-  rd.readAsDataURL(f);
-}
-function hud(msg) {
-  const h = $("#hudtip");
-  if (!msg) { h.style.display = "none"; return; }
-  h.innerHTML = msg; h.style.display = "block";
-}
-function copyEl(sel, btn) {
-  const el = $(sel); if (!el) return;
-  el.select(); navigator.clipboard?.writeText(el.value).catch(() => { try { document.execCommand("copy"); } catch (e) {} });
-  if (btn) { const t = btn.textContent; btn.textContent = "복사됨"; setTimeout(() => btn.textContent = t, 1100); }
-}
-
-function wire() {
-  // 레일
-  $$(".rbtn").forEach(b => b.onclick = () => setStep(b.dataset.step));
-
-  // 파일 열기
-  const pick = () => $("#fileInput").click();
-  $("#btnOpen").onclick = pick; $("#btnOpen2").onclick = pick; $("#dzOpen").onclick = pick;
-  $("#fileInput").onchange = e => { openFile(e.target.files[0]); e.target.value = ""; };
-  const loadSample = () => loadImage(sampleImage(), "예시 도면 (생성됨)");
-  $("#dzSample").onclick = loadSample; $("#btnSample2").onclick = loadSample;
-
-  // 드래그 앤 드롭
-  const stage = $(".stage");
-  ["dragenter", "dragover"].forEach(ev => stage.addEventListener(ev, e => {
-    e.preventDefault(); $("#dropzone").classList.add("active"); $("#dropzone").style.display = "grid";
-  }));
-  ["dragleave", "drop"].forEach(ev => stage.addEventListener(ev, e => {
-    e.preventDefault(); $("#dropzone").classList.remove("active");
-    if (ev === "drop") { $("#dropzone").style.display = ST.img ? "none" : "grid"; openFile(e.dataTransfer.files[0]); }
-    else if (ST.img) $("#dropzone").style.display = "none";
-  }));
-
-  // 줌·팬
-  const vp = $("#viewport");
-  $("#zIn").onclick = () => { const r = vp.getBoundingClientRect(); zoomAt(1.25, r.width / 2, r.height / 2); };
-  $("#zOut").onclick = () => { const r = vp.getBoundingClientRect(); zoomAt(0.8, r.width / 2, r.height / 2); };
-  $("#zFit").onclick = fitView;
-  vp.addEventListener("wheel", e => {
-    if (!ST.img) return;
-    e.preventDefault();
-    const r = vp.getBoundingClientRect();
-    zoomAt(e.deltaY < 0 ? 1.12 : 0.89, e.clientX - r.left, e.clientY - r.top);
-  }, { passive: false });
-
+function wireCanvas() {
+  const svg = $("#plan"); if (!svg) return;
+  $("#zIn").onclick = () => zoomAt(1.4); $("#zOut").onclick = () => zoomAt(1 / 1.4); $("#zFit").onclick = fitView;
+  svg.addEventListener("wheel", (e) => { e.preventDefault(); const r = svg.getBoundingClientRect(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
   let drag = null;
-  vp.addEventListener("pointerdown", e => {
-    if (!ST.img) return;
-    if (ST.picking) {
-      const p = screenToImage(e), x = clamp(p.x | 0, 0, ST.ww - 1), y = clamp(p.y | 0, 0, ST.wh - 1);
-      const i = (y * ST.ww + x) * 4;
-      ST.params.wallColor = [ST.px[i], ST.px[i + 1], ST.px[i + 2]];
-      ST.picking = false; vp.classList.remove("pick"); $("#btnPick").classList.remove("on");
-      $("#btnPick").textContent = "스포이드 켜기"; hud(null);
-      syncPick(); detect(); renderAll(); return;
-    }
-    drag = { x: e.clientX, y: e.clientY, vx: ST.view.x, vy: ST.view.y, moved: false };
-    vp.setPointerCapture(e.pointerId); vp.classList.add("grabbing");
+  svg.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, v: ST.view && ST.view.slice(), moved: false }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag || !drag.v) return;
+    const r = svg.getBoundingClientRect(), s = Math.max(drag.v[2] / r.width, drag.v[3] / r.height), dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; svg.classList.add("grabbing"); }
+    ST.view = [drag.v[0] - dx * s, drag.v[1] - dy * s, drag.v[2], drag.v[3]]; applyView();
   });
-  vp.addEventListener("pointermove", e => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-    ST.view.x = drag.vx + dx; ST.view.y = drag.vy + dy; applyView();
+  svg.addEventListener("pointerup", (e) => {
+    svg.classList.remove("grabbing");
+    const wasDrag = drag && drag.moved; drag = null; if (wasDrag) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const room = el && el.closest && el.closest(".room"), lab = el && el.closest && el.closest(".ulabel");
+    if (room) { ST.unitIdx = +room.dataset.u; ST.room = room.dataset.k === ST.room ? null : room.dataset.k; render(); }
+    else if (lab) { ST.unitIdx = +lab.dataset.u; ST.room = null; render(); }
   });
-  vp.addEventListener("pointerup", e => {
-    vp.classList.remove("grabbing");
-    if (drag && !drag.moved && ST.lab) {     // 클릭 → 방 선택
-      const p = screenToImage(e), x = clamp(p.x | 0, 0, ST.ww - 1), y = clamp(p.y | 0, 0, ST.wh - 1);
-      const id = ST.lab[y * ST.ww + x];
-      ST.selected = (id >= 0 && ST.rooms.has(id) && id !== ST.carrier) ? (ST.selected === id ? null : id) : null;
-      renderRooms(); drawSeg(); drawOverlay(); setStep("s3");
-    }
-    drag = null;
-  });
-
-  // 벽 검출 모드
-  $("#modeColor").onclick = () => { ST.params.mode = "color"; $("#modeColor").classList.add("on");
-    $("#modeDark").classList.remove("on"); $("#colorOpts").style.display = ""; $("#darkOpts").style.display = "none"; reDetect(); };
-  $("#modeDark").onclick = () => { ST.params.mode = "dark"; $("#modeDark").classList.add("on");
-    $("#modeColor").classList.remove("on"); $("#colorOpts").style.display = "none"; $("#darkOpts").style.display = ""; reDetect(); };
-  $("#btnPick").onclick = () => {
-    ST.picking = !ST.picking;
-    $("#viewport").classList.toggle("pick", ST.picking);
-    $("#btnPick").classList.toggle("on", ST.picking);
-    $("#btnPick").textContent = ST.picking ? "스포이드 끄기" : "스포이드 켜기";
-    hud(ST.picking ? "도면에서 <b>벽</b>을 클릭하세요" : null);
-  };
-  const slider = (id, echo, key, fmtFn) => {
-    $(id).oninput = e => {
-      const v = parseFloat(e.target.value);
-      if (key === "alpha") ST.show.alpha = v / 100; else ST.params[key] = v;
-      $(echo).textContent = fmtFn ? fmtFn(v) : v;
-      if (key === "alpha") { drawSeg(); } else reDetect();
-    };
-  };
-  slider("#tol", "#tolEcho", "tol");
-  slider("#darkT", "#darkEcho", "darkT", v => v.toFixed(2));
-  slider("#dilR", "#dilEcho", "dilateR");
-  slider("#minCore", "#coreEcho", "minCorePct", v => v.toFixed(2));
-  slider("#minDoor", "#doorEcho", "minDoorPx");
-  slider("#ovAlpha", "#alphaEcho", "alpha");
-  const chk = (id, key) => $(id).onchange = e => { ST.show[key] = e.target.checked; quickPaint(); };
-  chk("#showMask", "mask"); chk("#showSeg", "seg"); chk("#showGraph", "graph"); chk("#showImg", "img");
-  $("#btnRedetect").onclick = () => { detect(); renderAll(); };
-  $("#btnAuto").onclick = () => {
-    autoCalibrate(); detect();
-    if ([...ST.rooms.values()].filter(r => !r.isOutside).length >= 2) autoName();
-    syncDetectUI(); renderAll();
-  };
-
-  // 평수 · 축척
-  const afterScale = () => { syncScale(); renderAll(); };
-  const setMode = m => {
-    ST.scale.mode = m;
-    $("#mdSupply").classList.toggle("on", m === "supply");
-    $("#mdM2").classList.toggle("on", m === "m2");
-    $("#mdPy").classList.toggle("on", m === "pyeong");
-    $("#scSupply").style.display = m === "supply" ? "" : "none";
-    $("#scM2").style.display = m === "m2" ? "" : "none";
-    $("#scPy").style.display = m === "pyeong" ? "" : "none";
-    afterScale();
-  };
-  $("#mdSupply").onclick = () => setMode("supply");
-  $("#mdM2").onclick = () => setMode("m2");
-  $("#mdPy").onclick = () => setMode("pyeong");
-  $("#supplySel").onchange = e => { ST.scale.supply = +e.target.value; afterScale(); };
-  $("#pyeongSel").onchange = e => { ST.scale.supply = +e.target.value; ST.scale.mode = "supply"; setMode("supply"); };
-  $("#ratio").oninput = e => { ST.scale.ratio = clamp(+e.target.value / 100, .4, 1); afterScale(); };
-  $("#netM2").oninput = e => { ST.scale.netM2 = clamp(parseFloat(e.target.value) || 84, 3, 5000); afterScale(); };
-  $("#netPy").oninput = e => { ST.scale.netM2 = clamp((parseFloat(e.target.value) || 25) * PYEONG_M2, 3, 5000); afterScale(); };
-
-  // 방
-  $("#roomList").addEventListener("click", e => {
-    const row = e.target.closest(".rm"); if (!row) return;
-    const id = +row.dataset.rid;
-    ST.selected = ST.selected === id ? null : id;
-    renderRooms(); drawSeg(); drawOverlay();
-  });
-  $("#roomList").addEventListener("input", e => {
-    if (ST.selected == null) return;
-    const rm = ST.rooms.get(ST.selected); if (!rm) return;
-    if (e.target.id === "edName") { rm.name = e.target.value; drawOverlay(); renderDoors(); }
-    if (e.target.id === "edType") { rm.type = e.target.value;
-      renderRooms(); drawSeg(); drawOverlay(); renderCrit(); renderScore(); renderResults(); }
-  });
-  $("#btnAutoName").onclick = autoName;
-  $("#btnSetEntrance").onclick = () => {
-    if (ST.selected == null) { alert("먼저 방을 선택하세요."); return; }
-    const rm = ST.rooms.get(ST.selected); if (!rm) return;
-    rm.type = "hall"; rm.name = "현관·복도";
-    renderRooms(); drawSeg(); drawOverlay(); renderCrit(); renderScore(); renderResults();
-  };
-
-  // 조건
-  const ps = $("#critPreset");
-  Object.keys(CRIT_PRESETS).forEach(k => ps.add(new Option(k, k)));
-  ps.value = ST.critSet;
-  ps.onchange = () => { ST.critSet = ps.value; applyPreset(); };
-  $("#parseDsl").onclick = () => {
-    const { criteria, errors } = parseDSL($("#dsl").value);
-    const m = $("#dslMsg");
-    if (errors.length) { m.style.color = "var(--bad)"; m.textContent = errors[0] + (errors.length > 1 ? ` 외 ${errors.length - 1}건` : ""); }
-    else { m.style.color = "var(--good)"; m.textContent = `조건 ${criteria.length}개를 데이터로 변환했습니다.`; }
-    if (criteria.length) { ST.criteria = criteria; renderCrit(); renderScore(); renderResults(); }
-  };
-  $("#dslHelp").onclick = () => {
-    const b = $("#dslHelpBox");
-    b.style.display = b.style.display === "none" ? "block" : "none";
-    b.innerHTML = `<b style="color:var(--text)">대상(방 용도)</b><br>` +
-      TYPES.map(t => `<code>${t.key}</code> ${t.label}`).join(" · ") +
-      `<br><br><b style="color:var(--text)">실 단위 지표</b><br>` +
-      Object.entries(MEASURES).filter(([, m]) => m.scope === "room").map(([k, m]) => `<code>${k}</code> ${m.label}`).join(" · ") +
-      `<br><br><b style="color:var(--text)">전역 지표</b> (앞에 @)<br>` +
-      Object.entries(MEASURES).filter(([, m]) => m.scope === "global").map(([k, m]) => `<code>@${k}</code> ${m.label}`).join(" · ");
-  };
-  $("#addCrit").onclick = () => {
-    ST.criteria.push({ id: ++SEQ, scope: "global", room: null, measure: "intelligibility",
-      mode: "range", best: .9, worst: .3, weight: 1, enabled: true });
-    $("#dsl").value = toDSL(ST.criteria); renderCrit(); renderScore(); renderResults();
-  };
-  $("#critList").addEventListener("click", e => {
-    const card = e.target.closest(".crit"); if (!card) return;
-    const cr = ST.criteria.find(x => x.id === +card.dataset.cid); if (!cr) return;
-    if (e.target.matches("[data-en]")) {
-      cr.enabled = e.target.checked; $("#dsl").value = toDSL(ST.criteria);
-      renderCrit(); renderScore(); renderResults(); return;
-    }
-    card.classList.toggle("open");
-  });
-
-  // 결과 탭
-  $$(".tab2").forEach(t => t.onclick = () => {
-    $$(".tab2").forEach(x => x.classList.remove("on"));
-    $$(".pane2").forEach(x => x.classList.remove("on"));
-    t.classList.add("on"); $("#" + t.dataset.pane2).classList.add("on");
-  });
-
-  // 복사 위임
-  document.addEventListener("click", e => {
-    const b = e.target.closest("[data-copy]");
-    if (b) copyEl(b.dataset.copy, b);
-  });
-  window.addEventListener("resize", () => { if (ST.img) applyView(); });
 }
 
-function applyPreset() {
-  ST.criteria = CRIT_PRESETS[ST.critSet]().map(c => ({ ...c, id: ++SEQ }));
-  $("#dsl").value = toDSL(ST.criteria);
-  $("#dslMsg").textContent = "";
-  renderCrit(); renderScore(); renderResults();
+/* ── 평가 구조 ── */
+const opt = (v, label, cur) => `<option value="${esc(v)}"${String(v) === String(cur) ? " selected" : ""}>${esc(label)}</option>`;
+const numIn = (field, v, title) => `<input class="input input-sm num-in" type="number" step="any" data-f="${field}" value="${v ?? ""}" title="${title}" aria-label="${title}">`;
+function pageCriteria() {
+  const on = ST.criteria.filter(c => c.enabled).length;
+  renderHeader("평가 구조", ["평가 설정"], PAGES.criteria.tabs.map(([k, l]) => [k, l, `#/criteria/${k}`, k === "list" ? ST.criteria.length : null]));
+  const c = $("#content");
+  if (ST.route.tab === "dsl") {
+    c.innerHTML = `<div class="callout">${ico("info")}<div>한 줄에 조건 하나입니다. <code>대상.지표 연산자 값 [.. 최악값 | ± 허용치] [w=가중치] [as=penalty:점수 | as=gate] [agg=mean]</code><br>
+      대상은 전역 <code>@</code> 또는 ${Object.keys(E.TARGETS).map(k => `<code>${k}</code>`).join(" ")}입니다. <code>#!</code>로 시작하는 줄은 꺼 둔 조건이고, <code>#</code> 뒤는 근거 메모입니다.</div></div>
+      <div class="card"><div class="card-body"><textarea class="input code" id="dsl" spellcheck="false" aria-label="조건 문법">${esc(E.toDSL(ST.criteria))}</textarea>
+      <div id="dslErr" class="field-hint" style="color:#C42B3A;white-space:pre-wrap;margin-top:8px"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><a class="btn btn-ghost" href="#/criteria/list">취소</a><button class="btn btn-primary" data-act="applyDsl">문법 적용</button></div></div></div>`;
+    return;
+  }
+  const agg = allUnits().length ? liveStats().criteria : null;
+  let k = 0;
+  const rows = ST.criteria.map((cr, i) => critRow(cr, i, cr.enabled && agg ? agg[k++] : null)).join("");
+  c.innerHTML = `<div class="callout">${ico("info")}<div><b>총점 = 기본점 − 감점</b>입니다. 기본점은 가중 평균 조건의 Σ(가중치 × 조건점수) ÷ Σ가중치 × 100이고, 감점은 감점 조건마다 최대 감점 × (1 − 조건점수)입니다.
+      필수 조건을 하나라도 맞추지 못하면 총점은 0점입니다. 조건을 바꾸면 모든 세대를 바로 다시 채점합니다.</div></div>
+    <div class="toolbar">
+      <select class="select" id="presetSel" style="width:auto" aria-label="조건 세트">${Object.keys(E.PRESETS).map(p => opt(p, p)).join("")}</select>
+      <button class="btn btn-secondary" data-act="preset">세트 적용</button>
+      <button class="btn btn-ghost" data-act="cfgIn">${ico("upload")}설정 가져오기</button>
+      <button class="btn btn-ghost" data-act="cfgOut">${ico("download")}설정 내보내기</button>
+      <span class="spacer"></span>
+      <span class="field-hint">켜진 조건 ${on}개${agg ? ` · 세대 ${int(allUnits().length)}개 평균` : ""}</span>
+      <button class="btn btn-primary" data-act="addCrit">${ico("plus")}조건 추가</button>
+    </div>
+    <div class="card">
+      <div class="crow-head"><span>사용</span><span>대상</span><span>지표</span><span>판정</span><span>반영</span><span></span></div>
+      <div id="critList">${rows || `<div class="empty-state"><h3>조건이 없습니다</h3><p>‘조건 추가’나 세트 적용으로 시작하세요.</p></div>`}</div>
+    </div>`;
+}
+function critRow(c, i, agg) {
+  const tgt = c.scope === "global" ? "@" : c.room;
+  const ms = Object.entries(E.MEASURES).filter(([, m]) => m.scope === (tgt === "@" ? "global" : "room"));
+  let judge;
+  if (c.mode === "range") judge = `<span class="lbl">최선</span>${numIn("best", c.best, "만점이 되는 값")}<span class="lbl">최악</span>${numIn("worst", c.worst, "0점이 되는 값")}`;
+  else if (c.mode === "target") judge = `<span class="lbl">목표</span>${numIn("target", c.target, "목표값")}<span class="lbl">±</span>${numIn("tol", c.tol, "이만큼 벗어나면 0점")}`;
+  else judge = `<select class="select input-sm" data-f="op" aria-label="합격 방향">${opt("<=", "이하", c.op)}${opt(">=", "이상", c.op)}</select>${numIn("value", c.value, "합격선")}`;
+  const eff = c.effect === "weight" ? `<span class="lbl">가중치</span>${numIn("weight", c.weight, "가중 평균에서의 무게")}`
+    : c.effect === "penalty" ? `<span class="lbl">최대</span>${numIn("penalty", c.penalty, "조건점수 0일 때 빼는 점수")}<span class="lbl">점</span>` : `<span class="lbl eff-gate">못 맞추면 0점</span>`;
+  const live = agg ? (agg.n ? `<span>평균 ${fmt(agg.mean_score)}</span><span class="meter"><b style="width:${(agg.full_rate || 0) * 100}%"></b></span><span>만점 ${pct(agg.full_rate)}</span>` : `<span>계산된 세대 없음</span>`) : "";
+  return `<div class="crow${c.enabled ? "" : " off"}" data-i="${i}">
+    <div class="crow-main">
+      <label class="toggle" title="켜기·끄기"><input type="checkbox" data-f="enabled"${c.enabled ? " checked" : ""} aria-label="조건 사용"></label>
+      <select class="select input-sm" data-f="target" aria-label="대상">${opt("@", "전역", tgt)}${Object.entries(E.TARGETS).map(([k, v]) => opt(k, v, tgt)).join("")}</select>
+      <select class="select input-sm" data-f="measure" aria-label="지표">${ms.map(([k, m]) => opt(k, m.label, c.measure)).join("")}</select>
+      <div class="grp"><select class="select input-sm" data-f="mode" aria-label="판정 방식">${Object.entries(E.MODES).map(([k, v]) => opt(k, v.replace(/\(.*\)/, ""), c.mode)).join("")}</select>${judge}</div>
+      <div class="grp"><select class="select input-sm eff-${c.effect}" data-f="effect" style="font-weight:600" aria-label="반영 방식">${Object.entries(E.EFFECTS).map(([k, v]) => opt(k, v.replace(/\(.*\)/, ""), c.effect)).join("")}</select>${eff}
+        ${tgt !== "@" ? `<select class="select input-sm" data-f="agg" title="같은 용도 실이 여럿일 때" aria-label="여러 실 집계">${opt("worst", "가장 나쁜 실", c.agg)}${opt("mean", "실 평균", c.agg)}</select>` : ""}</div>
+      <button class="btn btn-ghost btn-icon btn-sm" data-act="delCrit" title="조건 삭제" aria-label="조건 삭제">${ico("trash")}</button>
+    </div>
+    <div class="crow-sub"><span class="field-hint num">${esc(c.scope === "room" ? `${c.room}.${c.measure}` : `@${c.measure}`)}</span><input class="input why" data-f="why" value="${esc(c.why)}" placeholder="근거·메모 (논문 등)" aria-label="근거 메모"><span class="crow-live">${live}</span></div>
+  </div>`;
+}
+function defaultsFor(c) {
+  const m = E.MEASURES[c.measure], v = c.value ?? c.best ?? c.target ?? 0;
+  if (c.mode === "range") { c.best = c.best ?? v; c.worst = c.worst ?? (c.best + m.span); }
+  if (c.mode === "target") { c.target = c.target ?? v; c.tol = c.tol ?? m.span / 3; }
+  if (c.mode === "pass") { c.op = c.op || "<="; c.value = c.value ?? v; }
+  if (c.effect === "penalty" && !c.penalty) c.penalty = 10;
+}
+function onCritEdit(e) {
+  const row = e.target.closest(".crow"); if (!row) return;
+  const c = ST.criteria[+row.dataset.i], fld = e.target.dataset.f; if (!fld) return;
+  const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+  if (fld === "target") {
+    const wasGlobal = c.scope === "global";
+    if (v === "@") { c.scope = "global"; c.room = null; } else { c.scope = "room"; c.room = v; }
+    if (wasGlobal !== (c.scope === "global")) { c.measure = Object.keys(E.MEASURES).find(k => E.MEASURES[k].scope === c.scope); c.best = c.worst = c.target = c.tol = c.value = undefined; defaultsFor(c); }
+  } else if (fld === "measure") { c.measure = v; c.why = E.MEASURES[v].hint; }
+  else if (fld === "mode" || fld === "effect") { c[fld] = v; defaultsFor(c); }
+  else if (["best", "worst", "target", "tol", "value", "weight", "penalty"].includes(fld)) { if (v === "" || !isFinite(+v)) return; c[fld] = +v; }
+  else c[fld] = v;
+  commitCrit(fld === "why");
+}
+function commitCrit(quiet) { store.set("aihub.criteria", JSON.stringify(ST.criteria)); rescore(!quiet); }
+
+/* ── 판정 변수 ── */
+function pageParams() {
+  renderHeader("판정 변수", ["평가 설정"], null);
+  const groups = {};
+  for (const [k, m] of Object.entries(E.PARAMS)) (groups[m.group] = groups[m.group] || []).push([k, m]);
+  const isChg = (k, m) => ST.params[k] !== m.def && !(ST.params[k] == null && m.def == null);
+  const changed = Object.entries(E.PARAMS).filter(([k, m]) => isChg(k, m)).length;
+  const OPT = { leaf: "한 실에만 (leaf)", all: "맞닿은 실 모두 (all)", none: "제외 (none)" };
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>바꾸면 불러온 모든 도면을 다시 읽고 다시 채점합니다. 평가 구조 화면의 ‘설정 내보내기’ 파일에 조건과 함께 이 변수가 들어갑니다.</div></div>
+    <div class="toolbar"><span class="field-hint">기본값에서 바뀐 변수 ${changed}개</span><span class="spacer"></span><button class="btn btn-secondary" data-act="paramReset"${changed ? "" : " disabled"}>기본값으로</button></div>
+    <div class="card">${Object.entries(groups).map(([g, items]) => `<div class="psec">${g}</div>` + items.map(([k, m]) => {
+      const v = ST.params[k];
+      const ctl = typeof m.def === "boolean" ? `<label class="toggle"><input type="checkbox" data-p="${k}"${v ? " checked" : ""} aria-label="${esc(m.label)}"></label>`
+        : m.options ? `<select class="select" data-p="${k}" aria-label="${esc(m.label)}">${m.options.map(o => opt(o, OPT[o] || o, v)).join("")}</select>`
+        : `<input class="input num-in" style="width:180px" type="number" step="any" data-p="${k}" value="${v ?? ""}" placeholder="${k === "px_per_m" ? "자동" : ""}" aria-label="${esc(m.label)}">`;
+      return `<div class="prow"><div><div class="t">${esc(m.label)}${isChg(k, m) ? `<span class="badge badge-info">변경됨</span>` : ""}</div><div class="h">${esc(m.hint)}${m.hint ? " · " : ""}기본 ${m.def ?? "자동"} · <span class="num">${k}</span></div></div><div class="ctl">${ctl}</div></div>`;
+    }).join("")).join("")}</div>`;
+}
+function onParam(e) {
+  const k = e.target.dataset.p; if (!k) return;
+  const m = E.PARAMS[k];
+  let v = typeof m.def === "boolean" ? e.target.checked : m.options ? e.target.value : e.target.value === "" ? null : +e.target.value;
+  if (typeof v === "number" && !isFinite(v)) return;
+  if (k !== "px_per_m" && v == null) v = m.def;
+  ST.params[k] = v; store.set("aihub.params", JSON.stringify(ST.params));
+  reprocessAll();
 }
 
-(function init() {
-  wire();
-  syncScale(); syncPick();
-  applyPreset();
-  $("#tolEcho").textContent = ST.params.tol;
-  $("#dilEcho").textContent = ST.params.dilateR;
-  $("#coreEcho").textContent = ST.params.minCorePct.toFixed(2);
-  $("#doorEcho").textContent = ST.params.minDoorPx;
-  $("#alphaEcho").textContent = Math.round(ST.show.alpha * 100);
-  $("#darkEcho").textContent = ST.params.darkT.toFixed(2);
-  renderImgInfo();
+/* ── 정답지 ── */
+function pageBaseline() {
+  renderHeader("정답지", ["평가 설정"], null);
+  const b = ST.baseline;
+  const typeRows = b ? Object.entries(b.type_counts).map(([t, n]) => `<tr><td><b>${esc(t)}</b></td><td class="n">${int(n)}</td><td>${b.types && b.types[t] ? `<span class="badge badge-neutral">유형 분포 사용</span>` : `<span class="field-hint">5세대 미만 — 전체 분포 사용</span>`}</td></tr>`).join("") : "";
+  $("#content").innerHTML = `<div class="callout">${ico("info")}<div>실제 지어진 아파트(AI 허브)의 특징 분포를 정답지로 씁니다. 세대의 면적비·깊이·거실 통합도 순위 등이 같은 유형의 분포에서 얼마나 벗어나는지로 <code>@typicality</code>(정답지 근접도)를 0~100점으로 계산합니다.</div></div>
+    ${b && ST.baseSource === "auto" ? `<div class="callout is-warning">${ico("alert")}<div><b>채점 대상이 정답지에 포함되어 있습니다.</b> 불러온 세대로 만든 정답지라 근접도가 실제보다 높게 나옵니다. 연구용 비교에는 전체 데이터로 만든 baseline.json(CLI <code>aihub_eval.py baseline</code>)을 불러오세요.</div></div>` : ""}
+    <div class="toolbar"><button class="btn btn-secondary" data-act="baseAuto">불러온 세대로 만들기</button><span class="spacer"></span><button class="btn btn-primary" data-act="baseLoad">${ico("upload")}baseline.json 불러오기</button></div>
+    ${b ? `<div class="grid2"><div class="card"><div class="card-header"><h2 class="card-title">현재 정답지</h2></div><div class="card-body">
+        <div class="kv"><span>출처</span><span>${ST.baseSource === "auto" ? "불러온 세대에서 자동 생성" : "baseline.json 파일"}</span></div>
+        <div class="kv"><span>세대 수</span><span class="num">${int(b.n_units)}</span></div>
+        <div class="kv"><span>유형 수</span><span class="num">${int(Object.keys(b.type_counts).length)}</span></div>
+        <div class="kv"><span>최다 유형</span><span>${esc(Object.keys(b.type_counts)[0] || "—")}</span></div></div></div>
+      <div class="card"><div class="card-header"><h2 class="card-title">유형별 세대 수</h2></div><div class="card-body flush tw"><table class="t"><thead><tr><th>유형</th><th class="n">세대</th><th>비교 기준</th></tr></thead><tbody>${typeRows}</tbody></table></div></div></div>`
+    : `<div class="card"><div class="empty-state"><h3>정답지가 없습니다</h3><p>세대가 3개 이상이면 불러온 세대로 자동으로 만듭니다. 정답지가 없으면 <code>@typicality</code> 조건은 건너뜁니다.</p></div></div>`}`;
+}
+
+/* ── 보관 기록 ── */
+function pageArchive() {
+  const id = ST.route.id;
+  if (id) {
+    const s = ST.snaps.find(x => x.id === id);
+    if (!s) { renderHeader("보관 기록", ["기록"], null); $("#content").innerHTML = `<div class="card"><div class="empty-state"><h3>기록을 찾을 수 없습니다</h3><p>지워졌거나 다른 브라우저에서 보관한 기록입니다.</p><a class="btn btn-secondary" href="#/archive">보관 기록 목록</a></div></div>`; return; }
+    renderHeader(s.name || "보관 기록", ["기록", ["보관 기록", "#/archive"]], PAGES.stats.tabs.map(([k, l]) => [k, l, `#/archive/${encodeURIComponent(id)}/${k}`, k === "units" ? s.summary.n_units : null]));
+    $("#content").innerHTML = `<div class="toolbar"><span class="field-hint">${dt(s.created)} 보관${s.memo ? " · " + esc(s.memo) : ""}</span><span class="spacer"></span>
+        <button class="btn btn-secondary" data-act="dlSnap" data-sid="${esc(id)}">${ico("download")}JSON 내려받기</button>
+        <button class="btn btn-primary" data-act="applySnap" data-sid="${esc(id)}">이 조건·변수 적용</button></div>${statsBody(s, ST.route.tab, false)}`;
+    return;
+  }
+  renderHeader("보관 기록", ["기록"], null);
+  const q = ST.archQuery.trim().toLowerCase();
+  const list = ST.snaps.filter(s => !q || ((s.name || "") + " " + (s.memo || "")).toLowerCase().includes(q));
+  $("#content").innerHTML = `<div class="toolbar">
+      <label class="input-search">${ico("search")}<input id="archQ" placeholder="이름·메모 검색" value="${esc(ST.archQuery)}" aria-label="이름·메모 검색"></label>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" data-act="loadStat">${ico("upload")}통계 JSON 불러오기</button>
+      ${ST.snaps.length ? `<button class="btn btn-ghost" data-act="dlAll">${ico("download")}전체 내려받기</button>` : ""}
+      <button class="btn btn-primary" data-act="saveSnap"${allUnits().length ? "" : " disabled"}>현재 통계 보관</button>
+    </div>
+    <div class="card">${list.length ? `<div class="card-body flush tw"><table class="t"><thead><tr><th>이름</th><th>보관 일시</th><th class="n">세대</th><th class="n">평균 점수</th><th class="n">시공 가능</th><th class="n">조건</th><th></th></tr></thead><tbody>
+      ${list.map(s => `<tr class="click" data-open="${esc(s.id)}"><td><b>${esc(s.name || "(이름 없음)")}</b>${s.memo ? `<div class="field-hint">${esc(s.memo)}</div>` : ""}</td><td class="num">${dt(s.created)}</td>
+        <td class="n">${int(s.summary.n_units)}</td><td class="n">${fx(s.summary.score.mean)}</td><td class="n">${pct(s.summary.feasibility_pass_rate)}</td><td class="n">${int((s.config.criteria || []).filter(c => c.enabled !== false).length)}</td>
+        <td style="white-space:nowrap;text-align:right"><button class="btn btn-ghost btn-sm" data-act="applySnap" data-sid="${esc(s.id)}">조건 적용</button><button class="btn btn-ghost btn-sm" data-act="dlSnap" data-sid="${esc(s.id)}">JSON</button><button class="btn btn-ghost btn-sm btn-icon" data-act="delSnap" data-sid="${esc(s.id)}" title="삭제" aria-label="삭제">${ico("trash")}</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty-state"><h3>${ST.snaps.length ? "검색 결과가 없습니다" : "보관한 기록이 없습니다"}</h3><p>통계 화면에서 ‘현재 통계 보관’을 누르면 그때의 점수·지표와 조건·변수가 한 기록으로 이 브라우저에 남습니다. CLI <code>score --stats</code>로 만든 JSON도 불러올 수 있습니다.</p></div>`}</div>
+    ${DB.ok ? "" : `<div class="callout is-warning" style="margin-top:16px">${ico("alert")}<div>이 브라우저는 저장소를 쓸 수 없어 창을 닫으면 기록이 사라집니다. JSON으로 내려받아 두세요.</div></div>`}`;
+}
+
+/* ═════════════════════════════════════ 보관 (IndexedDB, 안 되면 이 창에만) */
+const DB = { name: "aihub-studio", store: "snapshots", db: null, ok: true };
+function dbOpen() {
+  return new Promise((res) => {
+    try {
+      const rq = indexedDB.open(DB.name, 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore(DB.store, { keyPath: "id" });
+      rq.onsuccess = () => { DB.db = rq.result; res(true); };
+      rq.onerror = () => { DB.ok = false; res(false); };
+    } catch { DB.ok = false; res(false); }
+  });
+}
+function dbDo(mode, fn) {
+  return new Promise((res, rej) => {
+    if (!DB.db) return rej(new Error("no db"));
+    const tx = DB.db.transaction(DB.store, mode), rq = fn(tx.objectStore(DB.store));
+    tx.oncomplete = () => res(rq && rq.result); tx.onerror = () => rej(tx.error);
+  });
+}
+async function loadSnaps() {
+  if (DB.db) { try { ST.snaps = (await dbDo("readonly", s => s.getAll())) || []; } catch { DB.ok = false; } }
+  ST.snaps.sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+}
+async function saveSnap(s) {
+  s.id = s.id || "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  if (DB.db) { try { await dbDo("readwrite", st => st.put(s)); } catch { DB.ok = false; toast("브라우저 저장소에 쓰지 못했습니다. 이 창에서만 보관됩니다.", true); } }
+  ST.snaps = ST.snaps.filter(x => x.id !== s.id).concat([s]);
+  await loadSnaps(); return s;
+}
+async function delSnap(id) {
+  if (DB.db) { try { await dbDo("readwrite", st => st.delete(id)); } catch {} }
+  ST.snaps = ST.snaps.filter(x => x.id !== id);
+}
+const snapFile = (s) => `aihub_stats_${(s.name || "기록").replace(/[\\/:*?"<>|\s]+/g, "_")}_${(s.created || "").slice(0, 10)}.json`;
+async function loadStatFile(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    const recs = d.kind === "aihub-stats-archive" ? d.records : d.kind === "aihub-stats" ? [d] : null;
+    if (!recs || !recs.length) throw new Error("통계 JSON(kind: aihub-stats)이 아닙니다");
+    let last = null;
+    for (const r of recs) { delete r.id; r.name = r.name || file.name.replace(/\.json$/i, ""); last = await saveSnap(r); }
+    toast(`통계 ${recs.length}건을 불러와 보관했습니다`);
+    go(recs.length === 1 && last ? `#/archive/${encodeURIComponent(last.id)}` : "#/archive");
+  } catch (e) { toast("통계를 불러오지 못했습니다 — " + e.message, true); }
+}
+
+/* ═════════════════════════════════════ 모달 · 토스트 · 메뉴 */
+function modal({ title, body, ok = "확인", danger = false, onOk }) {
+  const el = document.createElement("div");
+  el.className = "modal-overlay";
+  el.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-header"><h2 class="modal-title">${esc(title)}</h2>
+    <button class="btn btn-ghost btn-icon btn-sm" data-x aria-label="닫기">${ico("x")}</button></div><div class="modal-body">${body}</div>
+    <div class="modal-footer"><button class="btn btn-ghost" data-x>취소</button><button class="btn ${danger ? "btn-danger" : "btn-primary"}" data-ok>${esc(ok)}</button></div></div>`;
+  const close = () => { el.remove(); document.removeEventListener("keydown", key); };
+  const key = (e) => { if (e.key === "Escape") close(); };
+  el.addEventListener("click", async (e) => {
+    if (e.target === el || e.target.closest("[data-x]")) return close();
+    if (e.target.closest("[data-ok]")) { e.stopPropagation(); if (await onOk(el) !== false) close(); }
+  });
+  document.addEventListener("keydown", key);
+  document.body.appendChild(el);
+  (el.querySelector("input,textarea") || el.querySelector("[data-ok]")).focus();
+}
+function toast(msg, err) {
+  const t = document.createElement("div"); t.className = "toast" + (err ? " is-error" : ""); t.textContent = msg;
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 5000 : 3000);
+}
+function openMenu(anchor) {
+  document.querySelectorAll(".menu").forEach(m => m.remove());
+  const r = anchor.getBoundingClientRect(), m = document.createElement("div");
+  m.className = "menu"; m.setAttribute("role", "menu");
+  m.innerHTML = `<button role="menuitem" data-m="files">${ico("file")}<span>파일 선택<small>JSON 여러 개를 한꺼번에</small></span></button>
+    <button role="menuitem" data-m="dir">${ico("folder")}<span>폴더 선택<small>하위 폴더의 JSON까지 전부</small></span></button>
+    <button role="menuitem" data-m="sample">${ico("plan")}<span>예시 도면<small>합성 도면 4장 (AI 허브 원본 아님)</small></span></button>`;
+  document.body.appendChild(m);
+  const w = Math.max(240, r.width);
+  m.style.minWidth = w + "px";
+  m.style.left = Math.min(r.left + window.scrollX, innerWidth - w - 8) + "px"; m.style.top = (r.bottom + window.scrollY + 4) + "px";
+  const off = (e) => { if (!m.contains(e.target)) { m.remove(); document.removeEventListener("pointerdown", off, true); } };
+  setTimeout(() => document.addEventListener("pointerdown", off, true));
+  m.querySelector("button").focus();
+  m.onclick = (e) => { const b = e.target.closest("[data-m]"); if (!b) return; m.remove(); ({ files: () => $("#fileIn").click(), dir: () => $("#dirIn").click(), sample: () => ingest(sampleItems()) })[b.dataset.m](); };
+}
+
+/* ═════════════════════════════════════ 내려받기 · 설정 */
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function configJSON() {
+  return JSON.stringify({ version: 1, params: cleanParams(), criteria: ST.criteria.map(c => Object.fromEntries(Object.entries(c).filter(([, v]) => v != null))), dsl: E.toDSL(ST.criteria) }, null, 2);
+}
+async function applyConfig(d, msg) {
+  if (d.criteria && d.criteria.length) ST.criteria = d.criteria.map(c => Object.assign({ agg: "worst", enabled: true, weight: 1, penalty: 0, why: "" }, c));
+  else if (d.dsl) { const p = E.parseDSL(d.dsl); if (p.errors.length) throw new Error(p.errors.join("\n")); ST.criteria = p.criteria; }
+  ST.params = Object.assign(E.defaultParams(), d.params || {});
+  store.set("aihub.criteria", JSON.stringify(ST.criteria)); store.set("aihub.params", JSON.stringify(ST.params));
+  await reprocessAll(); if (msg) toast(msg);
+}
+async function loadConfig(file) {
+  const text = await file.text();
+  try {
+    if (file.name.toLowerCase().endsWith(".json")) { const d = JSON.parse(text); await applyConfig(d.kind === "aihub-stats" ? d.config : d, "설정을 가져왔습니다"); }
+    else { const p = E.parseDSL(text); if (p.errors.length) throw new Error(p.errors.join("\n")); ST.criteria = p.criteria; commitCrit(); toast("조건을 가져왔습니다"); }
+  } catch (e) { toast("설정 파일을 읽지 못했습니다 — " + e.message, true); }
+}
+function csv() {
+  const gk = Object.keys(E.MEASURES).filter(k => E.MEASURES[k].scope === "global");
+  const lines = [["unit", "type", "total", "grade", "base", "penalty", "gated", ...gk.map(k => "@" + k)].join(",")];
+  for (const { r } of allUnits()) lines.push([r.unit, r.type, r.score.total.toFixed(2), r.score.grade, r.score.base.toFixed(2), r.score.penalty.toFixed(2), r.score.gated,
+    ...gk.map(k => r.measures.global[k] == null || !isFinite(r.measures.global[k]) ? "" : +(+r.measures.global[k]).toPrecision(6))].join(","));
+  download("aihub_scores.csv", "﻿" + lines.join("\n"), "text/csv");
+}
+function saveSnapModal() {
+  if (!allUnits().length) return;
+  modal({ title: "현재 통계 보관", ok: "보관",
+    body: `<p style="margin:0 0 16px">지금의 점수·지표와 조건·변수를 한 기록으로 이 브라우저에 남깁니다.${ST.statType ? ` 유형 필터(${esc(ST.statType)})와 관계없이 전체 세대가 들어갑니다.` : ""}</p>
+      <div class="field"><label class="field-label" for="snapName">이름</label><input class="input" id="snapName" placeholder="예: 3R2B 시공성 v1" value="기록 ${ST.snaps.length + 1}"></div>
+      <div class="field" style="margin:0"><label class="field-label" for="snapMemo">메모</label><textarea class="input" id="snapMemo" rows="3" placeholder="이 조건을 쓴 이유, 근거 논문 등"></textarea></div>`,
+    onOk: async (el) => {
+      const s = liveStats(); s.name = el.querySelector("#snapName").value.trim() || `기록 ${ST.snaps.length + 1}`; s.memo = el.querySelector("#snapMemo").value.trim();
+      await saveSnap(s); toast(`‘${s.name}’을(를) 보관했습니다`); render();
+    } });
+}
+
+/* ═════════════════════════════════════ 예시 도면 (합성 — AI 허브 원본이 아님) */
+function sampleItems() {
+  const M = 100, W = 20; let id = 0;
+  const rect = (cid, x, y, w, h) => {
+    const x0 = x * M + W / 2, y0 = y * M + W / 2, x1 = (x + w) * M - W / 2, y1 = (y + h) * M - W / 2;
+    return { id: id++, image_id: 1, category_id: cid, segmentation: [[x0, y0, x1, y0, x1, y1, x0, y1]], area: (x1 - x0) * (y1 - y0), bbox: [x0, y0, x1 - x0, y1 - y0], iscrowd: 0, attributes: { occluded: false } };
+  };
+  const unitA = (ox, oy = 0) => [rect(16, ox, oy + 4, 2, 2), rect(13, ox + 2, oy, 6, 6), rect(15, ox + 8, oy, 3, 3), rect(18, ox + 8, oy + 3, 3, 3),
+    rect(14, ox + 2, oy + 6, 3.4, 3.4), rect(14, ox + 5.4, oy + 6, 2.6, 3), rect(14, ox - 3, oy + 3, 3, 3), rect(17, ox + 2, oy + 9.4, 6, 1.4), rect(18, ox - 3, oy, 3, 3)];
+  const unitB = (ox, oy = 0) => [rect(16, ox, oy + 4, 2, 2), rect(13, ox + 2, oy, 6, 6), rect(15, ox + 8, oy, 3, 3), rect(18, ox + 11, oy, 2, 3),
+    rect(14, ox + 2, oy + 6, 3, 3), rect(14, ox + 2, oy + 9, 3, 3), rect(14, ox + 5, oy + 6, 5.5, 1.8), rect(17, ox + 5, oy + 7.8, 5.5, 1.4)];
+  const unitC = (ox, oy = 0) => [rect(16, ox, oy + 4, 2, 2), rect(13, ox + 2, oy, 7, 6), rect(18, ox + 9, oy, 3, 3),
+    rect(14, ox + 2, oy + 6, 3.5, 3.4), rect(14, ox + 5.5, oy + 6, 3.5, 3.4), rect(17, ox + 2, oy + 9.4, 7, 1.4)];
+  const sheet = (anns) => ({ images: [{ id: 1, width: 4000, height: 2400 }], categories: [], annotations: anns });
+  const a = sheet([...unitA(4), ...unitB(22), rect(3, 16.5, 0, 3, 3)]);
+  id = 0; const b = sheet([...unitA(4), ...unitA(22)]);
+  id = 0; const c = sheet([...unitC(4), ...unitB(22)]);
+  id = 1000;
+  const sr = (cid, x, y, w, h, attr) => ({ ...rect(cid, x, y, w, h), attributes: attr });
+  const str = { images: [{ id: 1 }], categories: [], annotations: [
+    sr(11, 0, 0, 10, .4, { 구조_벽체: "철근콘크리트벽" }), sr(11, 0, 6, 10, .4, { 구조_벽체: "철근콘크리트벽" }),
+    sr(11, 0, 0, .4, 6.4, { 구조_벽체: "철근콘크리트벽" }), sr(11, 9.6, 0, .4, 6.4, { 구조_벽체: "철근콘크리트벽" }),
+    sr(9, 1, -.1, 1.2, .6, { 구조_출입문: "여닫이문" }), sr(10, 1.8, -.1, 2.5, .6, { 창호: "미닫이창" }),
+    sr(10, 6, 5.9, 3, .6, { 창호: "미닫이창" }), sr(9, 9.5, 2, .6, 1, { 구조_출입문: "미닫이문" })] };
+  return [{ name: "예시_SPA_합성_1.json", data: a }, { name: "예시_SPA_합성_2.json", data: b }, { name: "예시_SPA_합성_3.json", data: c }, { name: "예시_STR_합성.json", data: str }];
+}
+
+/* ═════════════════════════════════════ 이벤트 (위임) */
+async function onClick(e) {
+  const a = e.target.closest("[data-act]");
+  if (a && !a.disabled) {
+    const act = a.dataset.act, sid = a.dataset.sid;
+    const snap = sid ? ST.snaps.find(s => s.id === sid) : null;
+    switch (act) {
+      case "openMenu": return openMenu(a);
+      case "sample": return ingest(sampleItems());
+      case "csv": return csv();
+      case "dlLive": { const s = liveStats(ST.statType); s.name = ST.statType ? `유형 ${ST.statType}` : "현재"; return download(snapFile(s), JSON.stringify(s, null, 1), "application/json"); }
+      case "saveSnap": return saveSnapModal();
+      case "loadStat": return $("#statIn").click();
+      case "dlAll": return download(`aihub_stats_archive_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ kind: "aihub-stats-archive", version: 1, records: ST.snaps }, null, 1), "application/json");
+      case "dlSnap": return snap && download(snapFile(snap), JSON.stringify(snap, null, 1), "application/json");
+      case "applySnap": return snap && modal({ title: "보관 기록의 조건·변수 적용", ok: "적용",
+        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 낸 조건 ${int((snap.config.criteria || []).length)}개와 판정 변수로 지금 설정을 바꾸고, 불러온 모든 세대를 다시 채점합니다. 지금 설정을 남기려면 먼저 평가 구조 화면에서 ‘설정 내보내기’를 해 두세요.</p>`,
+        onOk: async () => { await applyConfig(snap.config, `‘${snap.name}’의 조건·변수를 적용했습니다`); go("#/stats"); } });
+      case "delSnap": return snap && modal({ title: "보관 기록 삭제", ok: "삭제", danger: true,
+        body: `<p style="margin:0">‘${esc(snap.name)}’을(를) 이 브라우저에서 지웁니다. 지운 기록은 되돌릴 수 없습니다. 필요하면 먼저 JSON으로 내려받아 두세요.</p>`,
+        onOk: async () => { await delSnap(snap.id); toast("기록을 지웠습니다"); if (ST.route.id) go("#/archive"); else render(); } });
+      case "closeAll": return modal({ title: "도면 모두 빼기", ok: "모두 빼기", danger: true,
+        body: `<p style="margin:0">불러온 도면 ${int(ST.files.length)}개를 목록에서 뺍니다. 원본 파일과 보관 기록은 그대로입니다. 다시 보려면 다시 불러와야 합니다.</p>`,
+        onOk: () => { ST.files = []; ST.fileId = null; ST.unitIdx = -1; if (ST.baseSource === "auto") ST.baseline = null; rescore(); } });
+      case "unroom": ST.room = null; return render();
+      case "preset": ST.criteria = E.parseDSL(E.PRESETS[$("#presetSel").value]).criteria; commitCrit(); return toast(`‘${$("#presetSel").value}’ 세트를 적용했습니다`);
+      case "addCrit": {
+        ST.criteria.push({ measure: "step_depth", scope: "room", room: "bed", mode: "range", effect: "weight", weight: 1, penalty: 0, agg: "worst", enabled: true, why: E.MEASURES.step_depth.hint, best: 2, worst: 4 });
+        commitCrit();
+        const last = $("#critList") && $("#critList").lastElementChild; if (last) { last.scrollIntoView({ block: "center" }); last.querySelector("select")?.focus(); }
+        return;
+      }
+      case "delCrit": { ST.criteria.splice(+a.closest(".crow").dataset.i, 1); return commitCrit(); }
+      case "applyDsl": {
+        const p = E.parseDSL($("#dsl").value);
+        $("#dslErr").textContent = p.errors.join("\n");
+        if (!p.errors.length) { ST.criteria = p.criteria; commitCrit(); toast(`조건 ${p.criteria.length}개를 적용했습니다`); go("#/criteria/list"); }
+        return;
+      }
+      case "cfgIn": return $("#cfgIn").click();
+      case "cfgOut": return download("aihub_config.json", configJSON(), "application/json");
+      case "paramReset": ST.params = E.defaultParams(); store.set("aihub.params", JSON.stringify(ST.params)); return reprocessAll();
+      case "baseAuto": ST.baseSource = "auto"; rebuildBaseline(); rescore(); return toast(ST.baseline ? "불러온 세대로 정답지를 만들었습니다" : "세대가 3개 이상 있어야 정답지를 만들 수 있습니다", !ST.baseline);
+      case "baseLoad": return $("#baseIn").click();
+    }
+    return;
+  }
+  const lay = e.target.closest("[data-l]");
+  if (lay) { const k = lay.dataset.l; ST.layers[k] = !ST.layers[k]; lay.classList.toggle("is-active", ST.layers[k]); lay.setAttribute("aria-pressed", ST.layers[k]); return drawPlan(); }
+  const cl = e.target.closest("[data-close]");
+  if (cl) {
+    const i = ST.files.findIndex(f => f.id === cl.dataset.close); if (i < 0) return;
+    ST.files.splice(i, 1);
+    if (ST.fileId === cl.dataset.close) { const nx = ST.files[i] || ST.files[i - 1]; ST.fileId = null; if (nx) { selectFile(nx.id); history.replaceState(null, "", `#/plans/${nx.id}`); } }
+    if (ST.baseSource === "auto") rebuildBaseline();
+    return rescore();
+  }
+  const fr = e.target.closest(".frow");
+  if (fr) { if (fr.dataset.f !== ST.fileId) { selectFile(fr.dataset.f); history.replaceState(null, "", `#/plans/${fr.dataset.f}`); } return render(); }
+  const ur = e.target.closest(".urow");
+  if (ur) { ST.unitIdx = +ur.dataset.u; ST.room = null; return render(); }
+  const rr = e.target.closest("[data-room]");
+  if (rr) { ST.room = rr.dataset.room === ST.room ? null : rr.dataset.room; return render(); }
+  const ut = e.target.closest("tr.click[data-unit]");
+  if (ut) {
+    for (const f of ST.files) { const i = f.results.findIndex(r => r.unit === ut.dataset.unit); if (i >= 0) { selectFile(f.id); ST.unitIdx = i; return go(`#/plans/${f.id}`); } }
+    return toast("이 세대의 도면 파일이 목록에 없습니다", true);
+  }
+  const op = e.target.closest("[data-open]");
+  if (op) return go(`#/archive/${encodeURIComponent(op.dataset.open)}`);
+}
+(function wire() {
+  document.addEventListener("click", onClick);
+  document.addEventListener("change", (e) => {
+    if (e.target.closest("#critList")) return onCritEdit(e);
+    if (e.target.dataset.p) return onParam(e);
+    if (e.target.id === "statType") { ST.statType = e.target.value; return render(); }
+    if (e.target.id === "unitSort") { ST.unitSort = e.target.value; return render(); }
+  });
+  let qT;
+  document.addEventListener("input", (e) => {
+    if (e.target.id !== "fileQ" && e.target.id !== "archQ") return;
+    const id = e.target.id, key = id === "fileQ" ? "fileQuery" : "archQuery";
+    ST[key] = e.target.value; clearTimeout(qT);
+    qT = setTimeout(() => { const pos = document.getElementById(id)?.selectionStart; render(); const el = document.getElementById(id); if (el) { el.focus(); if (pos != null) el.setSelectionRange(pos, pos); } }, 150);
+  });
+  $("#fileIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
+  $("#dirIn").onchange = (e) => { pickFiles(e.target.files); e.target.value = ""; };
+  $("#cfgIn").onchange = (e) => { if (e.target.files[0]) loadConfig(e.target.files[0]); e.target.value = ""; };
+  $("#statIn").onchange = (e) => { if (e.target.files[0]) loadStatFile(e.target.files[0]); e.target.value = ""; };
+  $("#baseIn").onchange = async (e) => {
+    const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+    try { const b = JSON.parse(await file.text()); if (!b.all) throw new Error("baseline 형식이 아닙니다");
+      ST.baseline = b; ST.baseSource = "file"; rescore(); toast(`정답지 ${int(b.n_units)}세대를 불러왔습니다`); }
+    catch (err) { toast("정답지를 불러오지 못했습니다 — " + err.message, true); }
+  };
+  $("#progCancel").onclick = () => { ST.cancel = true; };
+  $("#menuBtn").onclick = () => $("#sidebar").classList.toggle("open");
+  let dragN = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  window.addEventListener("dragenter", (e) => { if (hasFiles(e)) { dragN++; $("#dropzone").hidden = false; } });
+  window.addEventListener("dragleave", () => { if (--dragN <= 0) { dragN = 0; $("#dropzone").hidden = true; } });
+  window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener("drop", async (e) => {
+    if (!hasFiles(e)) return; e.preventDefault(); dragN = 0; $("#dropzone").hidden = true;
+    const ents = [...(e.dataTransfer.items || [])].map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+    pickFiles(ents.length ? await entriesToFiles(ents) : e.dataTransfer.files);
+  });
+  document.addEventListener("pointermove", (e) => {
+    const t = e.target.closest && e.target.closest("[data-tip]"), tip = $("#tip");
+    if (!t) { tip.hidden = true; return; }
+    tip.textContent = t.dataset.tip; tip.hidden = false;
+    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 12) + "px"; tip.style.top = (e.clientY - 34) + "px";
+  });
+  window.addEventListener("hashchange", onRoute);
+  window.addEventListener("resize", applyView);
+})();
+
+(async function init() {
+  try { const c = JSON.parse(store.get("aihub.criteria") || "null"); if (Array.isArray(c) && c.length) ST.criteria = c; } catch {}
+  try { const p = JSON.parse(store.get("aihub.params") || "null"); if (p) ST.params = Object.assign(E.defaultParams(), p); } catch {}
+  onRoute();
+  await dbOpen(); await loadSnaps(); render();
 })();
 </script>

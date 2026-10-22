@@ -3,14 +3,16 @@
 AI가 생성한 건물 도면을 **좌표로 데이터화**하고, **"좋은 도면"을 수치 함수로 정의**한 뒤,
 서로 다른 방법으로 평가·최적화해 비교하는 실험 도구모음입니다.
 
+**사이트 → https://sapcesyntax.com** (첫 화면 = D 도면 평가 스튜디오 · `/image.html` = A 이미지 분석 스튜디오)
+
 네 갈래로 이루어져 있습니다.
 
 | # | 갈래 | 무엇을 하는가 |
 |---|---|---|
-| **A** | [도면 공간구문 스튜디오 (웹)](#a-도면-공간구문-스튜디오-웹) | **도면 PNG를 올리면** 벽·방·문·좌표를 파싱해 데이터화하고, 입력한 Space Syntax 조건을 자동 적용해 채점 |
+| **A** | [이미지 분석 스튜디오 (웹)](#a-도면-공간구문-스튜디오-웹) | **도면 PNG를 올리면** 벽·방·문·좌표를 파싱해 데이터화하고, 입력한 Space Syntax 조건을 자동 적용해 채점 |
 | **B** | [Space Syntax CLI](#b-space-syntax-cli) | 같은 분석을 명령줄에서. JSON·CSV 내보내기와 규칙 비교 |
 | **C** | [OR-Tools vs D-Wave 벤치마크](#c-or-tools-vs-d-wave-벤치마크) | 동일한 목적 함수를 고전 조합 최적화와 양자 어닐링 계열에 각각 주고 비교 |
-| **D** | [AI 허브 라벨(JSON) 평가 모델](#d-ai-허브-라벨json-평가-모델) | **AI 허브 도면 라벨 JSON을 여러 개 올리면** 도면을 탭별로 그리고, 사용자가 정한 평가 구조(조건·반영방식·변수)로 채점해 통계로 모아 보관·JSON 내보내기 |
+| **D** | [AI 허브 라벨(JSON) 평가 모델](#d-ai-허브-라벨json-평가-모델) — **사이트 첫 화면** | **AI 허브 도면 라벨 JSON을 여러 개 올리면** 도면을 그리고, 사용자가 정한 평가 구조(조건·반영방식·변수)로 채점해 통계로 모아 보관·JSON 내보내기 |
 
 ---
 
@@ -21,8 +23,8 @@ AI가 생성한 건물 도면을 **좌표로 데이터화**하고, **"좋은 도
 uv venv --python 3.12 .venv          # 또는 python3 -m venv .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 
-# A. 웹 앱 — 설치 없이 바로 (도면 PNG를 올리면 됩니다)
-open docs/index.html
+# A. 이미지 분석 웹 앱 — 설치 없이 바로 (도면 PNG를 올리면 됩니다)
+open docs/image.html
 
 # B. Space Syntax 분석
 .venv/bin/python syntax_cli.py --plan-file examples/example_plan.txt --rules standard
@@ -30,8 +32,8 @@ open docs/index.html
 # C. 4단계 파이프라인
 .venv/bin/python main.py --spec apartment_8x8 --env balanced --time-limit 60
 
-# D. AI 허브 라벨 평가 — 웹은 설치 없이 docs/aihub.html, CLI는 표준 라이브러리만 사용
-open docs/aihub.html
+# D. AI 허브 라벨 평가 — 웹은 설치 없이 docs/index.html(사이트 첫 화면), CLI는 표준 라이브러리만 사용
+open docs/index.html
 python aihub_eval.py baseline <02.라벨링데이터> -o out/baseline.json
 python aihub_eval.py score <02.라벨링데이터> --baseline out/baseline.json --stats out/stats.json
 ```
@@ -40,8 +42,8 @@ python aihub_eval.py score <02.라벨링데이터> --baseline out/baseline.json 
 
 ## A. 도면 공간구문 스튜디오 (웹)
 
-**`docs/index.html`** — 의존성 없는 단일 HTML. 서버가 없고, 올린 이미지는 브라우저 밖으로 나가지 않습니다.
-→ **https://imperfective.github.io/floorplan-spacesyntax/**
+**`docs/image.html`** — 의존성 없는 단일 HTML. 서버가 없고, 올린 이미지는 브라우저 밖으로 나가지 않습니다.
+→ **https://sapcesyntax.com/image.html** (`/image`로도 들어갑니다)
 
 ### 하는 일
 
@@ -235,13 +237,13 @@ E(도면) = Σᵢ signᵢ · wᵢ · termᵢ(도면)        sign = −1(보상) 
 
 ## D. AI 허브 라벨(JSON) 평가 모델
 
-→ **https://imperfective.github.io/floorplan-spacesyntax/aihub.html**
+→ **https://sapcesyntax.com** (사이트 첫 화면 · 예전 주소 `/aihub.html`·`/aihub`는 첫 화면으로 넘어갑니다)
 
 PNG 인식 없이 AI 허브 '건축 도면 데이터'의 라벨 JSON(COCO 폴리곤)을 바로 읽어 **도면을 그리고** 세대별로 채점합니다.
 실제 지어진 아파트(AI 허브)를 **정답지**로 삼고, 생성 도면이 ① 시공 가능한지 ② 정답지 분포에 얼마나 가까운지 봅니다.
 **무엇을 어떻게 점수에 넣을지는 사용자가 정합니다**(조건 추가·삭제, 반영방식, 판정 변수).
 
-### 웹 — `docs/aihub.html` (도면 평가 스튜디오)
+### 웹 — `docs/index.html` (도면 평가 스튜디오)
 
 라벨 JSON(SPA·STR·OBJ·OCR)을 **여러 개 또는 폴더째** 불러오면(파일 선택·폴더 선택·화면 어디에나 끌어다 놓기)
 나눠서 처리하며 진행률을 보여 줍니다. 파일은 브라우저 밖으로 나가지 않습니다.
@@ -352,8 +354,9 @@ syntax_cli.py        Space Syntax CLI
 syntax_report.py     Space Syntax 결과 → HTML
 aihub_eval.py        AI 허브 라벨 평가 CLI (baseline · config · score · render · struct)
 
-docs/index.html              도면 공간구문 스튜디오 (이미지 파싱 웹 앱)
-docs/aihub.html              AI 허브 도면 평가 스튜디오 (Works Design System · 통계·도면·평가 구조·보관 기록)
+docs/index.html              도면 평가 스튜디오 = 사이트 첫 화면 (AI 허브 라벨 JSON · Works Design System)
+docs/image.html              이미지 분석 스튜디오 (도면 PNG 파싱 웹 앱)
+docs/aihub.html · aihub/ · image/   예전 주소를 새 위치로 넘기는 이동 페이지
 docs/fonts/                  Pretendard Variable · Red Hat Display (자체 서빙)
 docs/aihub-engine.js         평가 엔진 JS판 — floorplan_bench의 aihub·evaluate·criteria·stats와 같은 값
 docs/grid-editor.html        격자로 직접 그리는 이전 버전
@@ -384,9 +387,8 @@ tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파�
 
 ## 배포
 
-### GitHub Pages (현재)
-
-`docs/` 폴더를 그대로 서빙합니다 → **https://imperfective.github.io/floorplan-spacesyntax/**
+메인 주소는 **https://sapcesyntax.com** 입니다. GitHub Pages는 같은 `docs/`를 그대로 서빙하는 보조 사본입니다
+→ https://imperfective.github.io/floorplan-spacesyntax/
 
 ### sapcesyntax.com (netcup VPS) — 자동 배포
 
@@ -404,7 +406,7 @@ tests/                       AI 허브 평가기 테스트 · 웹 엔진↔파�
 | Secret `SSH_PRIVATE_KEY` | 배포용 개인키 전문 (공개키는 서버 `minkyu`의 `~/.ssh/authorized_keys`에 등록) |
 | Secret `SSH_PORT` · Variable `DEPLOY_PATH` · `SITE_URL` | 선택 — 기본 22 · 위 폴더 · `https://sapcesyntax.com` |
 
-워크플로는 배포 전에 `aihub.html`의 엔진 주소(`aihub-engine.js?v=…`)를 엔진 파일 해시로 바꿉니다
+워크플로는 배포 전에 `index.html`의 엔진 주소(`aihub-engine.js?v=…`)를 엔진 파일 해시로 바꿉니다
 (서버가 `.js`를 1년 캐시하므로 엔진이 바뀔 때만 새로 받게 하기 위함). 배포 후 사이트의 파일이 배포본과 같은지 확인합니다.
 
 로컬에서 같은 일을 하려면 (rsync가 없는 윈도우 Git Bash에서도 됨):

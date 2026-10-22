@@ -51,8 +51,8 @@ jobs:
         # 서버가 .js를 1년 immutable 캐시하므로, 엔진 내용 해시를 주소에 붙여 바뀔 때만 새로 받게 한다
         run: |
           v=$(sha256sum docs/aihub-engine.js | cut -c1-12)
-          sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" docs/aihub.html
-          grep -o 'aihub-engine\.js?v=[^"]*' docs/aihub.html
+          sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" docs/index.html
+          grep -o 'aihub-engine\.js?v=[^"]*' docs/index.html
 
       - name: SSH 키 준비
         env:
@@ -73,7 +73,7 @@ jobs:
 
       - name: 배포 확인
         run: |
-          for f in index.html aihub.html; do
+          for f in index.html image.html; do
             want=$(sha256sum "docs/$f" | cut -c1-64)
             for i in 1 2 3 4 5; do
               got=$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/$f" | sha256sum | cut -c1-64) || got=""
@@ -83,7 +83,7 @@ jobs:
             if [ "$got" != "$want" ]; then echo "::error::$SITE_URL/$f 가 배포본과 다릅니다"; exit 1; fi
             echo "✓ $f"
           done
-          eng=$(grep -o 'aihub-engine\.js?v=[^"]*' docs/aihub.html)
+          eng=$(grep -o 'aihub-engine\.js?v=[^"]*' docs/index.html)
           code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL/$eng")
           [ "$code" = 200 ] || { echo "::error::$eng → $code"; exit 1; }
           echo "✓ $eng"

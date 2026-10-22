@@ -18,7 +18,7 @@ SSH_OPTS=(-o BatchMode=yes)
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 cp -R "$SRC/." "$TMP/"
 v=$(sha256sum "$TMP/aihub-engine.js" | cut -c1-12)
-sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" "$TMP/aihub.html"
+sed -i -E "s#aihub-engine\.js\?v=[^\"]*#aihub-engine.js?v=$v#" "$TMP/index.html"
 
 echo "▸ $SRC  →  $DEPLOY_HOST:$WEBROOT  (engine v=$v)"
 tar -C "$TMP" -cf - . | ssh "${SSH_OPTS[@]}" "$DEPLOY_HOST" "set -e
